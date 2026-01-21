@@ -8,6 +8,9 @@ import ArenaScreen from "@/screens/ArenaScreen";
 import AdminScreen from "@/screens/AdminScreen";
 import AdminCompetitionsScreen from "@/screens/AdminCompetitionsScreen";
 import CreateCompetitionScreen from "@/screens/CreateCompetitionScreen";
+import PvPListScreen from "@/screens/PvPListScreen";
+import PvPNewScreen from "@/screens/PvPNewScreen";
+import PvPDetailScreen from "@/screens/PvPDetailScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { RootStackParamList } from "@/types/navigation";
 
@@ -79,6 +82,27 @@ export default function RootStackNavigator() {
         component={CreateCompetitionScreen}
         options={{
           headerTitle: "Edit Competition",
+        }}
+      />
+      <Stack.Screen
+        name="PvPList"
+        component={PvPListScreen}
+        options={{
+          headerTitle: "PvP Challenges",
+        }}
+      />
+      <Stack.Screen
+        name="PvPNew"
+        component={PvPNewScreen}
+        options={{
+          headerTitle: "New Challenge",
+        }}
+      />
+      <Stack.Screen
+        name="PvPDetail"
+        component={PvPDetailScreen}
+        options={{
+          headerTitle: "Challenge",
         }}
       />
     </Stack.Navigator>

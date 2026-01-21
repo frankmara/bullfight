@@ -8,6 +8,9 @@ export type RootStackParamList = {
   AdminCompetitions: undefined;
   CreateCompetition: undefined;
   EditCompetition: { id: string };
+  PvPList: undefined;
+  PvPNew: undefined;
+  PvPDetail: { id: string };
 };
 
 export type MainTabParamList = {

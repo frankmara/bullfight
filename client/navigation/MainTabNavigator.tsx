@@ -103,6 +103,12 @@ function DesktopNavBar({ activeTab, onTabChange }: {
             onPress={() => onTabChange('DashboardTab')}
           />
           <NavItem
+            icon="users"
+            label="PvP"
+            isActive={false}
+            onPress={() => navigation.navigate('PvPList')}
+          />
+          <NavItem
             icon="user"
             label="Profile"
             isActive={activeTab === 'ProfileTab'}
