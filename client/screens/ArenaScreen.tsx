@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -14,6 +14,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRoute, useNavigation, RouteProp } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withTiming,
+  withSequence,
+  runOnJS,
+} from "react-native-reanimated";
 
 import { ThemedText } from "@/components/ThemedText";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -134,6 +141,10 @@ export default function ArenaScreen() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [activeBlotterTab, setActiveBlotterTab] = useState<BlotterTab>("positions");
   const [timeRemaining, setTimeRemaining] = useState("");
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  
+  const toastOpacity = useSharedValue(0);
+  const searchInputRef = useRef<TextInput>(null);
 
   const { data: arenaData, isLoading } = useQuery<ArenaData>({
     queryKey: ["/api/arena", id],
@@ -199,6 +210,52 @@ export default function ArenaScreen() {
     return () => clearInterval(interval);
   }, [arenaData?.competition.endAt]);
 
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setToast({ message, type });
+    toastOpacity.value = withSequence(
+      withTiming(1, { duration: 200 }),
+      withTiming(1, { duration: 2000 }),
+      withTiming(0, { duration: 300 })
+    );
+    setTimeout(() => setToast(null), 2500);
+  }, [toastOpacity]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+      
+      switch (e.key.toLowerCase()) {
+        case 'b':
+          setOrderSide('buy');
+          showToast('BUY selected', 'info');
+          break;
+        case 's':
+          setOrderSide('sell');
+          showToast('SELL selected', 'info');
+          break;
+        case 'escape':
+          setShowLeaderboard(false);
+          break;
+        case 'k':
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            searchInputRef.current?.focus();
+          }
+          break;
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showToast]);
+
+  const toastAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: toastOpacity.value,
+  }));
+
   const getBasePrice = (pair: string) => {
     const prices: Record<string, number> = {
       "EUR-USD": 1.0875,
@@ -215,9 +272,10 @@ export default function ArenaScreen() {
       const res = await apiRequest("POST", `/api/arena/${id}/orders`, orderData);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/arena", id] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      showToast(`Order placed: ${variables.side.toUpperCase()} ${variables.quantityUnits.toLocaleString()} ${variables.pair}`, 'success');
       setQuantity("10000");
       setLimitPrice("");
       setStopPrice("");
@@ -225,7 +283,7 @@ export default function ArenaScreen() {
       setTakeProfit("");
     },
     onError: (error: any) => {
-      Alert.alert("Order Failed", error.message || "Failed to place order");
+      showToast(error.message || "Failed to place order", 'error');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     },
   });
@@ -238,9 +296,10 @@ export default function ArenaScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/arena", id] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      showToast('Position closed', 'success');
     },
     onError: (error: any) => {
-      Alert.alert("Error", error.message || "Failed to close position");
+      showToast(error.message || "Failed to close position", 'error');
     },
   });
 
@@ -252,9 +311,10 @@ export default function ArenaScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/arena", id] });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      showToast('Order cancelled', 'info');
     },
     onError: (error: any) => {
-      Alert.alert("Error", error.message || "Failed to cancel order");
+      showToast(error.message || "Failed to cancel order", 'error');
     },
   });
 
@@ -920,6 +980,25 @@ export default function ArenaScreen() {
       </View>
     ) : null;
 
+  const renderToast = () =>
+    toast ? (
+      <Animated.View
+        style={[
+          styles.toast,
+          toastAnimatedStyle,
+          toast.type === 'success' && styles.toastSuccess,
+          toast.type === 'error' && styles.toastError,
+        ]}
+      >
+        <Feather
+          name={toast.type === 'success' ? 'check-circle' : toast.type === 'error' ? 'alert-circle' : 'info'}
+          size={16}
+          color="#fff"
+        />
+        <ThemedText style={styles.toastText}>{toast.message}</ThemedText>
+      </Animated.View>
+    ) : null;
+
   if (isDesktop) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -933,19 +1012,23 @@ export default function ArenaScreen() {
           {renderOrderTicket()}
           {renderLeaderboardPanel()}
         </View>
+        {renderToast()}
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.mobileContent}>
-      {renderTopHeader()}
-      {renderWatchlist()}
-      {renderChart()}
-      {renderOrderTicket()}
-      {renderBlotter()}
-      {renderLeaderboardPanel()}
-    </ScrollView>
+    <View style={styles.container}>
+      <ScrollView contentContainerStyle={styles.mobileContent}>
+        {renderTopHeader()}
+        {renderWatchlist()}
+        {renderChart()}
+        {renderOrderTicket()}
+        {renderBlotter()}
+        {renderLeaderboardPanel()}
+      </ScrollView>
+      {renderToast()}
+    </View>
   );
 }
 
@@ -1595,5 +1678,41 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: Colors.dark.textMuted,
     letterSpacing: 1,
+  },
+
+  toast: {
+    position: "absolute",
+    bottom: 80,
+    left: "50%",
+    transform: [{ translateX: -150 }],
+    width: 300,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.dark.backgroundSecondary,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 1000,
+  },
+  toastSuccess: {
+    borderColor: Colors.dark.success,
+    backgroundColor: `${Colors.dark.success}20`,
+  },
+  toastError: {
+    borderColor: Colors.dark.danger,
+    backgroundColor: `${Colors.dark.danger}20`,
+  },
+  toastText: {
+    fontSize: 13,
+    color: Colors.dark.text,
+    flex: 1,
   },
 });
