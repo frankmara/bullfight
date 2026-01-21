@@ -1,5 +1,6 @@
 import React from "react";
-import { View, StyleSheet, FlatList, Image } from "react-native";
+import { View, StyleSheet, FlatList, Platform } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 
@@ -15,52 +16,69 @@ interface LeaderboardProps {
   entries: LeaderboardEntry[];
   currentUserId?: string;
   startingBalanceCents: number;
+  compact?: boolean;
 }
 
-const trophyGold = require("../../attached_assets/generated_images/gold_trophy_first_place.png");
-const trophySilver = require("../../attached_assets/generated_images/silver_trophy_second_place.png");
-const trophyBronze = require("../../attached_assets/generated_images/bronze_trophy_third_place.png");
+const PRIZE_COLORS = {
+  gold: "#FFD700",
+  silver: "#C0C0C0",
+  bronze: "#CD7F32",
+};
 
 export function Leaderboard({
   entries,
   currentUserId,
   startingBalanceCents,
+  compact = false,
 }: LeaderboardProps) {
+  const getRankColor = (rank: number) => {
+    if (rank === 1) return PRIZE_COLORS.gold;
+    if (rank === 2) return PRIZE_COLORS.silver;
+    if (rank === 3) return PRIZE_COLORS.bronze;
+    return Colors.dark.textSecondary;
+  };
+
   const renderItem = ({ item }: { item: LeaderboardEntry }) => {
     const isCurrentUser = item.userId === currentUserId;
     const isPositive = item.returnPct >= 0;
-
-    let trophy = null;
-    if (item.rank === 1) trophy = trophyGold;
-    else if (item.rank === 2) trophy = trophySilver;
-    else if (item.rank === 3) trophy = trophyBronze;
+    const isTopThree = item.rank <= 3;
+    const rankColor = getRankColor(item.rank);
 
     return (
       <View
         style={[
           styles.row,
+          compact && styles.rowCompact,
           isCurrentUser ? styles.currentUserRow : null,
         ]}
       >
-        <View style={styles.rankContainer}>
-          {trophy ? (
-            <Image source={trophy} style={styles.trophy} />
+        <View style={[styles.rankContainer, compact && styles.rankContainerCompact]}>
+          {isTopThree ? (
+            <View style={[styles.rankBadge, { backgroundColor: rankColor + "20" }]}>
+              <Feather name="award" size={compact ? 12 : 14} color={rankColor} />
+              <ThemedText style={[styles.rankNumber, { color: rankColor }]}>
+                {item.rank}
+              </ThemedText>
+            </View>
           ) : (
             <ThemedText style={styles.rank}>{item.rank}</ThemedText>
           )}
         </View>
         <View style={styles.userInfo}>
-          <ThemedText style={styles.email} numberOfLines={1}>
+          <ThemedText style={[styles.email, compact && styles.emailCompact]} numberOfLines={1}>
             {item.userEmail}
           </ThemedText>
         </View>
         <View style={styles.statsContainer}>
-          <ThemedText style={styles.equity}>
-            ${(item.equityCents / 100).toLocaleString()}
-          </ThemedText>
+          {!compact ? (
+            <ThemedText style={styles.equity}>
+              ${(item.equityCents / 100).toLocaleString()}
+            </ThemedText>
+          ) : null}
           <ThemedText
             style={[
               styles.returnPct,
+              compact && styles.returnPctCompact,
               { color: isPositive ? Colors.dark.success : Colors.dark.danger },
             ]}
           >
@@ -73,8 +91,8 @@ export function Leaderboard({
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <View style={[styles.container, compact && styles.containerCompact]}>
+      <View style={[styles.header, compact && styles.headerCompact]}>
         <ThemedText style={styles.headerText}>Rank</ThemedText>
         <ThemedText style={[styles.headerText, styles.headerUser]}>
           Trader
@@ -99,6 +117,10 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     overflow: "hidden",
   },
+  containerCompact: {
+    backgroundColor: "transparent",
+    borderRadius: 0,
+  },
   header: {
     flexDirection: "row",
     paddingVertical: Spacing.sm,
@@ -106,6 +128,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.dark.backgroundSecondary,
     borderBottomWidth: 1,
     borderBottomColor: Colors.dark.border,
+  },
+  headerCompact: {
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
   },
   headerText: {
     fontSize: 11,
@@ -119,7 +145,7 @@ const styles = StyleSheet.create({
     marginLeft: Spacing.lg,
   },
   headerStats: {
-    width: 80,
+    width: 70,
     textAlign: "right",
   },
   row: {
@@ -130,21 +156,36 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.dark.border,
   },
+  rowCompact: {
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+  },
   currentUserRow: {
     backgroundColor: `${Colors.dark.accent}15`,
   },
   rankContainer: {
-    width: 32,
+    width: 44,
     alignItems: "center",
+  },
+  rankContainerCompact: {
+    width: 36,
+  },
+  rankBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.xs,
+  },
+  rankNumber: {
+    fontSize: 12,
+    fontWeight: "700",
   },
   rank: {
     fontSize: 14,
     fontWeight: "600",
     color: Colors.dark.textSecondary,
-  },
-  trophy: {
-    width: 24,
-    height: 24,
   },
   userInfo: {
     flex: 1,
@@ -154,18 +195,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.dark.text,
   },
+  emailCompact: {
+    fontSize: 13,
+  },
   statsContainer: {
-    width: 80,
+    width: 70,
     alignItems: "flex-end",
   },
   equity: {
     fontSize: 12,
     color: Colors.dark.textSecondary,
-    fontFamily: "monospace",
+    fontFamily: Platform.OS === "web" ? "monospace" : undefined,
   },
   returnPct: {
     fontSize: 14,
     fontWeight: "600",
-    fontFamily: "monospace",
+    fontFamily: Platform.OS === "web" ? "monospace" : undefined,
+  },
+  returnPctCompact: {
+    fontSize: 13,
   },
 });

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, StyleSheet, Pressable, Image } from "react-native";
+import { View, StyleSheet, Pressable, Image, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -14,7 +14,9 @@ import { useAuthContext } from "@/context/AuthContext";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/types/navigation";
 
-const logoImage = require("../../assets/images/icon.png");
+const bullLogo = require("../../attached_assets/generated_images/bullfight_app_icon_bull.png");
+
+const isWeb = Platform.OS === "web";
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
@@ -52,107 +54,164 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAwareScrollViewCompat
-      style={styles.container}
-      contentContainerStyle={[
-        styles.content,
-        { paddingTop: insets.top + 60, paddingBottom: insets.bottom + Spacing.xl },
-      ]}
-    >
-      <View style={styles.logoSection}>
-        <Image source={logoImage} style={styles.logo} resizeMode="contain" />
-        <ThemedText style={styles.title}>Welcome Back</ThemedText>
-        <ThemedText style={styles.subtitle}>
-          Sign in to access the arena
-        </ThemedText>
-      </View>
-
-      <View style={styles.form}>
-        {error ? (
-          <View style={styles.errorContainer}>
-            <ThemedText style={styles.errorText}>{error}</ThemedText>
+    <View style={styles.rootContainer}>
+      <KeyboardAwareScrollViewCompat
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { 
+            paddingTop: isWeb ? Spacing["5xl"] : insets.top + 40, 
+            paddingBottom: insets.bottom + Spacing.xl 
+          },
+        ]}
+      >
+        <View style={[styles.card, isWeb ? styles.cardWeb : null]}>
+          <View style={styles.logoSection}>
+            <Image source={bullLogo} style={styles.logo} resizeMode="contain" />
+            <ThemedText style={styles.brandTitle}>BULLFIGHT</ThemedText>
+            <ThemedText style={styles.subtitle}>
+              Sign in to access the arena
+            </ThemedText>
           </View>
-        ) : null}
 
-        <Input
-          label="Email"
-          placeholder="Enter your email"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
+          <View style={styles.form}>
+            {error ? (
+              <View style={styles.errorContainer}>
+                <ThemedText style={styles.errorText}>{error}</ThemedText>
+              </View>
+            ) : null}
 
-        <Input
-          label="Password"
-          placeholder="Enter your password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
+            <View style={styles.inputGroup}>
+              <ThemedText style={styles.inputLabel}>Email</ThemedText>
+              <Input
+                placeholder="Enter your email"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={styles.input}
+              />
+            </View>
 
-        <Button onPress={handleLogin} disabled={isLoading} style={styles.button}>
-          {isLoading ? "Signing in..." : "Sign In"}
-        </Button>
+            <View style={styles.inputGroup}>
+              <ThemedText style={styles.inputLabel}>Password</ThemedText>
+              <Input
+                placeholder="Enter your password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                style={styles.input}
+              />
+            </View>
 
-        <View style={styles.registerSection}>
-          <ThemedText style={styles.registerText}>
-            Don't have an account?{" "}
-          </ThemedText>
-          <Pressable onPress={handleRegister}>
-            <ThemedText style={styles.registerLink}>Sign Up</ThemedText>
-          </Pressable>
+            <Button onPress={handleLogin} disabled={isLoading} style={styles.button}>
+              {isLoading ? "Signing in..." : "Sign In"}
+            </Button>
+
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <ThemedText style={styles.dividerText}>or</ThemedText>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <View style={styles.switchSection}>
+              <ThemedText style={styles.switchText}>
+                Don't have an account?
+              </ThemedText>
+              <Pressable onPress={handleRegister} style={styles.switchButton}>
+                <ThemedText style={styles.switchLink}>Create Account</ThemedText>
+              </Pressable>
+            </View>
+          </View>
         </View>
-      </View>
+      </KeyboardAwareScrollViewCompat>
 
-      {isLoading && (
+      {isLoading ? (
         <View style={styles.loadingOverlay}>
           <LoadingSpinner />
         </View>
-      )}
-    </KeyboardAwareScrollViewCompat>
+      ) : null}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  rootContainer: {
     flex: 1,
     backgroundColor: Colors.dark.backgroundRoot,
   },
-  content: {
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: Spacing.xl,
+    justifyContent: isWeb ? "center" : "flex-start",
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+  },
+  card: {
+    width: "100%",
+    maxWidth: 480,
+    backgroundColor: Colors.dark.backgroundDefault,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    padding: Spacing["2xl"],
+    ...(isWeb ? {
+      boxShadow: "0 4px 24px rgba(0, 0, 0, 0.4)",
+    } : {}),
+  },
+  cardWeb: {
+    padding: Spacing["4xl"],
   },
   logoSection: {
     alignItems: "center",
     marginBottom: Spacing["3xl"],
   },
   logo: {
-    width: 80,
-    height: 80,
+    width: 100,
+    height: 100,
     marginBottom: Spacing.lg,
   },
-  title: {
+  brandTitle: {
     fontSize: 28,
     fontWeight: "700",
     color: Colors.dark.text,
-    marginBottom: Spacing.xs,
+    letterSpacing: 4,
+    marginBottom: Spacing.sm,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 15,
     color: Colors.dark.textSecondary,
+    textAlign: "center",
   },
   form: {
-    flex: 1,
+    width: "100%",
+  },
+  inputGroup: {
+    marginBottom: Spacing.lg,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: Colors.dark.textSecondary,
+    marginBottom: Spacing.sm,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  input: {
+    backgroundColor: Colors.dark.backgroundRoot,
+    borderColor: Colors.dark.border,
+    height: 52,
   },
   errorContainer: {
-    backgroundColor: `${Colors.dark.danger}20`,
+    backgroundColor: `${Colors.dark.danger}15`,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     marginBottom: Spacing.lg,
     borderWidth: 1,
-    borderColor: Colors.dark.danger,
+    borderColor: `${Colors.dark.danger}40`,
   },
   errorText: {
     color: Colors.dark.danger,
@@ -161,24 +220,46 @@ const styles = StyleSheet.create({
   },
   button: {
     marginTop: Spacing.md,
+    height: 52,
   },
-  registerSection: {
+  divider: {
     flexDirection: "row",
-    justifyContent: "center",
+    alignItems: "center",
     marginTop: Spacing["2xl"],
+    marginBottom: Spacing.lg,
   },
-  registerText: {
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.dark.border,
+  },
+  dividerText: {
+    fontSize: 13,
+    color: Colors.dark.textMuted,
+    marginHorizontal: Spacing.md,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  switchSection: {
+    alignItems: "center",
+  },
+  switchText: {
     fontSize: 14,
     color: Colors.dark.textSecondary,
+    marginBottom: Spacing.sm,
   },
-  registerLink: {
-    fontSize: 14,
+  switchButton: {
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+  },
+  switchLink: {
+    fontSize: 15,
     color: Colors.dark.accent,
     fontWeight: "600",
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(10, 10, 10, 0.75)",
+    backgroundColor: "rgba(10, 10, 10, 0.85)",
     justifyContent: "center",
     alignItems: "center",
   },

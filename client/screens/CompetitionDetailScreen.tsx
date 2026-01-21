@@ -3,8 +3,9 @@ import {
   View,
   StyleSheet,
   ScrollView,
-  Image,
   Alert,
+  Platform,
+  Dimensions,
 } from "react-native";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -22,10 +23,6 @@ import { useAuthContext } from "@/context/AuthContext";
 import { apiRequest } from "@/lib/query-client";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/types/navigation";
-
-const trophyGold = require("../../attached_assets/generated_images/gold_trophy_first_place.png");
-const trophySilver = require("../../attached_assets/generated_images/silver_trophy_second_place.png");
-const trophyBronze = require("../../attached_assets/generated_images/bronze_trophy_third_place.png");
 
 interface CompetitionDetail {
   id: string;
@@ -58,6 +55,36 @@ interface LeaderboardEntry {
   returnPct: number;
 }
 
+const DESKTOP_BREAKPOINT = 768;
+const MAX_CONTENT_WIDTH = 900;
+
+const useIsDesktop = () => {
+  const [isDesktop, setIsDesktop] = useState(() => {
+    if (Platform.OS === "web") {
+      return Dimensions.get("window").width >= DESKTOP_BREAKPOINT;
+    }
+    return false;
+  });
+
+  React.useEffect(() => {
+    if (Platform.OS !== "web") return;
+
+    const subscription = Dimensions.addEventListener("change", ({ window }) => {
+      setIsDesktop(window.width >= DESKTOP_BREAKPOINT);
+    });
+
+    return () => subscription?.remove();
+  }, []);
+
+  return isDesktop;
+};
+
+const PRIZE_COLORS = {
+  gold: "#FFD700",
+  silver: "#C0C0C0",
+  bronze: "#CD7F32",
+};
+
 export default function CompetitionDetailScreen() {
   const insets = useSafeAreaInsets();
   const route = useRoute<RouteProp<RootStackParamList, "CompetitionDetail">>();
@@ -65,6 +92,7 @@ export default function CompetitionDetailScreen() {
   const queryClient = useQueryClient();
   const { user, isAuthenticated } = useAuthContext();
   const { id } = route.params;
+  const isDesktop = useIsDesktop();
 
   const [isJoining, setIsJoining] = useState(false);
 
@@ -151,170 +179,202 @@ export default function CompetitionDetailScreen() {
     competition.isJoined &&
     (competition.status === "open" || competition.status === "running");
 
+  const getPrizeColor = (index: number) => {
+    if (index === 0) return PRIZE_COLORS.gold;
+    if (index === 1) return PRIZE_COLORS.silver;
+    return PRIZE_COLORS.bronze;
+  };
+
+  const getPrizeLabel = (index: number) => {
+    if (index === 0) return "1st";
+    if (index === 1) return "2nd";
+    return "3rd";
+  };
+
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={[
         styles.content,
-        { paddingTop: insets.top + 60, paddingBottom: insets.bottom + Spacing.xl },
+        { 
+          paddingTop: insets.top + 60, 
+          paddingBottom: insets.bottom + Spacing.xl,
+          alignItems: isDesktop ? "center" : "stretch",
+        },
       ]}
     >
-      <View style={styles.header}>
-        <ThemedText style={styles.title}>{competition.title}</ThemedText>
-        <StatusBadge status={competition.status} size="medium" />
-      </View>
+      <View style={[styles.innerContainer, isDesktop && styles.desktopContainer]}>
+        <View style={[styles.heroSection, Platform.OS === "web" && styles.heroSectionWeb]}>
+          <View style={styles.heroHeader}>
+            <View style={styles.heroTitleContainer}>
+              <ThemedText style={styles.title}>{competition.title}</ThemedText>
+              <StatusBadge status={competition.status} size="medium" />
+            </View>
+            {competition.theme ? (
+              <ThemedText style={styles.theme}>{competition.theme}</ThemedText>
+            ) : null}
+          </View>
+          <View style={styles.heroDates}>
+            <View style={styles.dateItem}>
+              <Feather name="play-circle" size={14} color={Colors.dark.textMuted} />
+              <ThemedText style={styles.dateLabel}>Starts</ThemedText>
+              <ThemedText style={styles.dateValue}>{formatDate(competition.startAt)}</ThemedText>
+            </View>
+            <View style={styles.dateDivider} />
+            <View style={styles.dateItem}>
+              <Feather name="flag" size={14} color={Colors.dark.textMuted} />
+              <ThemedText style={styles.dateLabel}>Ends</ThemedText>
+              <ThemedText style={styles.dateValue}>{formatDate(competition.endAt)}</ThemedText>
+            </View>
+          </View>
+          {competition.description ? (
+            <ThemedText style={styles.description}>{competition.description}</ThemedText>
+          ) : null}
+        </View>
 
-      {competition.theme ? (
-        <ThemedText style={styles.theme}>{competition.theme}</ThemedText>
-      ) : null}
-
-      {competition.description ? (
-        <ThemedText style={styles.description}>{competition.description}</ThemedText>
-      ) : null}
-
-      <View style={styles.prizeSection}>
-        <ThemedText style={styles.sectionLabel}>PRIZE POOL</ThemedText>
-        <ThemedText style={styles.prizeAmount}>
-          {formatCurrency(competition.prizePoolCents)}
-        </ThemedText>
-        <ThemedText style={styles.prizeNote}>
-          {100 - competition.rakeBps / 100}% of buy-ins
-        </ThemedText>
-      </View>
-
-      <View style={styles.prizeDistribution}>
-        <ThemedText style={styles.sectionTitle}>Prize Distribution</ThemedText>
-        <View style={styles.prizeList}>
-          {prizeSplits.slice(0, 3).map((pct, index) => (
-            <View key={index} style={styles.prizeItem}>
-              <Image
-                source={
-                  index === 0
-                    ? trophyGold
-                    : index === 1
-                    ? trophySilver
-                    : trophyBronze
-                }
-                style={styles.trophyIcon}
-              />
-              <View style={styles.prizeItemText}>
-                <ThemedText style={styles.prizePlace}>
-                  {index === 0 ? "1st" : index === 1 ? "2nd" : "3rd"} Place
-                </ThemedText>
-                <ThemedText style={styles.prizePercent}>{pct}%</ThemedText>
+        <View style={[styles.mainContent, isDesktop && styles.desktopGrid]}>
+          <View style={[styles.leftColumn, isDesktop && styles.desktopLeftColumn]}>
+            <View style={[styles.prizePoolCard, Platform.OS === "web" && styles.prizePoolCardWeb]}>
+              <View style={styles.prizePoolHeader}>
+                <Feather name="award" size={20} color={Colors.dark.gold} />
+                <ThemedText style={styles.prizePoolLabel}>PRIZE POOL</ThemedText>
               </View>
-              <ThemedText style={styles.prizeValue}>
-                {formatCurrency(prizeAmounts[index])}
+              <ThemedText style={styles.prizePoolAmount}>
+                {formatCurrency(competition.prizePoolCents)}
               </ThemedText>
+              <ThemedText style={styles.prizePoolNote}>
+                {100 - competition.rakeBps / 100}% of buy-ins distributed
+              </ThemedText>
+              
+              <View style={styles.prizeBreakdown}>
+                {prizeSplits.slice(0, 3).map((pct, index) => (
+                  <View key={index} style={styles.prizeRow}>
+                    <View style={[styles.prizeRankBadge, { backgroundColor: getPrizeColor(index) + "20" }]}>
+                      <ThemedText style={[styles.prizeRankText, { color: getPrizeColor(index) }]}>
+                        {getPrizeLabel(index)}
+                      </ThemedText>
+                    </View>
+                    <View style={styles.prizeDotLine}>
+                      <View style={[styles.prizeDot, { backgroundColor: getPrizeColor(index) }]} />
+                      <View style={styles.priceLine} />
+                    </View>
+                    <View style={styles.prizeAmountContainer}>
+                      <ThemedText style={styles.prizeAmount}>
+                        {formatCurrency(prizeAmounts[index])}
+                      </ThemedText>
+                      <ThemedText style={styles.prizePct}>{pct}%</ThemedText>
+                    </View>
+                  </View>
+                ))}
+              </View>
             </View>
-          ))}
-        </View>
-      </View>
 
-      <View style={styles.detailsSection}>
-        <ThemedText style={styles.sectionTitle}>Competition Details</ThemedText>
-        <View style={styles.detailsGrid}>
-          <View style={styles.detailItem}>
-            <Feather name="dollar-sign" size={16} color={Colors.dark.textSecondary} />
-            <ThemedText style={styles.detailLabel}>Buy-in</ThemedText>
-            <ThemedText style={styles.detailValue}>
-              {formatCurrency(competition.buyInCents)}
-            </ThemedText>
-          </View>
-          <View style={styles.detailItem}>
-            <Feather name="users" size={16} color={Colors.dark.textSecondary} />
-            <ThemedText style={styles.detailLabel}>Entries</ThemedText>
-            <ThemedText style={styles.detailValue}>
-              {competition.entryCount} / {competition.entryCap}
-            </ThemedText>
-          </View>
-          <View style={styles.detailItem}>
-            <Feather name="calendar" size={16} color={Colors.dark.textSecondary} />
-            <ThemedText style={styles.detailLabel}>Starts</ThemedText>
-            <ThemedText style={styles.detailValue}>
-              {formatDate(competition.startAt)}
-            </ThemedText>
-          </View>
-          <View style={styles.detailItem}>
-            <Feather name="flag" size={16} color={Colors.dark.textSecondary} />
-            <ThemedText style={styles.detailLabel}>Ends</ThemedText>
-            <ThemedText style={styles.detailValue}>
-              {formatDate(competition.endAt)}
-            </ThemedText>
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.rulesSection}>
-        <ThemedText style={styles.sectionTitle}>Trading Rules</ThemedText>
-        <View style={styles.rulesList}>
-          <View style={styles.ruleItem}>
-            <ThemedText style={styles.ruleLabel}>Starting Balance</ThemedText>
-            <ThemedText style={styles.ruleValue}>
-              {formatCurrency(competition.startingBalanceCents)}
-            </ThemedText>
-          </View>
-          <View style={styles.ruleItem}>
-            <ThemedText style={styles.ruleLabel}>Spread Markup</ThemedText>
-            <ThemedText style={styles.ruleValue}>
-              {competition.spreadMarkupPips} pips
-            </ThemedText>
-          </View>
-          <View style={styles.ruleItem}>
-            <ThemedText style={styles.ruleLabel}>Max Slippage</ThemedText>
-            <ThemedText style={styles.ruleValue}>
-              {competition.maxSlippagePips} pips
-            </ThemedText>
-          </View>
-          <View style={styles.ruleItem}>
-            <ThemedText style={styles.ruleLabel}>Order Interval</ThemedText>
-            <ThemedText style={styles.ruleValue}>
-              {competition.minOrderIntervalMs}ms min
-            </ThemedText>
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.pairsSection}>
-        <ThemedText style={styles.sectionTitle}>Allowed Pairs</ThemedText>
-        <View style={styles.pairsList}>
-          {competition.allowedPairsJson?.map((pair) => (
-            <View key={pair} style={styles.pairTag}>
-              <ThemedText style={styles.pairText}>{pair}</ThemedText>
+            <View style={styles.entryCard}>
+              <ThemedText style={styles.cardTitle}>Entry Information</ThemedText>
+              <View style={styles.entryGrid}>
+                <View style={styles.entryItem}>
+                  <Feather name="dollar-sign" size={16} color={Colors.dark.accent} />
+                  <ThemedText style={styles.entryLabel}>Buy-in</ThemedText>
+                  <ThemedText style={styles.entryValue}>
+                    {formatCurrency(competition.buyInCents)}
+                  </ThemedText>
+                </View>
+                <View style={styles.entryItem}>
+                  <Feather name="users" size={16} color={Colors.dark.accent} />
+                  <ThemedText style={styles.entryLabel}>Entries</ThemedText>
+                  <ThemedText style={styles.entryValue}>
+                    {competition.entryCount} / {competition.entryCap}
+                  </ThemedText>
+                </View>
+                <View style={styles.entryItem}>
+                  <Feather name="briefcase" size={16} color={Colors.dark.accent} />
+                  <ThemedText style={styles.entryLabel}>Starting Balance</ThemedText>
+                  <ThemedText style={styles.entryValue}>
+                    {formatCurrency(competition.startingBalanceCents)}
+                  </ThemedText>
+                </View>
+                <View style={styles.entryItem}>
+                  <Feather name="percent" size={16} color={Colors.dark.accent} />
+                  <ThemedText style={styles.entryLabel}>Max Drawdown</ThemedText>
+                  <ThemedText style={styles.entryValue}>
+                    {competition.maxDrawdownPct ? `${competition.maxDrawdownPct}%` : "None"}
+                  </ThemedText>
+                </View>
+              </View>
             </View>
-          ))}
-        </View>
-      </View>
 
-      {leaderboard && leaderboard.length > 0 ? (
-        <View style={styles.leaderboardSection}>
-          <ThemedText style={styles.sectionTitle}>Current Standings</ThemedText>
-          <Leaderboard
-            entries={leaderboard.slice(0, 5)}
-            currentUserId={user?.id}
-            startingBalanceCents={competition.startingBalanceCents}
-          />
-        </View>
-      ) : null}
+            <View style={styles.rulesCard}>
+              <ThemedText style={styles.cardTitle}>Trading Rules</ThemedText>
+              <View style={styles.rulesList}>
+                <View style={styles.ruleRow}>
+                  <ThemedText style={styles.ruleLabel}>Spread Markup</ThemedText>
+                  <ThemedText style={styles.ruleValue}>{competition.spreadMarkupPips} pips</ThemedText>
+                </View>
+                <View style={styles.ruleRow}>
+                  <ThemedText style={styles.ruleLabel}>Max Slippage</ThemedText>
+                  <ThemedText style={styles.ruleValue}>{competition.maxSlippagePips} pips</ThemedText>
+                </View>
+                <View style={styles.ruleRow}>
+                  <ThemedText style={styles.ruleLabel}>Order Interval</ThemedText>
+                  <ThemedText style={styles.ruleValue}>{competition.minOrderIntervalMs}ms min</ThemedText>
+                </View>
+              </View>
+              
+              <ThemedText style={styles.pairsLabel}>Allowed Pairs</ThemedText>
+              <View style={styles.pairsList}>
+                {competition.allowedPairsJson?.map((pair) => (
+                  <View key={pair} style={styles.pairTag}>
+                    <ThemedText style={styles.pairText}>{pair}</ThemedText>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </View>
 
-      <View style={styles.actionSection}>
-        {canJoin && (
-          <Button onPress={handleJoin} disabled={isJoining} style={styles.actionButton}>
-            {isJoining
-              ? "Joining..."
-              : `Join Competition - ${formatCurrency(competition.buyInCents)}`}
-          </Button>
-        )}
-        {canEnter && (
-          <Button onPress={handleEnterArena} style={styles.actionButton}>
-            Enter Trading Arena
-          </Button>
-        )}
-        {!isAuthenticated && (
-          <Button onPress={() => navigation.navigate("Login")} style={styles.actionButton}>
-            Sign In to Join
-          </Button>
-        )}
+          <View style={[styles.rightColumn, isDesktop && styles.desktopRightColumn]}>
+            {leaderboard && leaderboard.length > 0 ? (
+              <View style={styles.leaderboardCard}>
+                <View style={styles.leaderboardHeader}>
+                  <Feather name="trending-up" size={18} color={Colors.dark.accent} />
+                  <ThemedText style={styles.cardTitle}>Live Standings</ThemedText>
+                </View>
+                <Leaderboard
+                  entries={leaderboard.slice(0, 10)}
+                  currentUserId={user?.id}
+                  startingBalanceCents={competition.startingBalanceCents}
+                  compact
+                />
+              </View>
+            ) : (
+              <View style={styles.noLeaderboardCard}>
+                <Feather name="bar-chart-2" size={32} color={Colors.dark.textMuted} />
+                <ThemedText style={styles.noLeaderboardText}>
+                  Leaderboard will appear once the competition starts
+                </ThemedText>
+              </View>
+            )}
+          </View>
+        </View>
+
+        <View style={styles.actionSection}>
+          {canJoin ? (
+            <Button onPress={handleJoin} disabled={isJoining} style={styles.actionButton}>
+              {isJoining
+                ? "Joining..."
+                : `Join Competition - ${formatCurrency(competition.buyInCents)}`}
+            </Button>
+          ) : null}
+          {canEnter ? (
+            <Button onPress={handleEnterArena} style={styles.actionButton}>
+              Enter Trading Arena
+            </Button>
+          ) : null}
+          {!isAuthenticated ? (
+            <Button onPress={() => navigation.navigate("Login")} style={styles.actionButton}>
+              Sign In to Join
+            </Button>
+          ) : null}
+        </View>
       </View>
     </ScrollView>
   );
@@ -329,6 +389,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     flexGrow: 1,
   },
+  innerContainer: {
+    width: "100%",
+  },
+  desktopContainer: {
+    maxWidth: MAX_CONTENT_WIDTH,
+    width: "100%",
+  },
   loadingContainer: {
     justifyContent: "center",
     alignItems: "center",
@@ -337,7 +404,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.dark.textSecondary,
   },
-  header: {
+  heroSection: {
+    marginBottom: Spacing.xl,
+    backgroundColor: Colors.dark.backgroundDefault,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xl,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  heroSectionWeb: {
+    boxShadow: "0 4px 24px rgba(0, 0, 0, 0.4)",
+  } as any,
+  heroHeader: {
+    marginBottom: Spacing.md,
+  },
+  heroTitleContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
@@ -353,120 +434,199 @@ const styles = StyleSheet.create({
   theme: {
     fontSize: 14,
     color: Colors.dark.textSecondary,
+  },
+  heroDates: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.dark.backgroundSecondary,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
     marginBottom: Spacing.md,
   },
+  dateItem: {
+    flex: 1,
+    alignItems: "center",
+  },
+  dateLabel: {
+    fontSize: 11,
+    color: Colors.dark.textMuted,
+    marginTop: Spacing.xs,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  dateValue: {
+    fontSize: 13,
+    color: Colors.dark.text,
+    fontWeight: "600",
+    marginTop: Spacing.xs,
+  },
+  dateDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: Colors.dark.border,
+    marginHorizontal: Spacing.md,
+  },
   description: {
-    fontSize: 15,
+    fontSize: 14,
     color: Colors.dark.textSecondary,
-    lineHeight: 22,
+    lineHeight: 20,
+  },
+  mainContent: {
     marginBottom: Spacing.xl,
   },
-  prizeSection: {
+  desktopGrid: {
+    flexDirection: "row",
+    gap: Spacing.xl,
+  },
+  leftColumn: {
+    flex: 1,
+  },
+  desktopLeftColumn: {
+    flex: 1.2,
+  },
+  rightColumn: {
+    marginTop: Spacing.lg,
+  },
+  desktopRightColumn: {
+    flex: 0.8,
+    marginTop: 0,
+  },
+  prizePoolCard: {
     backgroundColor: Colors.dark.backgroundDefault,
     borderRadius: BorderRadius.lg,
     padding: Spacing.xl,
-    alignItems: "center",
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.lg,
     borderWidth: 1,
-    borderColor: Colors.dark.gold,
+    borderColor: Colors.dark.gold + "40",
   },
-  sectionLabel: {
-    fontSize: 11,
+  prizePoolCardWeb: {
+    boxShadow: "0 2px 16px rgba(255, 215, 0, 0.1)",
+  } as any,
+  prizePoolHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  prizePoolLabel: {
+    fontSize: 12,
     fontWeight: "600",
-    color: Colors.dark.textMuted,
-    letterSpacing: 1,
-    marginBottom: Spacing.sm,
-  },
-  prizeAmount: {
-    fontSize: 40,
-    fontWeight: "700",
     color: Colors.dark.gold,
+    letterSpacing: 1,
   },
-  prizeNote: {
+  prizePoolAmount: {
+    fontSize: 42,
+    fontWeight: "700",
+    color: Colors.dark.text,
+    fontFamily: Platform.OS === "web" ? "monospace" : undefined,
+  },
+  prizePoolNote: {
     fontSize: 12,
     color: Colors.dark.textMuted,
     marginTop: Spacing.xs,
-  },
-  prizeDistribution: {
     marginBottom: Spacing.xl,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: Colors.dark.text,
-    marginBottom: Spacing.md,
+  prizeBreakdown: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.dark.border,
+    paddingTop: Spacing.lg,
   },
-  prizeList: {
-    backgroundColor: Colors.dark.backgroundDefault,
-    borderRadius: BorderRadius.md,
-    overflow: "hidden",
-  },
-  prizeItem: {
+  prizeRow: {
     flexDirection: "row",
     alignItems: "center",
-    padding: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.dark.border,
+    marginBottom: Spacing.md,
   },
-  trophyIcon: {
-    width: 32,
-    height: 32,
-    marginRight: Spacing.md,
+  prizeRankBadge: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    width: 50,
+    alignItems: "center",
   },
-  prizeItemText: {
+  prizeRankText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  prizeDotLine: {
+    flexDirection: "row",
+    alignItems: "center",
     flex: 1,
+    marginHorizontal: Spacing.md,
   },
-  prizePlace: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: Colors.dark.text,
+  prizeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
-  prizePercent: {
-    fontSize: 12,
-    color: Colors.dark.textMuted,
+  priceLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.dark.border,
+    marginLeft: Spacing.sm,
   },
-  prizeValue: {
+  prizeAmountContainer: {
+    alignItems: "flex-end",
+  },
+  prizeAmount: {
     fontSize: 18,
     fontWeight: "700",
     color: Colors.dark.text,
-    fontFamily: "monospace",
+    fontFamily: Platform.OS === "web" ? "monospace" : undefined,
   },
-  detailsSection: {
-    marginBottom: Spacing.xl,
+  prizePct: {
+    fontSize: 11,
+    color: Colors.dark.textMuted,
   },
-  detailsGrid: {
+  entryCard: {
+    backgroundColor: Colors.dark.backgroundDefault,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xl,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: Colors.dark.text,
+    marginBottom: Spacing.lg,
+  },
+  entryGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
+    marginHorizontal: -Spacing.xs,
   },
-  detailItem: {
+  entryItem: {
     width: "50%",
-    backgroundColor: Colors.dark.backgroundDefault,
-    padding: Spacing.md,
-    marginBottom: Spacing.sm,
-    borderRadius: BorderRadius.sm,
+    padding: Spacing.xs,
+    marginBottom: Spacing.md,
   },
-  detailLabel: {
+  entryLabel: {
     fontSize: 12,
     color: Colors.dark.textMuted,
-    marginTop: Spacing.xs,
+    marginTop: Spacing.sm,
   },
-  detailValue: {
-    fontSize: 14,
+  entryValue: {
+    fontSize: 16,
     fontWeight: "600",
     color: Colors.dark.text,
     marginTop: Spacing.xs,
   },
-  rulesSection: {
-    marginBottom: Spacing.xl,
+  rulesCard: {
+    backgroundColor: Colors.dark.backgroundDefault,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xl,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
   },
   rulesList: {
-    backgroundColor: Colors.dark.backgroundDefault,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
+    marginBottom: Spacing.lg,
   },
-  ruleItem: {
+  ruleRow: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.dark.border,
@@ -479,29 +639,62 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: Colors.dark.text,
+    fontFamily: Platform.OS === "web" ? "monospace" : undefined,
   },
-  pairsSection: {
-    marginBottom: Spacing.xl,
+  pairsLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Colors.dark.textMuted,
+    marginBottom: Spacing.sm,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   pairsList: {
     flexDirection: "row",
     flexWrap: "wrap",
+    gap: Spacing.sm,
   },
   pairTag: {
     backgroundColor: Colors.dark.backgroundSecondary,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.sm,
-    marginRight: Spacing.sm,
-    marginBottom: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.dark.accent + "30",
   },
   pairText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "600",
     color: Colors.dark.accent,
   },
-  leaderboardSection: {
-    marginBottom: Spacing.xl,
+  leaderboardCard: {
+    backgroundColor: Colors.dark.backgroundDefault,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  leaderboardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  noLeaderboardCard: {
+    backgroundColor: Colors.dark.backgroundDefault,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xl,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 200,
+  },
+  noLeaderboardText: {
+    fontSize: 14,
+    color: Colors.dark.textMuted,
+    textAlign: "center",
+    marginTop: Spacing.md,
   },
   actionSection: {
     marginTop: Spacing.lg,
