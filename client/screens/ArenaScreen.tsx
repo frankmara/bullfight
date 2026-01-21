@@ -20,6 +20,7 @@ import { Button } from "@/components/Button";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Leaderboard } from "@/components/Leaderboard";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { TradingViewChart } from "@/components/TradingViewChart";
 import { useAuthContext } from "@/context/AuthContext";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
@@ -350,6 +351,10 @@ export default function ArenaScreen() {
               </View>
             </View>
           ) : null}
+        </View>
+
+        <View style={styles.chartSection}>
+          <TradingViewChart pair={selectedPair} height={350} />
         </View>
 
         <View style={styles.orderSection}>
@@ -733,6 +738,11 @@ const styles = StyleSheet.create({
   spreadText: {
     fontSize: 11,
     color: Colors.dark.textMuted,
+  },
+  chartSection: {
+    marginBottom: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    overflow: "hidden",
   },
   orderSection: {
     backgroundColor: Colors.dark.backgroundDefault,
