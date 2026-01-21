@@ -96,6 +96,30 @@ Key entities defined in the schema:
 - Navigation component: `/client/navigation/MainTabNavigator.tsx` handles both layouts
 - Screens use safe header/tab bar height detection for proper spacing
 
+### Professional Trading Terminal (Arena)
+- 3-column desktop layout: watchlist (left), chart (center), order ticket (right)
+- Top header with comprehensive metrics: Balance, Equity, P&L, Return%, Rank, Drawdown
+- Enhanced watchlist: search input, favorite symbols with stars, tick indicators (up/down arrows), spread display
+- Order ticket: one-click trading toggle, BUY/SELL buttons with live prices, quick size buttons (1K-100K), SL/TP inputs
+- Tabbed bottom blotter: Positions, Orders, History tabs with dense sortable tables
+- Chart overlays: position entry lines, pending order lines, SL/TP price lines using lightweight-charts createPriceLine API
+- Collapsible leaderboard panel slides in from right side
+
+### Keyboard Shortcuts
+- B = Buy at market
+- S = Sell at market
+- ESC = Close leaderboard panel
+- Ctrl+K = Focus watchlist search
+
+### Toast Notification System
+- Animated toast notifications for order success/error/info using react-native-reanimated
+- Fade in/out animations with slide transitions
+
+### Backend API Additions
+- PUT `/api/arena/:id/positions/:positionId` - Modify SL/TP on positions
+- POST `/api/arena/:id/positions/:positionId/partial-close` - Partial close positions
+- PUT `/api/arena/:id/orders/:orderId` - Modify pending orders (price, SL/TP)
+
 ### Admin
 - fjmara@outlook.com has admin role
 - Admin can set competition status via database updates

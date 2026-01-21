@@ -220,8 +220,13 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
         updateIntervalRef.current = setInterval(() => {
           if (candlestickSeriesRef.current && lastDataRef.current) {
             const newCandle = generateNewCandle(pair, lastDataRef.current);
-            candlestickSeriesRef.current.update(newCandle);
-            lastDataRef.current = newCandle;
+            if (newCandle.time >= lastDataRef.current.time) {
+              try {
+                candlestickSeriesRef.current.update(newCandle);
+                lastDataRef.current = newCandle;
+              } catch (e) {
+              }
+            }
           }
         }, 5000);
 
