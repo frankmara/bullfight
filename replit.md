@@ -70,3 +70,26 @@ Key entities defined in the schema:
 - Custom fonts via `@expo-google-fonts/nunito`
 - Haptic feedback via `expo-haptics`
 - Async storage for client-side auth persistence
+
+## Recent Changes (January 2026)
+
+### Desktop-First UI Redesign
+- Complete UI redesign with dark fire-and-ash theme (#0A0A0A black, #FF3B3B red accents)
+- Desktop-first responsive layouts across all screens
+- Removed all stock images; bull icon logo used prominently throughout
+- Professional trading terminal layout in Arena screen
+
+### TradingView Integration
+- Integrated lightweight-charts v5 for candlestick charting in Arena
+- Chart component: `/client/components/TradingViewChart.tsx`
+- Uses `chart.addSeries(CandlestickSeries, options)` for v5 API compatibility
+- Real-time simulated price data with 1-minute candle updates
+
+### Trading Flow
+- Late entry enabled: users can join both "open" and "running" competitions
+- Arena layout: left instruments sidebar, center chart, right order panel, bottom positions/orders
+- Full trading flow: register → join competition → place orders → view positions
+
+### Admin
+- fjmara@outlook.com has admin role
+- Admin can set competition status via database updates
