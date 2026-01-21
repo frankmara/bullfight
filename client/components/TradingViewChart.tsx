@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Platform, View, Text, StyleSheet } from 'react-native';
 import { Colors, Spacing } from '@/constants/theme';
 
-// Only import lightweight-charts on web
 let createChart: any = null;
 let CandlestickSeries: any = null;
 if (Platform.OS === 'web') {
@@ -23,16 +22,42 @@ interface CandleData {
   close: number;
 }
 
+interface Position {
+  id: string;
+  pair: string;
+  side: string;
+  quantityUnits: number;
+  avgEntryPrice: number;
+  unrealizedPnlCents: number;
+  stopLossPrice?: number;
+  takeProfitPrice?: number;
+}
+
+interface PendingOrder {
+  id: string;
+  pair: string;
+  side: string;
+  type: string;
+  quantityUnits: number;
+  limitPrice?: number;
+  stopPrice?: number;
+  stopLossPrice?: number;
+  takeProfitPrice?: number;
+}
+
 interface TradingViewChartProps {
   pair: string;
   height?: number;
+  positions?: Position[];
+  orders?: PendingOrder[];
 }
 
 export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
-  ({ pair, height = 400 }, ref) => {
+  ({ pair, height = 400, positions = [], orders = [] }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<any>(null);
     const candlestickSeriesRef = useRef<any>(null);
+    const priceLinesRef = useRef<any[]>([]);
     const updateIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const lastDataRef = useRef<CandleData | null>(null);
     const [isClient, setIsClient] = useState(false);
@@ -41,12 +66,11 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
       setIsClient(true);
     }, []);
 
-    // Generate initial candlestick data
     const generateInitialData = (pair: string): CandleData[] => {
       const basePrice = getBasePrice(pair);
       const data: CandleData[] = [];
       const now = Math.floor(Date.now() / 1000);
-      const candleSize = 60; // 1 minute candles
+      const candleSize = 60;
 
       for (let i = 50; i >= 0; i--) {
         const time = now - i * candleSize;
@@ -83,9 +107,8 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
     const generateNewCandle = (pair: string, lastCandle: CandleData | null): CandleData => {
       const basePrice = getBasePrice(pair);
       const now = Math.floor(Date.now() / 1000);
-      const candleSize = 60; // 1 minute candles
+      const candleSize = 60;
 
-      // If no last candle, create one based on current time
       if (!lastCandle) {
         const volatility = 0.0005;
         const randomWalk = (Math.random() - 0.5) * 0.001;
@@ -103,7 +126,6 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
         };
       }
 
-      // Generate new candle based on last one's close
       const volatility = 0.0005;
       const randomWalk = (Math.random() - 0.5) * 0.001;
       const close = lastCandle.close + randomWalk;
@@ -127,7 +149,6 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
       }
 
       try {
-        // Create chart
         const chart = createChart(containerRef.current, {
           layout: {
             background: { color: Colors.dark.backgroundRoot },
@@ -140,7 +161,6 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
             timeVisible: true,
             secondsVisible: false,
             borderColor: Colors.dark.border,
-            tickColor: Colors.dark.textMuted,
           },
           rightPriceScale: {
             borderColor: Colors.dark.border,
@@ -148,19 +168,29 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
           },
           grid: {
             horzLines: {
-              color: Colors.dark.border,
+              color: `${Colors.dark.border}50`,
               visible: true,
             },
             vertLines: {
-              color: Colors.dark.border,
+              color: `${Colors.dark.border}50`,
               visible: true,
+            },
+          },
+          crosshair: {
+            mode: 1,
+            vertLine: {
+              color: Colors.dark.textMuted,
+              labelBackgroundColor: Colors.dark.backgroundSecondary,
+            },
+            horzLine: {
+              color: Colors.dark.textMuted,
+              labelBackgroundColor: Colors.dark.backgroundSecondary,
             },
           },
         });
 
         chartRef.current = chart;
 
-        // Add candlestick series - v5 API uses addSeries with CandlestickSeries type
         const candlestickSeries = CandlestickSeries 
           ? chart.addSeries(CandlestickSeries, {
               upColor: Colors.dark.success,
@@ -181,15 +211,12 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
 
         candlestickSeriesRef.current = candlestickSeries;
 
-        // Generate and set initial data
         const initialData = generateInitialData(pair);
         candlestickSeries.setData(initialData);
         lastDataRef.current = initialData[initialData.length - 1];
 
-        // Fit content
         chart.timeScale().fitContent();
 
-        // Set up auto-update interval
         updateIntervalRef.current = setInterval(() => {
           if (candlestickSeriesRef.current && lastDataRef.current) {
             const newCandle = generateNewCandle(pair, lastDataRef.current);
@@ -198,7 +225,6 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
           }
         }, 5000);
 
-        // Handle window resize
         const handleResize = () => {
           if (containerRef.current && chart) {
             chart.applyOptions({
@@ -223,7 +249,6 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
       }
     }, [isClient, pair, height]);
 
-    // Handle pair changes
     useEffect(() => {
       if (!isClient || Platform.OS !== 'web' || !candlestickSeriesRef.current) {
         return;
@@ -237,6 +262,103 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
         chartRef.current.timeScale().fitContent();
       }
     }, [pair, isClient]);
+
+    useEffect(() => {
+      if (!candlestickSeriesRef.current || Platform.OS !== 'web') {
+        return;
+      }
+
+      priceLinesRef.current.forEach((line) => {
+        try {
+          candlestickSeriesRef.current.removePriceLine(line);
+        } catch (e) {
+        }
+      });
+      priceLinesRef.current = [];
+
+      positions.forEach((pos) => {
+        try {
+          const entryLine = candlestickSeriesRef.current.createPriceLine({
+            price: pos.avgEntryPrice,
+            color: pos.side === 'buy' ? Colors.dark.success : Colors.dark.danger,
+            lineWidth: 2,
+            lineStyle: 0,
+            axisLabelVisible: true,
+            title: `${pos.side.toUpperCase()} ${pos.quantityUnits.toLocaleString()}`,
+          });
+          priceLinesRef.current.push(entryLine);
+
+          if (pos.stopLossPrice) {
+            const slLine = candlestickSeriesRef.current.createPriceLine({
+              price: pos.stopLossPrice,
+              color: '#FF6B6B',
+              lineWidth: 1,
+              lineStyle: 2,
+              axisLabelVisible: true,
+              title: 'SL',
+            });
+            priceLinesRef.current.push(slLine);
+          }
+
+          if (pos.takeProfitPrice) {
+            const tpLine = candlestickSeriesRef.current.createPriceLine({
+              price: pos.takeProfitPrice,
+              color: '#4ECDC4',
+              lineWidth: 1,
+              lineStyle: 2,
+              axisLabelVisible: true,
+              title: 'TP',
+            });
+            priceLinesRef.current.push(tpLine);
+          }
+        } catch (e) {
+          console.error('Error creating position price line:', e);
+        }
+      });
+
+      orders.forEach((order) => {
+        try {
+          const orderPrice = order.limitPrice || order.stopPrice;
+          if (!orderPrice) return;
+
+          const orderLine = candlestickSeriesRef.current.createPriceLine({
+            price: orderPrice,
+            color: Colors.dark.accent,
+            lineWidth: 1,
+            lineStyle: 1,
+            axisLabelVisible: true,
+            title: `${order.type.toUpperCase()} ${order.side.toUpperCase()}`,
+          });
+          priceLinesRef.current.push(orderLine);
+
+          if (order.stopLossPrice) {
+            const slLine = candlestickSeriesRef.current.createPriceLine({
+              price: order.stopLossPrice,
+              color: '#FF6B6B',
+              lineWidth: 1,
+              lineStyle: 3,
+              axisLabelVisible: false,
+              title: '',
+            });
+            priceLinesRef.current.push(slLine);
+          }
+
+          if (order.takeProfitPrice) {
+            const tpLine = candlestickSeriesRef.current.createPriceLine({
+              price: order.takeProfitPrice,
+              color: '#4ECDC4',
+              lineWidth: 1,
+              lineStyle: 3,
+              axisLabelVisible: false,
+              title: '',
+            });
+            priceLinesRef.current.push(tpLine);
+          }
+        } catch (e) {
+          console.error('Error creating order price line:', e);
+        }
+      });
+    }, [positions, orders]);
 
     if (Platform.OS !== 'web') {
       return (
@@ -254,7 +376,7 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
         width: '100%',
         height,
         backgroundColor: Colors.dark.backgroundRoot,
-        borderRadius: 8,
+        borderRadius: 0,
         overflow: 'hidden',
       },
     });
