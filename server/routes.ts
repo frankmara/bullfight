@@ -690,6 +690,365 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(quotes);
   });
 
+  app.get("/api/pvp/challenges", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const challenges = await storage.getPvpChallenges(userId);
+      res.json(challenges);
+    } catch (error: any) {
+      console.error("Get PvP challenges error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/pvp/challenges/:id", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { id } = req.params;
+      const challenge = await storage.getPvpChallenge(id);
+
+      if (!challenge) {
+        return res.status(404).json({ error: "Challenge not found" });
+      }
+
+      if (challenge.challengerId !== userId && challenge.inviteeId !== userId) {
+        return res.status(403).json({ error: "Not authorized to view this challenge" });
+      }
+
+      res.json(challenge);
+    } catch (error: any) {
+      console.error("Get PvP challenge error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/pvp/challenges", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const {
+        inviteeEmail,
+        stakeCents,
+        startingBalanceCents,
+        allowedPairsJson,
+        startAt,
+        endAt,
+        spreadMarkupPips,
+        maxSlippagePips,
+        minOrderIntervalMs,
+        maxDrawdownPct,
+      } = req.body;
+
+      if (!inviteeEmail) {
+        return res.status(400).json({ error: "Invitee email required" });
+      }
+
+      const invitee = await storage.getUserByEmail(inviteeEmail);
+
+      const challenge = await storage.createPvpChallenge({
+        challengerId: userId,
+        inviteeId: invitee?.id || null,
+        inviteeEmail,
+        status: "pending",
+        stakeCents: stakeCents || 1000,
+        startingBalanceCents: startingBalanceCents || 10000000,
+        allowedPairsJson: allowedPairsJson || ["EUR-USD", "GBP-USD", "USD-JPY", "AUD-USD", "USD-CAD"],
+        startAt: startAt ? new Date(startAt) : null,
+        endAt: endAt ? new Date(endAt) : null,
+        spreadMarkupPips: spreadMarkupPips || 0.5,
+        maxSlippagePips: maxSlippagePips || 1.0,
+        minOrderIntervalMs: minOrderIntervalMs || 1000,
+        maxDrawdownPct: maxDrawdownPct || null,
+        challengerAccepted: true,
+      });
+
+      await storage.createAuditLog(userId, "pvp_challenge_created", "pvp_challenge", challenge.id, {
+        inviteeEmail,
+        stakeCents: challenge.stakeCents,
+      });
+
+      res.json(challenge);
+    } catch (error: any) {
+      console.error("Create PvP challenge error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.put("/api/pvp/challenges/:id", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { id } = req.params;
+      const challenge = await storage.getPvpChallenge(id);
+
+      if (!challenge) {
+        return res.status(404).json({ error: "Challenge not found" });
+      }
+
+      if (challenge.challengerId !== userId && challenge.inviteeId !== userId) {
+        return res.status(403).json({ error: "Not authorized" });
+      }
+
+      if (challenge.status !== "pending" && challenge.status !== "negotiating") {
+        return res.status(400).json({ error: "Challenge cannot be modified in current state" });
+      }
+
+      const {
+        stakeCents,
+        startingBalanceCents,
+        allowedPairsJson,
+        startAt,
+        endAt,
+        spreadMarkupPips,
+        maxSlippagePips,
+        minOrderIntervalMs,
+        maxDrawdownPct,
+      } = req.body;
+
+      const proposedTerms = {
+        stakeCents,
+        startingBalanceCents,
+        allowedPairsJson,
+        startAt,
+        endAt,
+        spreadMarkupPips,
+        maxSlippagePips,
+        minOrderIntervalMs,
+        maxDrawdownPct,
+      };
+
+      const isChallenger = challenge.challengerId === userId;
+
+      const updated = await storage.updatePvpChallenge(id, {
+        proposedTermsJson: proposedTerms,
+        proposedBy: userId,
+        status: "negotiating",
+        challengerAccepted: isChallenger,
+        inviteeAccepted: !isChallenger,
+      });
+
+      await storage.createAuditLog(userId, "pvp_terms_proposed", "pvp_challenge", id, proposedTerms);
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Update PvP challenge error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/pvp/challenges/:id/accept", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { id } = req.params;
+      const challenge = await storage.getPvpChallenge(id);
+
+      if (!challenge) {
+        return res.status(404).json({ error: "Challenge not found" });
+      }
+
+      if (challenge.challengerId !== userId && challenge.inviteeId !== userId) {
+        return res.status(403).json({ error: "Not authorized" });
+      }
+
+      if (challenge.status !== "pending" && challenge.status !== "negotiating") {
+        return res.status(400).json({ error: "Challenge cannot be accepted in current state" });
+      }
+
+      const isChallenger = challenge.challengerId === userId;
+
+      if (challenge.proposedTermsJson && challenge.proposedBy !== userId) {
+        const terms = challenge.proposedTermsJson as any;
+        await storage.updatePvpChallenge(id, {
+          stakeCents: terms.stakeCents || challenge.stakeCents,
+          startingBalanceCents: terms.startingBalanceCents || challenge.startingBalanceCents,
+          allowedPairsJson: terms.allowedPairsJson || challenge.allowedPairsJson,
+          startAt: terms.startAt ? new Date(terms.startAt) : challenge.startAt,
+          endAt: terms.endAt ? new Date(terms.endAt) : challenge.endAt,
+          spreadMarkupPips: terms.spreadMarkupPips || challenge.spreadMarkupPips,
+          maxSlippagePips: terms.maxSlippagePips || challenge.maxSlippagePips,
+          minOrderIntervalMs: terms.minOrderIntervalMs || challenge.minOrderIntervalMs,
+          maxDrawdownPct: terms.maxDrawdownPct || challenge.maxDrawdownPct,
+          proposedTermsJson: null,
+          proposedBy: null,
+        });
+      }
+
+      const updatedChallenge = await storage.getPvpChallenge(id);
+      const challengerAccepted = isChallenger ? true : updatedChallenge!.challengerAccepted;
+      const inviteeAccepted = !isChallenger ? true : updatedChallenge!.inviteeAccepted;
+
+      const bothAccepted = challengerAccepted && inviteeAccepted;
+
+      const updated = await storage.updatePvpChallenge(id, {
+        challengerAccepted,
+        inviteeAccepted,
+        status: bothAccepted ? "accepted" : "pending",
+      });
+
+      await storage.createAuditLog(userId, "pvp_terms_accepted", "pvp_challenge", id, {
+        challengerAccepted,
+        inviteeAccepted,
+        bothAccepted,
+      });
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Accept PvP challenge error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/pvp/challenges/:id/pay", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { id } = req.params;
+      const challenge = await storage.getPvpChallenge(id);
+
+      if (!challenge) {
+        return res.status(404).json({ error: "Challenge not found" });
+      }
+
+      if (challenge.challengerId !== userId && challenge.inviteeId !== userId) {
+        return res.status(403).json({ error: "Not authorized" });
+      }
+
+      if (challenge.status !== "accepted" && challenge.status !== "payment_pending") {
+        return res.status(400).json({ error: "Challenge not ready for payment" });
+      }
+
+      const isChallenger = challenge.challengerId === userId;
+
+      const challengerPaid = isChallenger ? true : challenge.challengerPaid;
+      const inviteePaid = !isChallenger ? true : challenge.inviteePaid;
+      const bothPaid = challengerPaid && inviteePaid;
+
+      let competitionId = challenge.competitionId;
+
+      if (bothPaid && !competitionId) {
+        const comp = await storage.createCompetition({
+          type: "pvp",
+          status: "open",
+          title: `PvP Challenge`,
+          buyInCents: challenge.stakeCents,
+          entryCap: 2,
+          rakeBps: challenge.rakeBps,
+          startAt: challenge.startAt,
+          endAt: challenge.endAt,
+          startingBalanceCents: challenge.startingBalanceCents,
+          allowedPairsJson: challenge.allowedPairsJson,
+          spreadMarkupPips: challenge.spreadMarkupPips,
+          maxSlippagePips: challenge.maxSlippagePips,
+          minOrderIntervalMs: challenge.minOrderIntervalMs,
+          maxDrawdownPct: challenge.maxDrawdownPct,
+          createdBy: challenge.challengerId,
+        });
+
+        competitionId = comp.id;
+
+        await storage.createCompetitionEntry({
+          competitionId: comp.id,
+          userId: challenge.challengerId,
+          paidCents: challenge.stakeCents,
+          paymentStatus: "succeeded",
+          cashCents: challenge.startingBalanceCents,
+          equityCents: challenge.startingBalanceCents,
+          maxEquityCents: challenge.startingBalanceCents,
+        });
+
+        await storage.createCompetitionEntry({
+          competitionId: comp.id,
+          userId: challenge.inviteeId!,
+          paidCents: challenge.stakeCents,
+          paymentStatus: "succeeded",
+          cashCents: challenge.startingBalanceCents,
+          equityCents: challenge.startingBalanceCents,
+          maxEquityCents: challenge.startingBalanceCents,
+        });
+
+        const now = new Date();
+        if (challenge.startAt && new Date(challenge.startAt) <= now) {
+          await storage.updateCompetitionStatus(comp.id, "running");
+        }
+      }
+
+      const updated = await storage.updatePvpChallenge(id, {
+        challengerPaid,
+        inviteePaid,
+        competitionId,
+        status: bothPaid ? "active" : "payment_pending",
+      });
+
+      await storage.createAuditLog(userId, "pvp_payment_made", "pvp_challenge", id, {
+        challengerPaid,
+        inviteePaid,
+        bothPaid,
+        competitionId,
+      });
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Pay PvP challenge error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/pvp/challenges/:id/cancel", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { id } = req.params;
+      const challenge = await storage.getPvpChallenge(id);
+
+      if (!challenge) {
+        return res.status(404).json({ error: "Challenge not found" });
+      }
+
+      if (challenge.challengerId !== userId && challenge.inviteeId !== userId) {
+        return res.status(403).json({ error: "Not authorized" });
+      }
+
+      if (challenge.status === "active" || challenge.status === "completed") {
+        return res.status(400).json({ error: "Cannot cancel challenge in current state" });
+      }
+
+      const updated = await storage.updatePvpChallenge(id, {
+        status: "cancelled",
+      });
+
+      await storage.createAuditLog(userId, "pvp_challenge_cancelled", "pvp_challenge", id, {});
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Cancel PvP challenge error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

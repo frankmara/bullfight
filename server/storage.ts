@@ -10,6 +10,7 @@ import {
   payments,
   payouts,
   auditLog,
+  pvpChallenges,
   type User,
   type InsertUser,
   type Competition,
@@ -20,6 +21,8 @@ import {
   type InsertOrder,
   type Position,
   type InsertPosition,
+  type PvpChallenge,
+  type InsertPvpChallenge,
 } from "@shared/schema";
 import bcrypt from "bcryptjs";
 
@@ -62,6 +65,13 @@ export interface IStorage {
   createPosition(data: InsertPosition): Promise<Position>;
   updatePosition(id: string, data: Partial<Position>): Promise<Position | undefined>;
   deletePosition(id: string): Promise<void>;
+
+  getPvpChallenges(userId: string): Promise<PvpChallenge[]>;
+  getPvpChallenge(id: string): Promise<PvpChallenge | undefined>;
+  createPvpChallenge(data: InsertPvpChallenge): Promise<PvpChallenge>;
+  updatePvpChallenge(id: string, data: Partial<PvpChallenge>): Promise<PvpChallenge | undefined>;
+  
+  createAuditLog(actorUserId: string, action: string, entityType: string, entityId: string, payload?: any): Promise<void>;
 }
 
 export interface CompetitionWithStats extends Competition {
@@ -458,6 +468,58 @@ class DatabaseStorage implements IStorage {
 
   async deletePosition(id: string): Promise<void> {
     await db.delete(positions).where(eq(positions.id, id));
+  }
+
+  async getPvpChallenges(userId: string): Promise<PvpChallenge[]> {
+    const results = await db
+      .select()
+      .from(pvpChallenges)
+      .where(
+        sql`${pvpChallenges.challengerId} = ${userId} OR ${pvpChallenges.inviteeId} = ${userId}`
+      )
+      .orderBy(desc(pvpChallenges.createdAt));
+    return results;
+  }
+
+  async getPvpChallenge(id: string): Promise<PvpChallenge | undefined> {
+    const [challenge] = await db
+      .select()
+      .from(pvpChallenges)
+      .where(eq(pvpChallenges.id, id));
+    return challenge;
+  }
+
+  async createPvpChallenge(data: InsertPvpChallenge): Promise<PvpChallenge> {
+    const [challenge] = await db.insert(pvpChallenges).values(data).returning();
+    return challenge;
+  }
+
+  async updatePvpChallenge(
+    id: string,
+    data: Partial<PvpChallenge>
+  ): Promise<PvpChallenge | undefined> {
+    const [challenge] = await db
+      .update(pvpChallenges)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(pvpChallenges.id, id))
+      .returning();
+    return challenge;
+  }
+
+  async createAuditLog(
+    actorUserId: string,
+    action: string,
+    entityType: string,
+    entityId: string,
+    payload?: any
+  ): Promise<void> {
+    await db.insert(auditLog).values({
+      actorUserId,
+      action,
+      entityType,
+      entityId,
+      payloadJson: payload || null,
+    });
   }
 }
 
