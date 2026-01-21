@@ -1,0 +1,120 @@
+You are Replit Agent. I already have a working “Trading Arena” page (watchlist left, chart center, order panel right, positions/orders bottom). I want you to refactor the arena UI/UX so it feels like a modern professional web trading terminal (TradeLocker-like), while keeping our existing paper-trading engine, realtime quotes, and competition rules.
+
+IMPORTANT:
+- Do NOT copy TradeLocker branding, logos, or proprietary UI 1:1.
+- You MAY take inspiration from the interaction patterns and layout: resizable panes, tabbed bottom blotter, quick trade, chart overlays for orders/positions, compact dense tables, etc.
+- Keep dark theme, sleek, gamified but professional.
+
+GOAL (P0): Make the arena feel like a real trading terminal
+- Resizable 3-pane layout + bottom blotter, with a top header bar.
+- Order placement and position management should be fast (one-click trading optional toggle).
+- Show open positions and pending orders on the chart with SL/TP lines and allow modifying them.
+
+TECH / UI STACK
+- Next.js + TypeScript + Tailwind (keep current stack)
+- Use a pane splitter/resizable library (choose one):
+  - react-resizable-panels OR split-pane-react
+- Use a table library for dense trading tables (TanStack Table recommended).
+- Use shadcn/ui (Radix) components optionally for tabs, dropdowns, dialogs, toasts.
+- Persist layout + last-selected symbol + one-click toggle in localStorage per user.
+
+NEW ARENA LAYOUT (TradeLocker-like)
+1) TOP HEADER BAR (sticky)
+- Left: back button to competition, competition title/status (OPEN/RUNNING/ENDED), time remaining countdown.
+- Center: selected symbol (e.g., USD-JPY), live bid/ask, spread, session status.
+- Right: account/competition metrics:
+  - Balance, Equity, Unrealized PnL, Return %, Rank (in this competition), Max Drawdown
+- Keep it compact (terminal style).
+
+2) LEFT SIDEBAR: WATCHLIST / SYMBOLS
+- Add search input + favorites star.
+- Each row: symbol, bid, ask, spread, and small up/down tick indicator vs last.
+- Clicking a symbol updates chart + ticket + depth.
+- Allow multiple watchlists (default “FX Majors”) — can be local-only for MVP.
+
+3) CENTER: CHART PANEL
+- Keep candlestick chart but make it more terminal-like:
+  - Toolbar: timeframe (1m/5m/15m/1h/4h/1d), candle/line toggle, indicators dropdown (SMA/EMA/RSI basic), zoom controls.
+  - Display live price line; optionally show bid/ask lines.
+- CRITICAL: overlays like a trading terminal:
+  - Show open positions on chart (entry line + label with size + unrealized PnL).
+  - Show pending orders (limit/stop) as horizontal lines with label.
+  - Show SL/TP lines for positions/orders.
+  - Allow drag-and-drop SL/TP lines to modify (open a confirm mini-dialog).
+If current chart solution makes overlays impossible, migrate to TradingView Lightweight Charts to enable custom overlays and interaction (preferred). Use Polygon/Massive REST candles + live WS quotes to update chart.
+
+4) RIGHT SIDEBAR: ORDER TICKET (more TradeLocker-like)
+- Ticket header: symbol + “Trade” tab and “Modify” tab.
+- One-click trading:
+  - Add a toggle “One-click” (default OFF). If ON, clicking BUY/SELL executes immediately using current ticket settings (size + SL/TP if set).
+  - If OFF, clicking BUY/SELL opens confirm modal with estimated fill price and slippage/spread note.
+- Order type selection as a dropdown or segmented control:
+  - Market, Limit, Stop
+- Size input:
+  - Support “Units” now, add optional “Lots” toggle (just display conversion; store units).
+  - Add quick size buttons (1k, 5k, 10k, 50k) configurable.
+- SL/TP inputs:
+  - Allow input by Price OR Pips toggle.
+  - Add trailing stop toggle and trailing pips input (can be disabled if not implemented yet).
+- Show “Estimated cost” or “Impact” panel:
+  - Spread markup, max slippage, and expected fill side (bid/ask).
+- Disable trading actions if competition not RUNNING, but allow viewing.
+
+5) BOTTOM BLOTTER: TABBED PANEL (like terminals)
+Tabs:
+- Positions
+- Orders (pending)
+- History (fills)
+- Journal (optional: system events)
+Each table should be dense, sortable, filterable by symbol.
+Positions table columns:
+- Symbol, Side, Size, Entry, Mark, Unrealized PnL, SL, TP, Time
+Row actions:
+- Close (market), Partial close (prompt), Modify SL/TP (inline or modal)
+Orders table columns:
+- Symbol, Type, Side, Size, Price, Status, Created, SL/TP
+Row actions:
+- Edit, Cancel
+History table columns:
+- Time, Symbol, Side, Size, Price, Realized PnL
+
+LEADERBOARD (still visible in arena)
+- Place leaderboard as a collapsible right drawer OR a floating panel toggle.
+- Show: your rank pinned at top + top 20 + search.
+- Real-time updates via existing sockets.
+- Make it non-intrusive but always accessible (like a terminal “sidebar widget”).
+
+INTERACTIONS (must feel “pro”)
+- Keyboard shortcuts:
+  - B = focus Buy, S = focus Sell
+  - ESC = close modals
+  - Ctrl/Cmd+K = symbol search
+- Toast notifications:
+  - Order placed, order filled, SL/TP hit, position closed, order canceled
+- Inline error messages with clear reasons (competition not running, size invalid, rate limit, etc.)
+
+BACKEND / LOGIC (keep existing, add needed endpoints)
+- Keep paper-trading engine and socket broadcast as-is.
+- Add API routes for:
+  - modify SL/TP (position)
+  - modify pending order price/SL/TP
+  - partial close
+  - cancel order
+- Ensure all modifications update DB + broadcast to arena clients in real time.
+- Respect competition execution settings (spreadMarkupPips, maxSlippagePips, minOrderIntervalMs) and clearly surface them in the UI (tooltip/info).
+
+ACCEPTANCE CRITERIA (what I should be able to do)
+1) Select symbol from watchlist → chart + ticket updates immediately, bid/ask updates live.
+2) Place a Market BUY/SELL quickly (one-click OFF uses confirm; one-click ON executes).
+3) See the position appear in Positions tab AND on chart with entry line.
+4) Add/modify SL/TP:
+   - Edit in ticket or positions row → updates chart lines
+   - Drag SL/TP line on chart → confirm → updates position
+5) Pending limit/stop orders show on chart + Orders tab; can edit/cancel.
+6) Layout feels like a real terminal: resizable panels, dense tables, top metrics, clean dark styling.
+
+DELIVERY
+- Implement the refactor in the existing repo.
+- Keep the rest of the app working.
+- Add a short markdown doc: “Arena UX changes” explaining new components and where to tweak styling/layout.
+- If a feature is not implemented (e.g., trailing stop), leave the UI present but disabled with “Coming soon” and TODO in code.
