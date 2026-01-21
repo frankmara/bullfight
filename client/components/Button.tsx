@@ -82,11 +82,13 @@ export function Button({
 const styles = StyleSheet.create({
   button: {
     height: Spacing.buttonHeight,
-    borderRadius: BorderRadius.full,
+    borderRadius: BorderRadius.md,
     alignItems: "center",
     justifyContent: "center",
   },
   buttonText: {
-    fontWeight: "600",
+    fontWeight: "700",
+    fontSize: 15,
+    letterSpacing: 0.5,
   },
 });

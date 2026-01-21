@@ -1,0 +1,72 @@
+# Bullfight
+
+## Overview
+
+Bullfight is a competitive trading platform where users pay buy-ins to enter paper trading competitions. The application features a React Native/Expo mobile app with a dark, fire-and-ash themed UI, backed by an Express.js API server with PostgreSQL database.
+
+Core functionality includes:
+- Public trading competitions with prize pools and rake systems
+- Real-time forex quotes and paper trading engine
+- Live leaderboards ranked by portfolio return percentage
+- Admin portal for competition management
+- User authentication and competition entry tracking
+
+## User Preferences
+
+Preferred communication style: Simple, everyday language.
+
+## System Architecture
+
+### Frontend Architecture
+- **Framework**: React Native with Expo SDK 54, targeting iOS, Android, and web
+- **Navigation**: React Navigation v7 with native stack and bottom tabs
+- **State Management**: TanStack React Query for server state, React Context for auth
+- **Styling**: Custom theme system with dark mode colors (fire/ash palette), no external CSS framework
+- **Animations**: React Native Reanimated for smooth transitions and interactions
+
+The client code lives in `/client` with screens, components, navigation, and hooks organized in subdirectories. Path aliases `@/` and `@shared/` are configured via babel module resolver.
+
+### Backend Architecture
+- **Framework**: Express.js 5 with TypeScript
+- **Database**: PostgreSQL via Drizzle ORM
+- **Schema Location**: `/shared/schema.ts` contains all table definitions shared between client and server
+- **Authentication**: Custom session-based auth with bcrypt password hashing, user ID passed via headers for React Native compatibility
+- **API Pattern**: RESTful endpoints under `/api/` prefix
+
+The server uses a storage abstraction layer (`/server/storage.ts`) that wraps all database operations, making it easy to swap implementations or add caching.
+
+### Data Models
+Key entities defined in the schema:
+- `users`: Authentication with email/password and role-based access
+- `competitions`: Trading tournaments with configurable buy-ins, rake, prize splits, and trading parameters
+- `competitionEntries`: User participation tracking with equity and P&L
+- `orders`, `fills`, `positions`: Paper trading engine state
+- `payments`, `payouts`: Financial transaction records
+- `auditLog`: System event tracking
+
+### Real-time Features
+- Simulated forex quotes generated server-side (EUR-USD, GBP-USD, USD-JPY, AUD-USD, USD-CAD)
+- Client polls for quotes and leaderboard updates
+- WebSocket integration scaffolded for future Polygon/Massive market data
+
+## External Dependencies
+
+### Database
+- PostgreSQL accessed via `DATABASE_URL` environment variable
+- Drizzle ORM for schema management and queries
+- Migrations stored in `/migrations` directory
+
+### Market Data (Planned)
+- Polygon.io or Massive.com for live forex quotes
+- Configurable base URLs via `POLYGON_REST_BASE_URL` and `POLYGON_WS_BASE_URL`
+- Currently using simulated quotes with realistic spreads
+
+### Payments (Planned)
+- Stripe integration for buy-ins and payouts (TEST mode)
+- Falls back to simulated payment flow when `STRIPE_SECRET_KEY` not provided
+
+### Mobile Development
+- Expo managed workflow with EAS build support
+- Custom fonts via `@expo-google-fonts/nunito`
+- Haptic feedback via `expo-haptics`
+- Async storage for client-side auth persistence
