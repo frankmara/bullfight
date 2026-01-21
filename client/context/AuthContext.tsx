@@ -31,6 +31,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loadStoredAuth();
   }, []);
 
+  useEffect(() => {
+    if (user && !isLoading) {
+      refreshUser();
+    }
+  }, [isLoading]);
+
   const loadStoredAuth = async () => {
     try {
       const stored = await AsyncStorage.getItem(AUTH_STORAGE_KEY);
