@@ -185,6 +185,40 @@ export const auditLog = pgTable("audit_log", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const pvpChallenges = pgTable("pvp_challenges", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  challengerId: varchar("challenger_id")
+    .references(() => users.id)
+    .notNull(),
+  inviteeId: varchar("invitee_id").references(() => users.id),
+  inviteeEmail: text("invitee_email"),
+  status: text("status").notNull().default("draft"),
+  stakeCents: integer("stake_cents").notNull().default(1000),
+  startingBalanceCents: integer("starting_balance_cents").notNull().default(10000000),
+  allowedPairsJson: jsonb("allowed_pairs_json")
+    .$type<string[]>()
+    .default(["EUR-USD", "GBP-USD", "USD-JPY", "AUD-USD", "USD-CAD"]),
+  startAt: timestamp("start_at"),
+  endAt: timestamp("end_at"),
+  spreadMarkupPips: real("spread_markup_pips").notNull().default(0.5),
+  maxSlippagePips: real("max_slippage_pips").notNull().default(1.0),
+  minOrderIntervalMs: integer("min_order_interval_ms").notNull().default(1000),
+  maxDrawdownPct: real("max_drawdown_pct"),
+  rakeBps: integer("rake_bps").notNull().default(300),
+  proposedTermsJson: jsonb("proposed_terms_json"),
+  proposedBy: varchar("proposed_by").references(() => users.id),
+  challengerAccepted: boolean("challenger_accepted").notNull().default(false),
+  inviteeAccepted: boolean("invitee_accepted").notNull().default(false),
+  challengerPaid: boolean("challenger_paid").notNull().default(false),
+  inviteePaid: boolean("invitee_paid").notNull().default(false),
+  competitionId: varchar("competition_id").references(() => competitions.id),
+  winnerId: varchar("winner_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
   passwordHash: true,
@@ -230,6 +264,12 @@ export const insertPayoutSchema = createInsertSchema(payouts).omit({
   createdAt: true,
 });
 
+export const insertPvpChallengeSchema = createInsertSchema(pvpChallenges).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type Competition = typeof competitions.$inferSelect;
@@ -248,3 +288,5 @@ export type Payment = typeof payments.$inferSelect;
 export type InsertPayment = z.infer<typeof insertPaymentSchema>;
 export type Payout = typeof payouts.$inferSelect;
 export type InsertPayout = z.infer<typeof insertPayoutSchema>;
+export type PvpChallenge = typeof pvpChallenges.$inferSelect;
+export type InsertPvpChallenge = z.infer<typeof insertPvpChallengeSchema>;
