@@ -1,0 +1,176 @@
+You are Replit Agent in BUILD mode. Build a full-stack web app called “Bullfight” — a trading competition platform (like Bull Rush) where users pay a buy-in to enter competitions and then paper-trade FX pairs using live Polygon (Massive) market data. The product is a tournament system + trading arena: admin creates competitions, users join, prize pool grows in real time, leaderboard updates live, and winners get paid out.
+
+IMPORTANT MVP GOAL:
+Ship a WORKING demo end-to-end on Replit:
+- Landing page showing Active Competitions and their live Prize Pools
+- Auth (email/password) + user dashboard (“My Competitions”, spend, results)
+- Admin portal to create/configure competitions (buy-in, cap, start/end, prize splits, rake, instruments, slippage/spread)
+- Trading arena for a competition: chart + order ticket + open positions + pending orders + trade history
+- Live quotes via Polygon FX websocket (server-side) broadcast to clients
+- Paper trading engine: market/limit/stop orders + stop loss + take profit + (basic) trailing stop
+- Live leaderboard updates ranked by % return
+- End-of-competition settlement: compute winners, apply prize split, create payout records (Stripe optional / stub)
+
+Constraints / Stack (use exactly this):
+- Next.js (TypeScript) + Tailwind for modern sleek UI with a gamified “arena” feel (dark theme)
+- Replit Database (Postgres) for persistence (use DATABASE_URL)
+- Drizzle ORM (TypeScript) for schema/migrations
+- Auth.js / NextAuth for authentication (credentials provider)
+- Socket.io for real-time (quotes + leaderboard + fills)
+- Zod for input validation
+- Use server-side Polygon API key only (never expose to browser)
+- Stripe integration: implement in TEST mode if STRIPE_SECRET_KEY is provided; otherwise provide a “Simulate Payment” flow so the MVP works without Stripe keys.
+
+Market data requirements (Polygon/Massive):
+- Forex only for MVP.
+- Use WebSocket quotes to stream bid/ask for allowed FX pairs.
+- Use REST aggregates to fetch candlestick history for chart.
+- Make base URLs configurable because Polygon is now Massive:
+  POLYGON_REST_BASE_URL default "https://api.polygon.io"
+  POLYGON_WS_BASE_URL default "wss://socket.polygon.io"
+  (Allow override to massive.com domains via env vars.)
+
+Key business logic:
+- Public competitions (“Tournaments”): rake = 30% (configurable per competition). Prize Pool = sum(buy-ins) * (1 - rake).
+- Competition entry cap default 1000 users (configurable).
+- Buy-in fixed per competition (admin sets; typical range $100–$500).
+- Prize splitting configurable:
+  Examples:
+  - Winner-take-all (100% to 1st)
+  - Top 3: [60%, 30%, 10%]
+  - Top 5 / Top 10 similarly
+  Validate prize split sums to 100%.
+- PvP challenges (phase-2 but scaffold now):
+  - A user creates a head-to-head competition, invites another user by email.
+  - Stake is any amount; rake = 3% (configurable).
+  - Both must accept terms and “pay” stake before start.
+  For MVP: implement data model + basic create/accept UI and settlement; trading engine can reuse the same Competition engine with entryCap=2.
+- Team tournaments + bracket (phase-3): only scaffold the data model and leave UI as TODO.
+
+Anti-bot / fair execution requirements:
+- Every competition has execution settings:
+  - spreadMarkupPips (adds extra spread on top of Polygon bid/ask)
+  - maxSlippagePips (adverse slippage applied at fills)
+  - minOrderIntervalMs (rate limit per user)
+- Execution price rules:
+  - BUY fills at (ask + spreadMarkup + randomAdverseSlippage)
+  - SELL fills at (bid - spreadMarkup - randomAdverseSlippage)
+  Use pair-specific pip sizes (e.g., JPY pairs).
+- Track max drawdown per participant and allow competition rule maxDrawdownPercent (optional; if exceeded, mark “DQ”).
+
+Competition life cycle:
+- DRAFT → OPEN (accept entries) → RUNNING (trading enabled) → ENDED (trading disabled, results frozen) → PAID (payout records created)
+- Auto-transition by timestamps (startAt/endAt) via a simple server timer/cron loop (best effort on Replit), but also allow admin manual Start/End.
+
+Ranking metric:
+- Use % return = (equity - startingBalance) / startingBalance
+- startingBalance is virtual (e.g., $100,000) per competition config
+- equity = cash + unrealized PnL
+- Leaderboard updates live via Socket.io
+
+Pages / UX (must implement):
+Public:
+- /            Landing: Hero + list of OPEN/RUNNING competitions showing:
+  title, theme, buy-in, entrants count, prize pool (live), start/end countdown, “View / Join”
+- /competitions/[id] Competition detail:
+  rules (buy-in, cap, start/end, rake, prize splits, instruments, execution settings), prize pool live, join button
+Auth:
+- /login, /register
+User:
+- /dashboard
+  - My active competitions
+  - Past competitions + placements
+  - Total spent + total won (from payouts)
+Arena:
+- /arena/[competitionId]
+  Layout:
+  - Left: chart (candles via REST, live price updates via WS), show entry/exit markers
+  - Right top: order ticket (pair select, side, order type, quantity, limit/stop, SL/TP, trailing stop)
+  - Right middle: positions table (open positions, unrealized PnL, close button, modify SL/TP)
+  - Right bottom: pending orders (edit/cancel)
+  - Bottom/side: leaderboard panel with your rank + top 20 + search for user
+Admin (RBAC ADMIN role only):
+- /admin
+- /admin/competitions
+- /admin/competitions/new (create)
+- /admin/competitions/[id] (manage: entries, start/end, prize config, execution config, view settlement, force payout)
+
+Database schema (implement in Drizzle) — required tables:
+- users (id, email, passwordHash, role, createdAt)
+- competitions (id, type, status, title, theme, description, buyInCents, entryCap, rakeBps,
+  startAt, endAt, startingBalanceCents, allowedPairsJson, prizeSplitsJson,
+  spreadMarkupPips, maxSlippagePips, minOrderIntervalMs, maxDrawdownPct, createdBy, createdAt)
+- competition_entries (id, competitionId, userId, paidCents, paymentStatus, joinedAt,
+  cashCents, equityCents, maxEquityCents, maxDrawdownPct, dq, lastOrderAt)
+- orders (id, competitionId, userId, pair, side, type, quantityUnits,
+  limitPrice, stopPrice, trailingStopPips, takeProfitPrice, stopLossPrice,
+  status, createdAt, updatedAt)
+- fills (id, orderId, competitionId, userId, pair, side, quantityUnits, price, feeCents, createdAt)
+- positions (id, competitionId, userId, pair, side, quantityUnits, avgEntryPrice,
+  openAt, updatedAt, realizedPnlCents)
+- payments (id, userId, competitionId, kind, amountCents, provider, providerRef, status, createdAt)
+- payouts (id, competitionId, userId, place, amountCents, status, providerRef, createdAt)
+- audit_log (id, actorUserId, action, entityType, entityId, payloadJson, createdAt)
+
+Also include:
+- seed script that creates:
+  - an admin user (admin@bullfight.local / password “admin123!”)
+  - 2 sample competitions (one OPEN, one RUNNING) with realistic configs and prize splits
+  - allowed pairs: ["EUR-USD","GBP-USD","USD-JPY","AUD-USD","USD-CAD"]
+
+Realtime architecture (must implement):
+- A server module that connects to Polygon/Massive Forex WS:
+  - URL: `${POLYGON_WS_BASE_URL}/forex`
+  - Send auth message: {"action":"auth","params":"<API_KEY>"}
+  - Subscribe to quotes for pairs used by RUNNING competitions (and optionally OPEN for preview)
+  - Parse quote messages (ev=C) and keep a latestQuotes map {pair: {bid, ask, t}}
+  - Broadcast to clients over Socket.io namespace /ws with event "quote"
+- Trading engine loop:
+  - On each quote update, evaluate:
+    - open positions -> update unrealized PnL, equity
+    - pending orders -> trigger/fill if conditions met
+    - SL/TP/trailing stops -> close positions if hit
+  - After updates, recompute leaderboard ranks and broadcast event "leaderboard"
+- IMPORTANT: do not store every tick in DB (keep in-memory for MVP) to avoid bloat.
+
+Payments:
+- Joining a competition requires “payment”:
+  - If STRIPE_SECRET_KEY exists: create Stripe PaymentIntent for buyInCents; confirm on client; webhook updates payment status.
+  - If Stripe not configured: allow “Simulate Payment” button visible only in DEV, which marks payment as succeeded.
+- Prize pool displayed as: sum(successful entry payments) * (1 - rakeBps/10000)
+
+Settlement:
+- When competition ends:
+  - Freeze trading
+  - Calculate final leaderboard
+  - Determine winners based on prizeSplitsJson
+  - Create payout rows with amountCents
+  - (Optional) If Stripe Connect configured, stub a function payoutWinners() and mark payouts as “PENDING”
+
+Quality requirements:
+- Clean, modern UI. Use Tailwind components and consistent spacing/typography.
+- Validate all inputs with Zod.
+- RBAC: protect /admin routes.
+- Provide a README with:
+  - env vars
+  - how to run migrations, seed
+  - how to run dev server
+  - how to use Polygon key and (optional) Stripe test keys
+
+Env vars (document & use):
+- DATABASE_URL (provided by Replit)
+- NEXTAUTH_SECRET
+- POLYGON_API_KEY
+- POLYGON_REST_BASE_URL (optional)
+- POLYGON_WS_BASE_URL (optional)
+- STRIPE_SECRET_KEY (optional)
+- STRIPE_WEBHOOK_SECRET (optional)
+
+Deliverable:
+Create the full codebase in the Replit workspace and ensure `npm run dev` starts the app and the demo works without Stripe (simulate payment). Include the sample data seed so I can click through:
+Landing → Competition → Join → Arena → Place trade → See leaderboard move → End competition (admin) → See payouts created.
+
+Before coding:
+1) Output a short implementation plan + folder structure.
+2) Then implement.
+3) Keep everything in one repo.
