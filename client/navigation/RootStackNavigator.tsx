@@ -1,13 +1,15 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import MainTabNavigator from "@/navigation/MainTabNavigator";
-import ModalScreen from "@/screens/ModalScreen";
+import LoginScreen from "@/screens/LoginScreen";
+import RegisterScreen from "@/screens/RegisterScreen";
+import CompetitionDetailScreen from "@/screens/CompetitionDetailScreen";
+import ArenaScreen from "@/screens/ArenaScreen";
+import AdminScreen from "@/screens/AdminScreen";
+import AdminCompetitionsScreen from "@/screens/AdminCompetitionsScreen";
+import CreateCompetitionScreen from "@/screens/CreateCompetitionScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
-
-export type RootStackParamList = {
-  Main: undefined;
-  Modal: undefined;
-};
+import { RootStackParamList } from "@/types/navigation";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -22,11 +24,61 @@ export default function RootStackNavigator() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
-        name="Modal"
-        component={ModalScreen}
+        name="Login"
+        component={LoginScreen}
         options={{
           presentation: "modal",
-          headerTitle: "Modal",
+          headerTitle: "Sign In",
+        }}
+      />
+      <Stack.Screen
+        name="Register"
+        component={RegisterScreen}
+        options={{
+          presentation: "modal",
+          headerTitle: "Create Account",
+        }}
+      />
+      <Stack.Screen
+        name="CompetitionDetail"
+        component={CompetitionDetailScreen}
+        options={{
+          headerTitle: "Competition",
+        }}
+      />
+      <Stack.Screen
+        name="Arena"
+        component={ArenaScreen}
+        options={{
+          headerTitle: "Trading Arena",
+        }}
+      />
+      <Stack.Screen
+        name="Admin"
+        component={AdminScreen}
+        options={{
+          headerTitle: "Admin",
+        }}
+      />
+      <Stack.Screen
+        name="AdminCompetitions"
+        component={AdminCompetitionsScreen}
+        options={{
+          headerTitle: "Competitions",
+        }}
+      />
+      <Stack.Screen
+        name="CreateCompetition"
+        component={CreateCompetitionScreen}
+        options={{
+          headerTitle: "New Competition",
+        }}
+      />
+      <Stack.Screen
+        name="EditCompetition"
+        component={CreateCompetitionScreen}
+        options={{
+          headerTitle: "Edit Competition",
         }}
       />
     </Stack.Navigator>

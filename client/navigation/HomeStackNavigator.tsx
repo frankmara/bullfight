@@ -1,12 +1,9 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import HomeScreen from "@/screens/HomeScreen";
+import LandingScreen from "@/screens/LandingScreen";
 import { HeaderTitle } from "@/components/HeaderTitle";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
-
-export type HomeStackParamList = {
-  Home: undefined;
-};
+import { HomeStackParamList } from "@/types/navigation";
 
 const Stack = createNativeStackNavigator<HomeStackParamList>();
 
@@ -16,10 +13,10 @@ export default function HomeStackNavigator() {
   return (
     <Stack.Navigator screenOptions={screenOptions}>
       <Stack.Screen
-        name="Home"
-        component={HomeScreen}
+        name="Landing"
+        component={LandingScreen}
         options={{
-          headerTitle: () => <HeaderTitle title="My App" />,
+          headerTitle: () => <HeaderTitle title="Bullfight" />,
         }}
       />
     </Stack.Navigator>
