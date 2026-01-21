@@ -11,7 +11,6 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -47,11 +46,22 @@ const getNumColumns = () => {
   return 1;
 };
 
+const DESKTOP_BREAKPOINT = 768;
+
+function useSafeHeaderHeight() {
+  try {
+    return useHeaderHeight();
+  } catch {
+    return 0;
+  }
+}
+
 export default function LandingScreen() {
   const insets = useSafeAreaInsets();
-  const headerHeight = useHeaderHeight();
-  const tabBarHeight = useBottomTabBarHeight();
+  const rawHeaderHeight = useSafeHeaderHeight();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const isDesktop = Platform.OS === 'web' && Dimensions.get('window').width >= DESKTOP_BREAKPOINT;
+  const headerHeight = isDesktop ? 0 : rawHeaderHeight;
   const [numColumns, setNumColumns] = React.useState(getNumColumns());
   const [windowWidth, setWindowWidth] = React.useState(Dimensions.get("window").width);
 
@@ -81,10 +91,10 @@ export default function LandingScreen() {
     navigation.navigate("CompetitionDetail", { id });
   };
 
-  const isDesktop = Platform.OS === "web" && windowWidth >= 1200;
-  const logoSize = isDesktop ? 120 : 80;
-  const titleSize = isDesktop ? 56 : 40;
-  const maxContentWidth = isDesktop ? 1200 : windowWidth;
+  const isLargeDesktop = Platform.OS === "web" && windowWidth >= 1200;
+  const logoSize = isLargeDesktop ? 120 : 80;
+  const titleSize = isLargeDesktop ? 56 : 40;
+  const maxContentWidth = isLargeDesktop ? 1200 : windowWidth;
 
   const renderHeader = () => (
     <View style={styles.heroContainer}>
@@ -204,7 +214,7 @@ export default function LandingScreen() {
         styles.content,
         {
           paddingTop: headerHeight,
-          paddingBottom: tabBarHeight + Spacing.xl,
+          paddingBottom: isDesktop ? Spacing.xl : 80,
           maxWidth: maxContentWidth,
           alignSelf: "center",
           width: "100%",

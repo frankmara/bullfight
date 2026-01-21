@@ -7,10 +7,10 @@ import {
   Platform,
   useWindowDimensions,
   ScrollView,
+  Dimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
@@ -41,11 +41,22 @@ interface MyCompetition {
   prizeWonCents?: number;
 }
 
+const DESKTOP_BREAKPOINT = 768;
+
+function useSafeHeaderHeight() {
+  try {
+    return useHeaderHeight();
+  } catch {
+    return 0;
+  }
+}
+
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const headerHeight = useHeaderHeight();
-  const tabBarHeight = useBottomTabBarHeight();
+  const rawHeaderHeight = useSafeHeaderHeight();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const isDesktop = Platform.OS === 'web' && Dimensions.get('window').width >= DESKTOP_BREAKPOINT;
+  const headerHeight = isDesktop ? 0 : rawHeaderHeight;
   const { user, isAuthenticated, isAdmin, logout } = useAuthContext();
   const { width } = useWindowDimensions();
 
@@ -102,7 +113,7 @@ export default function ProfileScreen() {
         styles.content,
         {
           paddingTop: headerHeight + Spacing.xl,
-          paddingBottom: tabBarHeight + Spacing.xl,
+          paddingBottom: isDesktop ? Spacing.xl : 80,
           alignItems: isWeb ? "center" : "stretch",
         },
       ]}

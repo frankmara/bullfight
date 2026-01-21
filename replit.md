@@ -90,6 +90,12 @@ Key entities defined in the schema:
 - Arena layout: left instruments sidebar, center chart, right order panel, bottom positions/orders
 - Full trading flow: register → join competition → place orders → view positions
 
+### Responsive Navigation
+- Desktop (>768px): Horizontal top navigation bar with logo, nav links, and user info
+- Mobile (<768px): Bottom tab bar with icons
+- Navigation component: `/client/navigation/MainTabNavigator.tsx` handles both layouts
+- Screens use safe header/tab bar height detection for proper spacing
+
 ### Admin
 - fjmara@outlook.com has admin role
 - Admin can set competition status via database updates
