@@ -127,7 +127,7 @@ export function CompetitionCard({
 
       <View style={styles.footer}>
         <ThemedText style={styles.viewDetails}>View Details</ThemedText>
-        <Feather name="chevron-right" size={18} color={Colors.dark.primaryBlue} />
+        <Feather name="chevron-right" size={18} color={Colors.dark.accent} />
       </View>
     </AnimatedPressable>
   );
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
   viewDetails: {
     fontSize: 14,
     fontWeight: "600",
-    color: Colors.dark.primaryBlue,
+    color: Colors.dark.accent,
     marginRight: Spacing.xs,
   },
 });

@@ -13,7 +13,7 @@ const getStatusColor = (status: string) => {
     case "open":
       return Colors.dark.success;
     case "running":
-      return Colors.dark.primaryBlue;
+      return Colors.dark.accent;
     case "ended":
       return Colors.dark.warning;
     case "paid":

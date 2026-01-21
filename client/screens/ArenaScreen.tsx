@@ -264,7 +264,7 @@ export default function ArenaScreen() {
             <Feather
               name="bar-chart-2"
               size={20}
-              color={showLeaderboard ? Colors.dark.primaryBlue : Colors.dark.textSecondary}
+              color={showLeaderboard ? Colors.dark.accent : Colors.dark.textSecondary}
             />
           </Pressable>
         </View>
@@ -695,7 +695,7 @@ const styles = StyleSheet.create({
     marginRight: Spacing.sm,
   },
   pairButtonActive: {
-    backgroundColor: Colors.dark.primaryBlue,
+    backgroundColor: Colors.dark.accent,
   },
   pairButtonText: {
     fontSize: 12,
@@ -785,7 +785,7 @@ const styles = StyleSheet.create({
     marginHorizontal: Spacing.xs,
   },
   typeButtonActive: {
-    backgroundColor: Colors.dark.primaryBlue,
+    backgroundColor: Colors.dark.accent,
   },
   typeButtonText: {
     fontSize: 12,

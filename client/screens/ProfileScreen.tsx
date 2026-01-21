@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: Spacing.lg,
     borderWidth: 2,
-    borderColor: Colors.dark.primaryBlue,
+    borderColor: Colors.dark.accent,
   },
   avatar: {
     width: 60,

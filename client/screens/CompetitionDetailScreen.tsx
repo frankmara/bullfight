@@ -498,7 +498,7 @@ const styles = StyleSheet.create({
   pairText: {
     fontSize: 13,
     fontWeight: "600",
-    color: Colors.dark.primaryBlue,
+    color: Colors.dark.accent,
   },
   leaderboardSection: {
     marginBottom: Spacing.xl,

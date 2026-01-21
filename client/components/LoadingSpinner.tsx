@@ -16,7 +16,7 @@ interface LoadingSpinnerProps {
 
 export function LoadingSpinner({
   size = 40,
-  color = Colors.dark.primaryBlue,
+  color = Colors.dark.accent,
 }: LoadingSpinnerProps) {
   const rotation = useSharedValue(0);
 

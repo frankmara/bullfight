@@ -133,7 +133,7 @@ export default function LandingScreen() {
         <RefreshControl
           refreshing={isRefetching}
           onRefresh={refetch}
-          tintColor={Colors.dark.primaryBlue}
+          tintColor={Colors.dark.accent}
         />
       }
       showsVerticalScrollIndicator={false}
@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
   },
   heroOverlay: {
     flex: 1,
-    backgroundColor: "rgba(10, 14, 20, 0.7)",
+    backgroundColor: "rgba(10, 10, 10, 0.75)",
     justifyContent: "center",
     alignItems: "center",
     padding: Spacing.xl,
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
   heroSubtitle: {
     fontSize: 14,
     fontWeight: "600",
-    color: Colors.dark.primaryBlue,
+    color: Colors.dark.accent,
     letterSpacing: 3,
     marginTop: Spacing.xs,
   },

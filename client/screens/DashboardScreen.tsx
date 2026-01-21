@@ -139,7 +139,7 @@ export default function DashboardScreen() {
         <ThemedText style={styles.statLabel}>Total Spent</ThemedText>
       </View>
       <View style={styles.statCard}>
-        <Feather name="activity" size={20} color={Colors.dark.primaryBlue} />
+        <Feather name="activity" size={20} color={Colors.dark.accent} />
         <ThemedText style={styles.statValue}>
           {stats?.activeCompetitions || 0}
         </ThemedText>
@@ -203,7 +203,7 @@ export default function DashboardScreen() {
         {isActive && (
           <View style={styles.enterArena}>
             <ThemedText style={styles.enterArenaText}>Enter Arena</ThemedText>
-            <Feather name="arrow-right" size={16} color={Colors.dark.primaryBlue} />
+            <Feather name="arrow-right" size={16} color={Colors.dark.accent} />
           </View>
         )}
       </Pressable>
@@ -257,7 +257,7 @@ export default function DashboardScreen() {
         <RefreshControl
           refreshing={isRefetching}
           onRefresh={refetch}
-          tintColor={Colors.dark.primaryBlue}
+          tintColor={Colors.dark.accent}
         />
       }
       showsVerticalScrollIndicator={false}
@@ -376,7 +376,7 @@ const styles = StyleSheet.create({
   enterArenaText: {
     fontSize: 14,
     fontWeight: "600",
-    color: Colors.dark.primaryBlue,
+    color: Colors.dark.accent,
     marginRight: Spacing.xs,
   },
 });

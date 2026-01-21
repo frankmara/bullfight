@@ -291,8 +291,8 @@ const styles = StyleSheet.create({
     borderColor: Colors.dark.border,
   },
   pairChipActive: {
-    backgroundColor: Colors.dark.primaryBlue,
-    borderColor: Colors.dark.primaryBlue,
+    backgroundColor: Colors.dark.accent,
+    borderColor: Colors.dark.accent,
   },
   pairCheckIcon: {
     marginRight: Spacing.xs,
@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(10, 14, 20, 0.8)",
+    backgroundColor: "rgba(10, 10, 10, 0.75)",
     justifyContent: "center",
     alignItems: "center",
   },

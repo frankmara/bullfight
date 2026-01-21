@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.dark.border,
   },
   currentUserRow: {
-    backgroundColor: `${Colors.dark.primaryBlue}15`,
+    backgroundColor: `${Colors.dark.accent}15`,
   },
   rankContainer: {
     width: 32,

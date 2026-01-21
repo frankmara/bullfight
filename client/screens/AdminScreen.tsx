@@ -39,7 +39,7 @@ export default function AdminScreen() {
           onPress={() => navigation.navigate("AdminCompetitions")}
         >
           <View style={styles.menuItemIcon}>
-            <Feather name="award" size={24} color={Colors.dark.primaryBlue} />
+            <Feather name="award" size={24} color={Colors.dark.accent} />
           </View>
           <View style={styles.menuItemContent}>
             <ThemedText style={styles.menuItemTitle}>Competitions</ThemedText>

@@ -140,7 +140,7 @@ export default function AdminCompetitionsScreen() {
             style={[styles.actionButton, styles.editButton]}
             onPress={() => navigation.navigate("EditCompetition", { id: item.id })}
           >
-            <Feather name="edit-2" size={14} color={Colors.dark.primaryBlue} />
+            <Feather name="edit-2" size={14} color={Colors.dark.accent} />
           </Pressable>
         </View>
       </View>
@@ -192,7 +192,7 @@ export default function AdminCompetitionsScreen() {
           <RefreshControl
             refreshing={isRefetching}
             onRefresh={refetch}
-            tintColor={Colors.dark.primaryBlue}
+            tintColor={Colors.dark.accent}
           />
         }
       />

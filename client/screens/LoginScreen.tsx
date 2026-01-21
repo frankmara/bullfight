@@ -173,12 +173,12 @@ const styles = StyleSheet.create({
   },
   registerLink: {
     fontSize: 14,
-    color: Colors.dark.primaryBlue,
+    color: Colors.dark.accent,
     fontWeight: "600",
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(10, 14, 20, 0.8)",
+    backgroundColor: "rgba(10, 10, 10, 0.75)",
     justifyContent: "center",
     alignItems: "center",
   },
