@@ -5,6 +5,8 @@ import {
   FlatList,
   Image,
   RefreshControl,
+  Dimensions,
+  Platform,
 } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -13,16 +15,15 @@ import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { LinearGradient } from "expo-linear-gradient";
 
 import { ThemedText } from "@/components/ThemedText";
 import { CompetitionCard } from "@/components/CompetitionCard";
-import { EmptyState } from "@/components/EmptyState";
 import { CompetitionCardSkeleton } from "@/components/SkeletonLoader";
-import { Colors, Spacing } from "@/constants/theme";
+import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/types/navigation";
 
-const heroImage = require("../../attached_assets/generated_images/hero_trading_arena_illustration.png");
-const emptyImage = require("../../attached_assets/generated_images/empty_competitions_state_illustration.png");
+const bullLogo = require("../../attached_assets/generated_images/bullfight_app_icon_bull.png");
 
 interface Competition {
   id: string;
@@ -37,11 +38,30 @@ interface Competition {
   endAt?: string;
 }
 
+const getNumColumns = () => {
+  const width = Dimensions.get("window").width;
+  if (Platform.OS === "web") {
+    if (width >= 1200) return 3;
+    if (width >= 768) return 2;
+  }
+  return 1;
+};
+
 export default function LandingScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const [numColumns, setNumColumns] = React.useState(getNumColumns());
+  const [windowWidth, setWindowWidth] = React.useState(Dimensions.get("window").width);
+
+  React.useEffect(() => {
+    const subscription = Dimensions.addEventListener("change", ({ window }) => {
+      setNumColumns(getNumColumns());
+      setWindowWidth(window.width);
+    });
+    return () => subscription?.remove();
+  }, []);
 
   const {
     data: competitions,
@@ -61,16 +81,67 @@ export default function LandingScreen() {
     navigation.navigate("CompetitionDetail", { id });
   };
 
+  const isDesktop = Platform.OS === "web" && windowWidth >= 1200;
+  const logoSize = isDesktop ? 120 : 80;
+  const titleSize = isDesktop ? 56 : 40;
+  const maxContentWidth = isDesktop ? 1200 : windowWidth;
+
   const renderHeader = () => (
-    <View style={styles.heroSection}>
-      <Image source={heroImage} style={styles.heroImage} resizeMode="cover" />
-      <View style={styles.heroOverlay}>
-        <ThemedText style={styles.heroTitle}>BULLFIGHT</ThemedText>
-        <ThemedText style={styles.heroSubtitle}>
-          The Trading Arena
-        </ThemedText>
-        <ThemedText style={styles.heroDescription}>
-          Compete in paper-trading tournaments for real prize pools
+    <View style={styles.heroContainer}>
+      <LinearGradient
+        colors={["#0A0A0A", "#1A0A0A", "#0A0A0A"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.heroGradient}
+      >
+        <View style={styles.heroContent}>
+          <View style={styles.logoContainer}>
+            <View style={styles.logoGlow} />
+            <Image
+              source={bullLogo}
+              style={[styles.logo, { width: logoSize, height: logoSize }]}
+              resizeMode="contain"
+            />
+          </View>
+          
+          <ThemedText style={[styles.heroTitle, { fontSize: titleSize }]}>
+            BULLFIGHT
+          </ThemedText>
+          
+          <ThemedText style={styles.heroSubtitle}>
+            THE TRADING ARENA
+          </ThemedText>
+          
+          <ThemedText style={styles.heroTagline}>
+            Compete in paper-trading tournaments for real prize pools
+          </ThemedText>
+          
+          <View style={styles.heroStats}>
+            <View style={styles.heroStat}>
+              <ThemedText style={styles.heroStatValue}>$50K+</ThemedText>
+              <ThemedText style={styles.heroStatLabel}>Prize Pools</ThemedText>
+            </View>
+            <View style={styles.heroStatDivider} />
+            <View style={styles.heroStat}>
+              <ThemedText style={styles.heroStatValue}>1000+</ThemedText>
+              <ThemedText style={styles.heroStatLabel}>Traders</ThemedText>
+            </View>
+            <View style={styles.heroStatDivider} />
+            <View style={styles.heroStat}>
+              <ThemedText style={styles.heroStatValue}>24/7</ThemedText>
+              <ThemedText style={styles.heroStatLabel}>Markets</ThemedText>
+            </View>
+          </View>
+        </View>
+      </LinearGradient>
+      
+      <View style={styles.sectionHeader}>
+        <View style={styles.sectionTitleContainer}>
+          <View style={styles.sectionAccent} />
+          <ThemedText style={styles.sectionTitle}>Active Competitions</ThemedText>
+        </View>
+        <ThemedText style={styles.sectionSubtitle}>
+          {activeCompetitions?.length || 0} tournaments available
         </ThemedText>
       </View>
     </View>
@@ -82,17 +153,29 @@ export default function LandingScreen() {
   }: {
     item: Competition;
     index: number;
-  }) => (
-    <Animated.View
-      entering={FadeInDown.delay(index * 100).springify()}
-      style={styles.cardWrapper}
-    >
-      <CompetitionCard
-        {...item}
-        onPress={() => handleCompetitionPress(item.id)}
-      />
-    </Animated.View>
-  );
+  }) => {
+    const cardWidth = numColumns > 1 
+      ? (Math.min(maxContentWidth, windowWidth) - Spacing.lg * 2 - Spacing.md * (numColumns - 1)) / numColumns
+      : undefined;
+
+    return (
+      <Animated.View
+        entering={FadeInDown.delay(index * 100).springify()}
+        style={[
+          styles.cardWrapper,
+          numColumns > 1 ? {
+            width: cardWidth,
+            marginRight: (index + 1) % numColumns === 0 ? 0 : Spacing.md,
+          } : null,
+        ]}
+      >
+        <CompetitionCard
+          {...item}
+          onPress={() => handleCompetitionPress(item.id)}
+        />
+      </Animated.View>
+    );
+  };
 
   const renderEmpty = () => {
     if (isLoading) {
@@ -105,11 +188,12 @@ export default function LandingScreen() {
       );
     }
     return (
-      <EmptyState
-        image={emptyImage}
-        title="No Active Competitions"
-        message="Check back soon for upcoming trading tournaments!"
-      />
+      <View style={styles.emptyContainer}>
+        <ThemedText style={styles.emptyTitle}>No Active Competitions</ThemedText>
+        <ThemedText style={styles.emptyMessage}>
+          Check back soon for upcoming trading tournaments!
+        </ThemedText>
+      </View>
     );
   };
 
@@ -121,6 +205,9 @@ export default function LandingScreen() {
         {
           paddingTop: headerHeight,
           paddingBottom: tabBarHeight + Spacing.xl,
+          maxWidth: maxContentWidth,
+          alignSelf: "center",
+          width: "100%",
         },
       ]}
       scrollIndicatorInsets={{ bottom: insets.bottom }}
@@ -128,6 +215,8 @@ export default function LandingScreen() {
       data={activeCompetitions}
       renderItem={renderCompetition}
       keyExtractor={(item) => item.id}
+      key={numColumns}
+      numColumns={numColumns}
       ListEmptyComponent={renderEmpty}
       refreshControl={
         <RefreshControl
@@ -150,48 +239,132 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     flexGrow: 1,
   },
-  heroSection: {
+  heroContainer: {
     marginBottom: Spacing["2xl"],
+  },
+  heroGradient: {
+    borderRadius: BorderRadius.xl,
     marginTop: Spacing.lg,
-    borderRadius: 16,
     overflow: "hidden",
-    height: 200,
   },
-  heroImage: {
-    width: "100%",
-    height: "100%",
-    position: "absolute",
-  },
-  heroOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(10, 10, 10, 0.75)",
-    justifyContent: "center",
+  heroContent: {
     alignItems: "center",
-    padding: Spacing.xl,
+    paddingVertical: Spacing["4xl"],
+    paddingHorizontal: Spacing.xl,
+  },
+  logoContainer: {
+    position: "relative",
+    marginBottom: Spacing.xl,
+  },
+  logoGlow: {
+    position: "absolute",
+    top: -20,
+    left: -20,
+    right: -20,
+    bottom: -20,
+    backgroundColor: Colors.dark.accent,
+    opacity: 0.15,
+    borderRadius: BorderRadius.full,
+  },
+  logo: {
+    borderRadius: BorderRadius.lg,
   },
   heroTitle: {
-    fontSize: 40,
     fontWeight: "800",
     color: Colors.dark.text,
-    letterSpacing: 4,
+    letterSpacing: 8,
+    textAlign: "center",
   },
   heroSubtitle: {
     fontSize: 14,
     fontWeight: "600",
     color: Colors.dark.accent,
-    letterSpacing: 3,
-    marginTop: Spacing.xs,
+    letterSpacing: 4,
+    marginTop: Spacing.sm,
+    textTransform: "uppercase",
   },
-  heroDescription: {
+  heroTagline: {
     fontSize: 14,
     color: Colors.dark.textSecondary,
     textAlign: "center",
-    marginTop: Spacing.md,
+    marginTop: Spacing.lg,
+    maxWidth: 300,
+  },
+  heroStats: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: Spacing["2xl"],
+    paddingTop: Spacing.xl,
+    borderTopWidth: 1,
+    borderTopColor: Colors.dark.border,
+  },
+  heroStat: {
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+  },
+  heroStatValue: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: Colors.dark.text,
+  },
+  heroStatLabel: {
+    fontSize: 11,
+    color: Colors.dark.textMuted,
+    marginTop: Spacing.xs,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  heroStatDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: Colors.dark.border,
+  },
+  sectionHeader: {
+    marginTop: Spacing["2xl"],
+    marginBottom: Spacing.lg,
+  },
+  sectionTitleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.xs,
+  },
+  sectionAccent: {
+    width: 4,
+    height: 20,
+    backgroundColor: Colors.dark.accent,
+    borderRadius: 2,
+    marginRight: Spacing.sm,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: Colors.dark.text,
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    color: Colors.dark.textSecondary,
+    marginLeft: Spacing.md + 4,
   },
   cardWrapper: {
     marginBottom: Spacing.lg,
   },
   skeletonContainer: {
     marginTop: Spacing.lg,
+  },
+  emptyContainer: {
+    alignItems: "center",
+    paddingVertical: Spacing["4xl"],
+    paddingHorizontal: Spacing.xl,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: Colors.dark.text,
+    marginBottom: Spacing.sm,
+  },
+  emptyMessage: {
+    fontSize: 14,
+    color: Colors.dark.textSecondary,
+    textAlign: "center",
   },
 });
