@@ -449,6 +449,151 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  app.put(
+    "/api/arena/:id/positions/:positionId",
+    async (req: Request, res: Response) => {
+      try {
+        const { id, positionId } = req.params;
+        const userId = req.headers["x-user-id"] as string;
+        const { stopLossPrice, takeProfitPrice } = req.body;
+
+        if (!userId) {
+          return res.status(401).json({ error: "Authentication required" });
+        }
+
+        const comp = await storage.getCompetition(id);
+        if (!comp || comp.status !== "running") {
+          return res.status(400).json({ error: "Trading is not active" });
+        }
+
+        const positions = await storage.getPositions(id, userId);
+        const position = positions.find((p) => p.id === positionId);
+
+        if (!position) {
+          return res.status(404).json({ error: "Position not found" });
+        }
+
+        const updates: any = {};
+        if (stopLossPrice !== undefined) {
+          updates.stopLossPrice = stopLossPrice ? parseFloat(stopLossPrice) : null;
+        }
+        if (takeProfitPrice !== undefined) {
+          updates.takeProfitPrice = takeProfitPrice ? parseFloat(takeProfitPrice) : null;
+        }
+
+        await storage.updatePosition(positionId, updates);
+        res.json({ success: true });
+      } catch (error: any) {
+        console.error("Modify position error:", error);
+        res.status(500).json({ error: error.message });
+      }
+    }
+  );
+
+  app.post(
+    "/api/arena/:id/positions/:positionId/partial-close",
+    async (req: Request, res: Response) => {
+      try {
+        const { id, positionId } = req.params;
+        const userId = req.headers["x-user-id"] as string;
+        const { quantity } = req.body;
+
+        if (!userId) {
+          return res.status(401).json({ error: "Authentication required" });
+        }
+
+        if (!quantity || quantity <= 0) {
+          return res.status(400).json({ error: "Invalid quantity" });
+        }
+
+        const comp = await storage.getCompetition(id);
+        if (!comp || comp.status !== "running") {
+          return res.status(400).json({ error: "Trading is not active" });
+        }
+
+        const positions = await storage.getPositions(id, userId);
+        const position = positions.find((p) => p.id === positionId);
+
+        if (!position) {
+          return res.status(404).json({ error: "Position not found" });
+        }
+
+        if (quantity >= position.quantityUnits) {
+          return res.status(400).json({ error: "Quantity exceeds position size. Use full close instead." });
+        }
+
+        const quote = quotes[position.pair];
+        if (!quote) {
+          return res.status(400).json({ error: "No quote available" });
+        }
+
+        const closePrice = position.side === "buy" ? quote.bid : quote.ask;
+        const pipsPerUnit = position.pair.includes("JPY") ? 0.01 : 0.0001;
+        const priceDiff = position.side === "buy" 
+          ? closePrice - position.avgEntryPrice 
+          : position.avgEntryPrice - closePrice;
+        const pnlCents = Math.round(priceDiff / pipsPerUnit * quantity * 0.1);
+
+        const entry = await storage.getCompetitionEntry(id, userId);
+        if (entry) {
+          await storage.updateCompetitionEntry(entry.id, {
+            cashCents: entry.cashCents + pnlCents,
+            equityCents: entry.equityCents + pnlCents,
+          });
+        }
+
+        await storage.updatePosition(positionId, {
+          quantityUnits: position.quantityUnits - quantity,
+        });
+
+        res.json({ success: true, pnlCents, remainingQuantity: position.quantityUnits - quantity });
+      } catch (error: any) {
+        console.error("Partial close error:", error);
+        res.status(500).json({ error: error.message });
+      }
+    }
+  );
+
+  app.put(
+    "/api/arena/:id/orders/:orderId",
+    async (req: Request, res: Response) => {
+      try {
+        const { id, orderId } = req.params;
+        const userId = req.headers["x-user-id"] as string;
+        const { limitPrice, stopPrice, stopLossPrice, takeProfitPrice } = req.body;
+
+        if (!userId) {
+          return res.status(401).json({ error: "Authentication required" });
+        }
+
+        const comp = await storage.getCompetition(id);
+        if (!comp || comp.status !== "running") {
+          return res.status(400).json({ error: "Trading is not active" });
+        }
+
+        const updates: any = {};
+        if (limitPrice !== undefined) {
+          updates.limitPrice = limitPrice ? parseFloat(limitPrice) : null;
+        }
+        if (stopPrice !== undefined) {
+          updates.stopPrice = stopPrice ? parseFloat(stopPrice) : null;
+        }
+        if (stopLossPrice !== undefined) {
+          updates.stopLossPrice = stopLossPrice ? parseFloat(stopLossPrice) : null;
+        }
+        if (takeProfitPrice !== undefined) {
+          updates.takeProfitPrice = takeProfitPrice ? parseFloat(takeProfitPrice) : null;
+        }
+
+        await storage.updateOrder(orderId, updates);
+        res.json({ success: true });
+      } catch (error: any) {
+        console.error("Modify order error:", error);
+        res.status(500).json({ error: error.message });
+      }
+    }
+  );
+
   app.get("/api/admin/competitions", async (req: Request, res: Response) => {
     try {
       const userId = req.headers["x-user-id"] as string;
