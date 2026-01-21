@@ -142,8 +142,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Competition not found" });
       }
 
-      if (comp.status !== "open") {
-        return res.status(400).json({ error: "Competition is not open for entries" });
+      if (comp.status !== "open" && comp.status !== "running") {
+        return res.status(400).json({ error: "Competition is not accepting entries" });
       }
 
       if (comp.entryCount >= comp.entryCap) {

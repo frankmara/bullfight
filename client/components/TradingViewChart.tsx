@@ -4,10 +4,12 @@ import { Colors, Spacing } from '@/constants/theme';
 
 // Only import lightweight-charts on web
 let createChart: any = null;
+let CandlestickSeries: any = null;
 if (Platform.OS === 'web') {
   try {
     const lwc = require('lightweight-charts');
     createChart = lwc.createChart;
+    CandlestickSeries = lwc.CandlestickSeries;
   } catch (e) {
     console.error('Failed to load lightweight-charts', e);
   }
@@ -158,15 +160,24 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
 
         chartRef.current = chart;
 
-        // Add candlestick series
-        const candlestickSeries = chart.addCandlestickSeries({
-          upColor: Colors.dark.success,
-          downColor: Colors.dark.danger,
-          borderUpColor: Colors.dark.success,
-          borderDownColor: Colors.dark.danger,
-          wickUpColor: Colors.dark.success,
-          wickDownColor: Colors.dark.danger,
-        });
+        // Add candlestick series - v5 API uses addSeries with CandlestickSeries type
+        const candlestickSeries = CandlestickSeries 
+          ? chart.addSeries(CandlestickSeries, {
+              upColor: Colors.dark.success,
+              downColor: Colors.dark.danger,
+              borderUpColor: Colors.dark.success,
+              borderDownColor: Colors.dark.danger,
+              wickUpColor: Colors.dark.success,
+              wickDownColor: Colors.dark.danger,
+            })
+          : chart.addCandlestickSeries({
+              upColor: Colors.dark.success,
+              downColor: Colors.dark.danger,
+              borderUpColor: Colors.dark.success,
+              borderDownColor: Colors.dark.danger,
+              wickUpColor: Colors.dark.success,
+              wickDownColor: Colors.dark.danger,
+            });
 
         candlestickSeriesRef.current = candlestickSeries;
 

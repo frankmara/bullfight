@@ -174,7 +174,7 @@ export default function CompetitionDetailScreen() {
     (pct) => (competition.prizePoolCents * pct) / 100
   );
 
-  const canJoin = competition.status === "open" && !competition.isJoined;
+  const canJoin = (competition.status === "open" || competition.status === "running") && !competition.isJoined;
   const canEnter =
     competition.isJoined &&
     (competition.status === "open" || competition.status === "running");
@@ -357,7 +357,12 @@ export default function CompetitionDetailScreen() {
         </View>
 
         <View style={styles.actionSection}>
-          {canJoin ? (
+          {!isAuthenticated && (competition.status === "open" || competition.status === "running") ? (
+            <Button onPress={() => navigation.navigate("Login")} style={styles.actionButton}>
+              Sign In to Join
+            </Button>
+          ) : null}
+          {isAuthenticated && canJoin ? (
             <Button onPress={handleJoin} disabled={isJoining} style={styles.actionButton}>
               {isJoining
                 ? "Joining..."
@@ -367,11 +372,6 @@ export default function CompetitionDetailScreen() {
           {canEnter ? (
             <Button onPress={handleEnterArena} style={styles.actionButton}>
               Enter Trading Arena
-            </Button>
-          ) : null}
-          {!isAuthenticated ? (
-            <Button onPress={() => navigation.navigate("Login")} style={styles.actionButton}>
-              Sign In to Join
             </Button>
           ) : null}
         </View>
