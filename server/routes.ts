@@ -1349,6 +1349,208 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create Stripe checkout session for PvP challenge stake
+  app.post("/api/pvp/challenges/:id/checkout", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const userId = req.headers["x-user-id"] as string;
+
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const challenge = await storage.getPvpChallenge(id);
+      if (!challenge) {
+        return res.status(404).json({ error: "Challenge not found" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const isChallenger = challenge.challengerId === userId;
+      const isInviteeById = challenge.inviteeId === userId;
+      const isInviteeByEmail = user.email && challenge.inviteeEmail === user.email;
+
+      if (!isChallenger && !isInviteeById && !isInviteeByEmail) {
+        return res.status(403).json({ error: "Not authorized" });
+      }
+
+      if (challenge.status !== "accepted" && challenge.status !== "payment_pending") {
+        return res.status(400).json({ error: "Challenge not ready for payment" });
+      }
+
+      const alreadyPaid = isChallenger ? challenge.challengerPaid : challenge.inviteePaid;
+      if (alreadyPaid) {
+        return res.status(400).json({ error: "Already paid for this challenge" });
+      }
+
+      const stripe = await getUncachableStripeClient();
+      const baseUrl = `https://${process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [{
+          price_data: {
+            currency: 'usd',
+            unit_amount: challenge.stakeCents,
+            product_data: {
+              name: `PvP Challenge Stake: ${challenge.name || 'Challenge'}`,
+              description: `Stake for PvP trading challenge`,
+            },
+          },
+          quantity: 1,
+        }],
+        mode: 'payment',
+        success_url: `${baseUrl}/payment/success?type=pvp&id=${id}&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${baseUrl}/payment/cancel?type=pvp&id=${id}`,
+        customer_email: user.email,
+        metadata: {
+          type: 'pvp_challenge_stake',
+          challengeId: id,
+          userId: userId,
+          isChallenger: isChallenger ? 'true' : 'false',
+        },
+      });
+
+      // Update challenge with session ID
+      const updateData: any = {};
+      if (isChallenger) {
+        updateData.challengerStripeSessionId = session.id;
+      } else {
+        updateData.inviteeStripeSessionId = session.id;
+      }
+      await storage.updatePvpChallenge(id, updateData);
+
+      res.json({ url: session.url, sessionId: session.id });
+    } catch (error: any) {
+      console.error("PvP checkout error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Confirm PvP challenge payment (called after successful Stripe checkout)
+  app.post("/api/pvp/challenges/:id/confirm-payment", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { sessionId } = req.body;
+      const userId = req.headers["x-user-id"] as string;
+
+      if (!userId || !sessionId) {
+        return res.status(400).json({ error: "Missing required parameters" });
+      }
+
+      const stripe = await getUncachableStripeClient();
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+      if (session.payment_status !== 'paid') {
+        return res.status(400).json({ error: "Payment not completed" });
+      }
+
+      if (session.metadata?.challengeId !== id || session.metadata?.userId !== userId) {
+        return res.status(403).json({ error: "Payment session mismatch" });
+      }
+
+      const challenge = await storage.getPvpChallenge(id);
+      if (!challenge) {
+        return res.status(404).json({ error: "Challenge not found" });
+      }
+
+      const isChallenger = session.metadata.isChallenger === 'true';
+      const alreadyPaid = isChallenger ? challenge.challengerPaid : challenge.inviteePaid;
+
+      if (alreadyPaid) {
+        return res.json({ success: true, challenge });
+      }
+
+      // Mark payment complete and check if both parties paid
+      const challengerPaid = isChallenger ? true : challenge.challengerPaid;
+      const inviteePaid = !isChallenger ? true : challenge.inviteePaid;
+      const bothPaid = challengerPaid && inviteePaid;
+
+      let competitionId = challenge.competitionId;
+
+      if (bothPaid && !competitionId) {
+        const now = new Date();
+        let adjustedStartAt = challenge.startAt;
+
+        if (challenge.startAt && new Date(challenge.startAt) <= now) {
+          adjustedStartAt = now;
+        }
+
+        const comp = await storage.createCompetition({
+          type: "pvp",
+          status: "running",
+          title: challenge.name || `PvP Challenge`,
+          buyInCents: challenge.stakeCents,
+          entryCap: 2,
+          rakeBps: challenge.rakeBps,
+          startAt: adjustedStartAt,
+          endAt: challenge.endAt,
+          startingBalanceCents: challenge.startingBalanceCents,
+          allowedPairsJson: challenge.allowedPairsJson,
+          spreadMarkupPips: challenge.spreadMarkupPips,
+          maxSlippagePips: challenge.maxSlippagePips,
+          minOrderIntervalMs: challenge.minOrderIntervalMs,
+          maxDrawdownPct: challenge.maxDrawdownPct,
+          createdBy: challenge.challengerId,
+        });
+
+        competitionId = comp.id;
+
+        await storage.createCompetitionEntry({
+          competitionId: comp.id,
+          userId: challenge.challengerId,
+          paidCents: challenge.stakeCents,
+          paymentStatus: "succeeded",
+          cashCents: challenge.startingBalanceCents,
+          equityCents: challenge.startingBalanceCents,
+          maxEquityCents: challenge.startingBalanceCents,
+        });
+
+        await storage.createCompetitionEntry({
+          competitionId: comp.id,
+          userId: challenge.inviteeId!,
+          paidCents: challenge.stakeCents,
+          paymentStatus: "succeeded",
+          cashCents: challenge.startingBalanceCents,
+          equityCents: challenge.startingBalanceCents,
+          maxEquityCents: challenge.startingBalanceCents,
+        });
+      }
+
+      const updateData: any = {
+        challengerPaid,
+        inviteePaid,
+        competitionId,
+        status: bothPaid ? "active" : "payment_pending",
+      };
+
+      if (isChallenger) {
+        updateData.challengerStripePaymentId = session.payment_intent as string;
+      } else {
+        updateData.inviteeStripePaymentId = session.payment_intent as string;
+      }
+
+      const updated = await storage.updatePvpChallenge(id, updateData);
+
+      await storage.createAuditLog(userId, "pvp_payment_made", "pvp_challenge", id, {
+        challengerPaid,
+        inviteePaid,
+        bothPaid,
+        competitionId,
+        stripeSessionId: sessionId,
+      });
+
+      res.json({ success: true, challenge: updated, competitionId });
+    } catch (error: any) {
+      console.error("Confirm PvP payment error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Legacy pay endpoint (kept for backwards compatibility)
   app.post("/api/pvp/challenges/:id/pay", async (req: Request, res: Response) => {
     try {
       const userId = req.headers["x-user-id"] as string;
@@ -1361,6 +1563,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!challenge) {
         return res.status(404).json({ error: "Challenge not found" });
+      }
+
+      // If stake amount > 0, redirect to checkout
+      if (challenge.stakeCents > 0) {
+        return res.status(400).json({
+          error: "This challenge requires payment",
+          requiresPayment: true,
+          checkoutUrl: `/api/pvp/challenges/${id}/checkout`
+        });
       }
 
       const user = await storage.getUser(userId);

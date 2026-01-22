@@ -74,6 +74,8 @@ export const competitionEntries = pgTable("competition_entries", {
   maxDrawdownPct: real("max_drawdown_pct").notNull().default(0),
   dq: boolean("dq").notNull().default(false),
   lastOrderAt: timestamp("last_order_at"),
+  stripeSessionId: text("stripe_session_id"),
+  stripePaymentId: text("stripe_payment_id"),
 });
 
 export const orders = pgTable("orders", {
@@ -264,6 +266,10 @@ export const pvpChallenges = pgTable("pvp_challenges", {
   inviteeAccepted: boolean("invitee_accepted").notNull().default(false),
   challengerPaid: boolean("challenger_paid").notNull().default(false),
   inviteePaid: boolean("invitee_paid").notNull().default(false),
+  challengerStripeSessionId: text("challenger_stripe_session_id"),
+  challengerStripePaymentId: text("challenger_stripe_payment_id"),
+  inviteeStripeSessionId: text("invitee_stripe_session_id"),
+  inviteeStripePaymentId: text("invitee_stripe_payment_id"),
   competitionId: varchar("competition_id").references(() => competitions.id),
   winnerId: varchar("winner_id").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
