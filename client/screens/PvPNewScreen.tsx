@@ -49,6 +49,7 @@ export default function PvPNewScreen() {
   const maxWidth = 600;
   const containerWidth = isWeb ? Math.min(width - Spacing.lg * 2, maxWidth) : width - Spacing.lg * 2;
 
+  const [challengeName, setChallengeName] = useState("");
   const [inviteeEmail, setInviteeEmail] = useState("");
   const [stakeDollars, setStakeDollars] = useState("10");
   const [startingBalanceDollars, setStartingBalanceDollars] = useState("100000");
@@ -115,6 +116,7 @@ export default function PvPNewScreen() {
     const endAt = new Date(startAt.getTime() + hours * 60 * 60 * 1000);
 
     createChallengeMutation.mutate({
+      name: challengeName.trim() || null,
       inviteeEmail: inviteeEmail.trim(),
       stakeCents: Math.round(stake * 100),
       startingBalanceCents: Math.round(balance * 100),
@@ -144,6 +146,21 @@ export default function PvPNewScreen() {
             <ThemedText style={styles.pageSubtitle}>
               Challenge another trader to a one-on-one competition
             </ThemedText>
+          </View>
+        </View>
+
+        <View style={styles.formSection}>
+          <ThemedText style={styles.sectionTitle}>Challenge Details</ThemedText>
+          <View style={styles.inputContainer}>
+            <ThemedText style={styles.inputLabel}>Challenge Name (Optional)</ThemedText>
+            <TextInput
+              style={styles.textInput}
+              value={challengeName}
+              onChangeText={setChallengeName}
+              placeholder="e.g., Ultimate Forex Showdown"
+              placeholderTextColor={Colors.dark.textMuted}
+              autoCapitalize="words"
+            />
           </View>
         </View>
 

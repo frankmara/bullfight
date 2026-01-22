@@ -35,6 +35,7 @@ function useSafeTabBarHeight() {
 
 interface PvpChallenge {
   id: string;
+  name: string | null;
   challengerId: string;
   inviteeId: string | null;
   inviteeEmail: string;
@@ -44,6 +45,7 @@ interface PvpChallenge {
   startAt: string | null;
   endAt: string | null;
   createdAt: string;
+  competitionId: string | null;
 }
 
 const DESKTOP_BREAKPOINT = 768;
@@ -169,8 +171,11 @@ export default function PvPListScreen() {
       <View style={styles.challengeHeader}>
         <View style={styles.challengeHeaderLeft}>
           <ThemedText style={styles.challengeTitle}>
-            vs {item.inviteeEmail}
+            {item.name || `vs ${item.inviteeEmail}`}
           </ThemedText>
+          {item.name ? (
+            <ThemedText style={styles.opponentText}>vs {item.inviteeEmail}</ThemedText>
+          ) : null}
           <View style={styles.roleContainer}>
             <ThemedText style={styles.roleText}>{getRoleLabel(item)}</ThemedText>
           </View>
@@ -342,6 +347,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: Colors.dark.text,
+    marginBottom: 4,
+  },
+  opponentText: {
+    fontSize: 13,
+    color: Colors.dark.textSecondary,
     marginBottom: 4,
   },
   roleContainer: {

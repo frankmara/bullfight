@@ -958,6 +958,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const {
+        name,
         inviteeEmail,
         stakeCents,
         startingBalanceCents,
@@ -977,6 +978,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const invitee = await storage.getUserByEmail(inviteeEmail);
 
       const challenge = await storage.createPvpChallenge({
+        name: name || null,
         challengerId: userId,
         inviteeId: invitee?.id || null,
         inviteeEmail,
@@ -1207,14 +1209,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let competitionId = challenge.competitionId;
 
       if (bothPaid && !competitionId) {
+        const now = new Date();
+        let adjustedStartAt = challenge.startAt;
+        
+        if (challenge.startAt && new Date(challenge.startAt) <= now) {
+          adjustedStartAt = now;
+        }
+
         const comp = await storage.createCompetition({
           type: "pvp",
-          status: "open",
-          title: `PvP Challenge`,
+          status: "running",
+          title: challenge.name || `PvP Challenge`,
           buyInCents: challenge.stakeCents,
           entryCap: 2,
           rakeBps: challenge.rakeBps,
-          startAt: challenge.startAt,
+          startAt: adjustedStartAt,
           endAt: challenge.endAt,
           startingBalanceCents: challenge.startingBalanceCents,
           allowedPairsJson: challenge.allowedPairsJson,
@@ -1246,11 +1255,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           equityCents: challenge.startingBalanceCents,
           maxEquityCents: challenge.startingBalanceCents,
         });
-
-        const now = new Date();
-        if (challenge.startAt && new Date(challenge.startAt) <= now) {
-          await storage.updateCompetitionStatus(comp.id, "running");
-        }
       }
 
       const updated = await storage.updatePvpChallenge(id, {

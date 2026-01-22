@@ -239,6 +239,7 @@ export const pvpChallenges = pgTable("pvp_challenges", {
   id: varchar("id")
     .primaryKey()
     .default(sql`gen_random_uuid()`),
+  name: text("name"),
   challengerId: varchar("challenger_id")
     .references(() => users.id)
     .notNull(),
