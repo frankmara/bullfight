@@ -409,14 +409,21 @@ class MarketDataService {
     const cacheKey = `${pair}:${timeframe}:${limit}`;
     const cached = this.candleCache.get(cacheKey);
     
+    // Only return cached data if it's real (not mock) or we're in mock mode
     if (cached && Date.now() - cached.fetchedAt < 30000) {
-      return { 
-        candles: cached.candles.slice(-limit), 
-        mock: cached.mock || false 
-      };
+      // If connected to Polygon, only return cached if it's real data
+      if (!this.isUsingMockData && cached.mock) {
+        // Skip mock cache when connected to live data source
+      } else {
+        return { 
+          candles: cached.candles.slice(-limit), 
+          mock: cached.mock || false 
+        };
+      }
     }
 
     if (this.isUsingMockData) {
+      // Only use mock candles when NOT connected to Polygon at all
       const candles = this.generateMockCandles(pair, timeframe, limit);
       return { candles, mock: true };
     }
@@ -428,8 +435,7 @@ class MarketDataService {
     const tf = TIMEFRAME_MAP[timeframe];
     if (!tf) {
       console.error("[MarketDataService] Unknown timeframe:", timeframe);
-      const candles = this.generateMockCandles(pair, timeframe, limit);
-      return { candles, mock: true };
+      return { candles: [], mock: false };
     }
 
     const ticker = formatPolygonTicker(pair);
@@ -444,9 +450,21 @@ class MarketDataService {
       const data = await response.json();
 
       if (!data.results || data.results.length === 0) {
-        console.warn("[MarketDataService] No candle data from Polygon, using mock");
-        const candles = this.generateMockCandles(pair, timeframe, limit);
-        return { candles, mock: true };
+        // No historical data from Polygon REST API
+        // Check if we have real-time candles accumulated from WebSocket CAS events
+        const realtimeCacheKey = `${pair}:1m`;
+        const realtimeCandles = this.candleCache.get(realtimeCacheKey);
+        
+        if (realtimeCandles && realtimeCandles.candles.length > 0 && !realtimeCandles.mock) {
+          console.log(`[MarketDataService] Using ${realtimeCandles.candles.length} real-time candles for ${pair}`);
+          // Aggregate 1m candles to requested timeframe if needed
+          const aggregated = this.aggregateCandles(realtimeCandles.candles, tf.seconds);
+          return { candles: aggregated.slice(-limit), mock: false };
+        }
+        
+        // No real data available - return empty, not mock
+        console.warn(`[MarketDataService] No candle data available for ${pair}, returning empty`);
+        return { candles: [], mock: false };
       }
 
       const candles: Candle[] = data.results.map((r: any) => ({
@@ -471,9 +489,51 @@ class MarketDataService {
       return { candles: filledCandles.slice(-limit), mock: false };
     } catch (e) {
       console.error("[MarketDataService] Failed to fetch Polygon candles:", e);
-      const candles = this.generateMockCandles(pair, timeframe, limit);
-      return { candles, mock: true };
+      // Check for real-time candles instead of mock
+      const realtimeCacheKey = `${pair}:1m`;
+      const realtimeCandles = this.candleCache.get(realtimeCacheKey);
+      
+      if (realtimeCandles && realtimeCandles.candles.length > 0 && !realtimeCandles.mock) {
+        const aggregated = this.aggregateCandles(realtimeCandles.candles, tf.seconds);
+        return { candles: aggregated.slice(-limit), mock: false };
+      }
+      
+      return { candles: [], mock: false };
     }
+  }
+
+  private aggregateCandles(candles: Candle[], targetSeconds: number): Candle[] {
+    if (targetSeconds <= 60) return candles; // Already 1m or smaller
+    
+    const aggregated: Candle[] = [];
+    let currentBucket: Candle | null = null;
+    
+    for (const candle of candles) {
+      const bucket = Math.floor(candle.time / targetSeconds) * targetSeconds;
+      
+      if (!currentBucket || currentBucket.time !== bucket) {
+        if (currentBucket) {
+          aggregated.push(currentBucket);
+        }
+        currentBucket = {
+          time: bucket,
+          open: candle.open,
+          high: candle.high,
+          low: candle.low,
+          close: candle.close,
+        };
+      } else {
+        currentBucket.high = Math.max(currentBucket.high, candle.high);
+        currentBucket.low = Math.min(currentBucket.low, candle.low);
+        currentBucket.close = candle.close;
+      }
+    }
+    
+    if (currentBucket) {
+      aggregated.push(currentBucket);
+    }
+    
+    return aggregated;
   }
 
   private fillCandleGap(pair: string, candles: Candle[], candleSeconds: number, limit: number): Candle[] {
