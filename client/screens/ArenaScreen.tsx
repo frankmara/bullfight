@@ -33,6 +33,7 @@ import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/types/navigation";
 import { TerminalColors, TerminalTypography, TerminalSpacing, TerminalRadius } from "@/components/terminal";
 import { ArenaLayout, ToolDock, ChartToolbar, MarketWatch, OrderTicket, Blotter, LAYOUT_CONSTANTS } from "@/components/arena";
+import type { DrawingTool, DrawnLine } from "@/components/arena/ToolDock";
 
 type QuoteStatus = "live" | "delayed" | "stale" | "disconnected";
 
@@ -197,6 +198,9 @@ export default function ArenaScreen() {
   const [selectedTimeframe, setSelectedTimeframe] = useState("15m");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [selectedTool, setSelectedTool] = useState<DrawingTool>("cursor");
+  const [drawnLines, setDrawnLines] = useState<DrawnLine[]>([]);
+  const [pendingTrendLine, setPendingTrendLine] = useState<{ startPrice: number; startTime: number } | null>(null);
   
   const toastOpacity = useSharedValue(0);
   const searchInputRef = useRef<TextInput>(null);
@@ -287,6 +291,44 @@ export default function ArenaScreen() {
     );
     setTimeout(() => setToast(null), 2500);
   }, [toastOpacity]);
+
+  const handleChartClick = useCallback((price: number, time: number) => {
+    if (selectedTool === "horizontal") {
+      const newLine: DrawnLine = {
+        id: `line-${Date.now()}`,
+        type: "horizontal",
+        price,
+        color: TerminalColors.accent,
+      };
+      setDrawnLines(prev => [...prev, newLine]);
+      showToast(`Horizontal line placed at ${formatPrice(price, selectedPair)}`, 'info');
+      setSelectedTool("cursor");
+    } else if (selectedTool === "trend") {
+      if (!pendingTrendLine) {
+        setPendingTrendLine({ startPrice: price, startTime: time });
+        showToast("Click second point to complete trend line", 'info');
+      } else {
+        const newLine: DrawnLine = {
+          id: `line-${Date.now()}`,
+          type: "trend",
+          startPrice: pendingTrendLine.startPrice,
+          startTime: pendingTrendLine.startTime,
+          endPrice: price,
+          endTime: time,
+          color: TerminalColors.accent,
+        };
+        setDrawnLines(prev => [...prev, newLine]);
+        setPendingTrendLine(null);
+        showToast("Trend line placed", 'info');
+        setSelectedTool("cursor");
+      }
+    }
+  }, [selectedTool, pendingTrendLine, selectedPair, showToast]);
+
+  const handleDeleteLine = useCallback((lineId: string) => {
+    setDrawnLines(prev => prev.filter(l => l.id !== lineId));
+    showToast("Line deleted", 'info');
+  }, [showToast]);
 
   useEffect(() => {
     if (Platform.OS !== 'web') return;
@@ -646,6 +688,9 @@ export default function ArenaScreen() {
           orders={pendingOrders.filter((o) => o.pair === selectedPair)}
           timeframe={selectedTimeframe}
           currentQuote={currentQuote ? { bid: currentQuote.bid, ask: currentQuote.ask } : undefined}
+          selectedTool={selectedTool}
+          drawnLines={drawnLines}
+          onChartClick={handleChartClick}
         />
       </View>
     </View>
@@ -985,7 +1030,15 @@ export default function ArenaScreen() {
         <ArenaLayout
           header={renderHeader()}
           accountMetrics={renderAccountSummary()}
-          toolDock={<ToolDock />}
+          toolDock={
+            <ToolDock
+              selectedTool={selectedTool}
+              onToolSelect={setSelectedTool}
+              onShowToast={(msg) => showToast(msg, 'info')}
+              drawnLines={drawnLines}
+              onDeleteLine={handleDeleteLine}
+            />
+          }
           chartToolbar={
             <ChartToolbar
               symbol={selectedPair}
@@ -1011,6 +1064,9 @@ export default function ArenaScreen() {
               orders={pendingOrders.filter((o) => o.pair === selectedPair)}
               timeframe={selectedTimeframe}
               currentQuote={currentQuote ? { bid: currentQuote.bid, ask: currentQuote.ask } : undefined}
+              selectedTool={selectedTool}
+              drawnLines={drawnLines}
+              onChartClick={handleChartClick}
             />
           }
           marketWatch={

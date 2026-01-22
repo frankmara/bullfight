@@ -54,6 +54,17 @@ interface Quote {
   ask: number;
 }
 
+interface DrawnLine {
+  id: string;
+  type: "horizontal" | "trend" | "vertical" | "ray";
+  price?: number;
+  startPrice?: number;
+  startTime?: number;
+  endPrice?: number;
+  endTime?: number;
+  color: string;
+}
+
 interface TradingViewChartProps {
   pair: string;
   height?: number;
@@ -61,6 +72,9 @@ interface TradingViewChartProps {
   orders?: PendingOrder[];
   timeframe?: string;
   currentQuote?: Quote;
+  selectedTool?: string;
+  drawnLines?: DrawnLine[];
+  onChartClick?: (price: number, time: number) => void;
 }
 
 const TIMEFRAME_SECONDS: Record<string, number> = {
@@ -79,11 +93,12 @@ function formatPrice(price: number, pair: string): string {
 }
 
 export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
-  ({ pair, height = 400, positions = [], orders = [], timeframe = '15m', currentQuote }, ref) => {
+  ({ pair, height = 400, positions = [], orders = [], timeframe = '15m', currentQuote, selectedTool = 'cursor', drawnLines = [], onChartClick }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<any>(null);
     const candlestickSeriesRef = useRef<any>(null);
     const priceLinesRef = useRef<any[]>([]);
+    const drawnLinesRef = useRef<any[]>([]);
     const lastDataRef = useRef<CandleData | null>(null);
     const candlesRef = useRef<CandleData[]>([]);
     const [isClient, setIsClient] = useState(false);
@@ -289,6 +304,19 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
             }
           });
 
+          chart.subscribeClick((param: any) => {
+            if (!param || !param.point || !candlestickSeriesRef.current) return;
+            try {
+              const price = candlestickSeriesRef.current.coordinateToPrice(param.point.y);
+              const time = chartRef.current.timeScale().coordinateToTime(param.point.x);
+              if (price && time && onChartClick) {
+                onChartClick(price, time);
+              }
+            } catch (e) {
+              console.error('Error getting chart coordinates:', e);
+            }
+          });
+
           const handleResize = () => {
             if (containerRef.current && chart) {
               chart.applyOptions({
@@ -422,6 +450,37 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
         }
       });
     }, [positions, orders]);
+
+    useEffect(() => {
+      if (!candlestickSeriesRef.current || Platform.OS !== 'web') {
+        return;
+      }
+
+      drawnLinesRef.current.forEach((line) => {
+        try {
+          candlestickSeriesRef.current.removePriceLine(line);
+        } catch (e) {}
+      });
+      drawnLinesRef.current = [];
+
+      drawnLines.forEach((line) => {
+        try {
+          if (line.type === 'horizontal' && line.price) {
+            const priceLine = candlestickSeriesRef.current.createPriceLine({
+              price: line.price,
+              color: line.color,
+              lineWidth: 1,
+              lineStyle: 0,
+              axisLabelVisible: true,
+              title: 'H-Line',
+            });
+            drawnLinesRef.current.push(priceLine);
+          }
+        } catch (e) {
+          console.error('Error creating drawn line:', e);
+        }
+      });
+    }, [drawnLines]);
 
     if (Platform.OS !== 'web') {
       return (
