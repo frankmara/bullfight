@@ -67,14 +67,10 @@ export function OrderTicket({
   onPlaceOrder,
   formatPrice,
 }: OrderTicketProps) {
-  const [slEnabled, setSlEnabled] = useState(false);
-  const [tpEnabled, setTpEnabled] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingSide, setPendingSide] = useState<"buy" | "sell">("buy");
 
   const lots = parseFloat(lotSize) || 0.01;
-  const unitsDisplay = formatUnits(lots);
-  const spreadPips = currentQuote ? ((currentQuote.ask - currentQuote.bid) * 10000).toFixed(1) : "-";
 
   const handleTrade = (side: "buy" | "sell") => {
     onOrderSideChange(side);
@@ -104,134 +100,59 @@ export function OrderTicket({
 
   return (
     <View style={styles.container}>
-      <View style={styles.topRow}>
-        <View style={styles.orderTypeTabs}>
-          {(["market", "limit", "stop"] as const).map((type) => (
-            <Pressable
-              key={type}
-              style={[styles.orderTypeTab, orderType === type && styles.orderTypeTabActive]}
-              onPress={() => onOrderTypeChange(type)}
-            >
-              <ThemedText style={[styles.orderTypeText, orderType === type && styles.orderTypeTextActive]}>
-                {type.charAt(0).toUpperCase()}
-              </ThemedText>
-            </Pressable>
-          ))}
-        </View>
-        
-        <View style={styles.oneClickToggle}>
-          <ThemedText style={styles.oneClickLabel}>1-Click</ThemedText>
+      <View style={styles.row}>
+        {currentQuote ? (
           <Pressable
-            style={[styles.toggle, oneClickTrading && styles.toggleActive]}
-            onPress={() => onOneClickTradingChange(!oneClickTrading)}
-          >
-            <View style={[styles.toggleKnob, oneClickTrading && styles.toggleKnobActive]} />
-          </Pressable>
-        </View>
-      </View>
-
-      <View style={styles.sizeRow}>
-        <Pressable style={styles.sizeAdjustBtn} onPress={() => adjustLotSize(-1)}>
-          <Feather name="minus" size={14} color={TerminalColors.textSecondary} />
-        </Pressable>
-        <View style={styles.sizeInputContainer}>
-          <TextInput
-            style={styles.sizeInput}
-            value={lotSize}
-            onChangeText={onLotSizeChange}
-            keyboardType="decimal-pad"
-            placeholderTextColor={TerminalColors.textMuted}
-          />
-          <ThemedText style={styles.sizeUnitLabel}>lots</ThemedText>
-        </View>
-        <Pressable style={styles.sizeAdjustBtn} onPress={() => adjustLotSize(1)}>
-          <Feather name="plus" size={14} color={TerminalColors.textSecondary} />
-        </Pressable>
-      </View>
-
-      {orderType !== "market" && (
-        <View style={styles.priceRow}>
-          <ThemedText style={styles.priceLabel}>
-            {orderType === "limit" ? "Limit" : "Stop"}
-          </ThemedText>
-          <TextInput
-            style={styles.priceInput}
-            value={orderType === "limit" ? limitPrice : stopPrice}
-            onChangeText={orderType === "limit" ? onLimitPriceChange : onStopPriceChange}
-            keyboardType="decimal-pad"
-            placeholder={currentQuote ? formatPrice((currentQuote.bid + currentQuote.ask) / 2) : "0.00000"}
-            placeholderTextColor={TerminalColors.textMuted}
-          />
-        </View>
-      )}
-
-      <View style={styles.riskRow}>
-        <Pressable
-          style={[styles.riskToggle, slEnabled && styles.riskToggleActive]}
-          onPress={() => setSlEnabled(!slEnabled)}
-        >
-          <ThemedText style={[styles.riskToggleText, slEnabled && styles.riskToggleTextActive]}>SL</ThemedText>
-        </Pressable>
-        {slEnabled && (
-          <TextInput
-            style={[styles.riskInput, styles.slInput]}
-            value={stopLoss}
-            onChangeText={onStopLossChange}
-            keyboardType="decimal-pad"
-            placeholder="Price"
-            placeholderTextColor={TerminalColors.textMuted}
-          />
-        )}
-        <Pressable
-          style={[styles.riskToggle, tpEnabled && styles.riskToggleActive]}
-          onPress={() => setTpEnabled(!tpEnabled)}
-        >
-          <ThemedText style={[styles.riskToggleText, tpEnabled && styles.riskToggleTextActive]}>TP</ThemedText>
-        </Pressable>
-        {tpEnabled && (
-          <TextInput
-            style={[styles.riskInput, styles.tpInput]}
-            value={takeProfit}
-            onChangeText={onTakeProfitChange}
-            keyboardType="decimal-pad"
-            placeholder="Price"
-            placeholderTextColor={TerminalColors.textMuted}
-          />
-        )}
-      </View>
-
-      {currentQuote ? (
-        <View style={styles.tradeButtonsContainer}>
-          <Pressable
-            style={[styles.tradeBtn, styles.sellBtn, isPending && styles.tradeBtnDisabled]}
+            style={[styles.tradeBtn, styles.sellBtn, (isPending || isTradeDisabled) && styles.tradeBtnDisabled]}
             onPress={() => handleTrade("sell")}
             disabled={isTradeDisabled || isPending}
           >
-            <ThemedText style={styles.tradeBtnLabel}>SELL</ThemedText>
             <ThemedText style={styles.tradeBtnPrice}>{formatPrice(currentQuote.bid)}</ThemedText>
+            <ThemedText style={styles.tradeBtnLabel}>SELL</ThemedText>
           </Pressable>
-
-          <View style={styles.spreadColumn}>
-            <ThemedText style={styles.spreadValue}>{spreadPips}</ThemedText>
+        ) : (
+          <View style={[styles.tradeBtn, styles.sellBtn, styles.tradeBtnDisabled]}>
+            <ThemedText style={styles.tradeBtnPrice}>--</ThemedText>
+            <ThemedText style={styles.tradeBtnLabel}>SELL</ThemedText>
           </View>
+        )}
 
+        <View style={styles.centerSection}>
+          <Pressable style={styles.sizeAdjustBtn} onPress={() => adjustLotSize(-1)}>
+            <Feather name="minus" size={16} color={TerminalColors.textSecondary} />
+          </Pressable>
+          
+          <View style={styles.sizeInputWrapper}>
+            <TextInput
+              style={styles.sizeInput}
+              value={lotSize}
+              onChangeText={onLotSizeChange}
+              keyboardType="decimal-pad"
+              placeholderTextColor={TerminalColors.textMuted}
+            />
+          </View>
+          
+          <Pressable style={styles.sizeAdjustBtn} onPress={() => adjustLotSize(1)}>
+            <Feather name="plus" size={16} color={TerminalColors.textSecondary} />
+          </Pressable>
+        </View>
+
+        {currentQuote ? (
           <Pressable
-            style={[styles.tradeBtn, styles.buyBtn, isPending && styles.tradeBtnDisabled]}
+            style={[styles.tradeBtn, styles.buyBtn, (isPending || isTradeDisabled) && styles.tradeBtnDisabled]}
             onPress={() => handleTrade("buy")}
             disabled={isTradeDisabled || isPending}
           >
-            <ThemedText style={styles.tradeBtnLabel}>BUY</ThemedText>
             <ThemedText style={styles.tradeBtnPrice}>{formatPrice(currentQuote.ask)}</ThemedText>
+            <ThemedText style={styles.tradeBtnLabel}>BUY</ThemedText>
           </Pressable>
-        </View>
-      ) : null}
-
-      {isTradeDisabled && (
-        <View style={styles.disabledNotice}>
-          <Feather name="alert-circle" size={12} color={TerminalColors.warning} />
-          <ThemedText style={styles.disabledText}>Not running</ThemedText>
-        </View>
-      )}
+        ) : (
+          <View style={[styles.tradeBtn, styles.buyBtn, styles.tradeBtnDisabled]}>
+            <ThemedText style={styles.tradeBtnPrice}>--</ThemedText>
+            <ThemedText style={styles.tradeBtnLabel}>BUY</ThemedText>
+          </View>
+        )}
+      </View>
 
       <Modal
         visible={showConfirmModal}
@@ -298,183 +219,21 @@ export function OrderTicket({
 const styles = StyleSheet.create({
   container: {
     backgroundColor: TerminalColors.bgPanel,
-    padding: 8,
+    padding: 12,
+    borderTopWidth: 1,
+    borderTopColor: TerminalColors.border,
   },
   
-  topRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  orderTypeTabs: {
-    flexDirection: "row",
-    backgroundColor: TerminalColors.bgBase,
-    borderRadius: 4,
-    padding: 2,
-  },
-  orderTypeTab: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 3,
-  },
-  orderTypeTabActive: {
-    backgroundColor: TerminalColors.bgPanel,
-  },
-  orderTypeText: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: TerminalColors.textMuted,
-  },
-  orderTypeTextActive: {
-    color: TerminalColors.textPrimary,
-  },
-  oneClickToggle: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  oneClickLabel: {
-    fontSize: 9,
-    color: TerminalColors.textMuted,
-  },
-  toggle: {
-    width: 32,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: TerminalColors.bgElevated,
-    padding: 2,
-    justifyContent: "center",
-  },
-  toggleActive: {
-    backgroundColor: TerminalColors.accent,
-  },
-  toggleKnob: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: TerminalColors.textMuted,
-  },
-  toggleKnobActive: {
-    backgroundColor: "#fff",
-    marginLeft: "auto",
-  },
-
-  sizeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginBottom: 6,
-  },
-  sizeAdjustBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 4,
-    backgroundColor: TerminalColors.bgElevated,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sizeInputContainer: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: TerminalColors.bgInput,
-    borderRadius: 4,
-    paddingHorizontal: 8,
-    height: 28,
-  },
-  sizeInput: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: "700",
-    color: TerminalColors.textPrimary,
-    textAlign: "center",
-    fontVariant: ["tabular-nums"],
-    ...(Platform.OS === "web" ? { outlineStyle: "none" as any } : {}),
-  },
-  sizeUnitLabel: {
-    fontSize: 10,
-    color: TerminalColors.textMuted,
-  },
-
-  priceRow: {
+  row: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginBottom: 6,
-  },
-  priceLabel: {
-    fontSize: 10,
-    color: TerminalColors.textMuted,
-    width: 32,
-  },
-  priceInput: {
-    flex: 1,
-    backgroundColor: TerminalColors.bgInput,
-    borderRadius: 4,
-    paddingHorizontal: 8,
-    height: 28,
-    fontSize: 12,
-    fontWeight: "600",
-    color: TerminalColors.textPrimary,
-    textAlign: "center",
-    fontVariant: ["tabular-nums"],
-    ...(Platform.OS === "web" ? { outlineStyle: "none" as any } : {}),
   },
 
-  riskRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginBottom: 8,
-  },
-  riskToggle: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    backgroundColor: TerminalColors.bgBase,
-    borderRadius: 4,
-  },
-  riskToggleActive: {
-    backgroundColor: "rgba(209, 75, 58, 0.15)",
-  },
-  riskToggleText: {
-    fontSize: 9,
-    fontWeight: "600",
-    color: TerminalColors.textMuted,
-  },
-  riskToggleTextActive: {
-    color: TerminalColors.accent,
-  },
-  riskInput: {
-    flex: 1,
-    backgroundColor: TerminalColors.bgInput,
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    height: 24,
-    fontSize: 11,
-    fontWeight: "600",
-    color: TerminalColors.textPrimary,
-    textAlign: "center",
-    fontVariant: ["tabular-nums"],
-    ...(Platform.OS === "web" ? { outlineStyle: "none" as any } : {}),
-  },
-  slInput: {
-    borderWidth: 1,
-    borderColor: TerminalColors.negative,
-  },
-  tpInput: {
-    borderWidth: 1,
-    borderColor: TerminalColors.positive,
-  },
-
-  tradeButtonsContainer: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    gap: 4,
-  },
   tradeBtn: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 4,
@@ -483,47 +242,57 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   sellBtn: {
-    backgroundColor: "#C62828",
+    backgroundColor: "#B71C1C",
   },
   buyBtn: {
-    backgroundColor: "#2E7D32",
-  },
-  tradeBtnLabel: {
-    fontSize: 9,
-    fontWeight: "700",
-    color: "rgba(255,255,255,0.8)",
-    letterSpacing: 0.5,
+    backgroundColor: "#1B5E20",
   },
   tradeBtnPrice: {
-    ...TerminalTypography.priceLarge,
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: "700",
     color: "#fff",
-  },
-  spreadColumn: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 4,
-  },
-  spreadValue: {
-    fontSize: 10,
-    color: TerminalColors.textMuted,
     fontVariant: ["tabular-nums"],
   },
+  tradeBtnLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.7)",
+    letterSpacing: 0.5,
+    marginTop: 2,
+  },
 
-  disabledNotice: {
+  centerSection: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
     gap: 4,
-    paddingVertical: 6,
-    marginTop: 6,
-    backgroundColor: TerminalColors.bgElevated,
-    borderRadius: 4,
   },
-  disabledText: {
-    fontSize: 10,
-    color: TerminalColors.warning,
+  sizeAdjustBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 4,
+    backgroundColor: TerminalColors.bgElevated,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: TerminalColors.border,
+  },
+  sizeInputWrapper: {
+    backgroundColor: TerminalColors.bgBase,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: TerminalColors.border,
+    paddingHorizontal: 8,
+    minWidth: 70,
+    height: 32,
+    justifyContent: "center",
+  },
+  sizeInput: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: TerminalColors.textPrimary,
+    textAlign: "center",
+    fontVariant: ["tabular-nums"],
+    ...(Platform.OS === "web" ? { outlineStyle: "none" as any } : {}),
   },
 
   modalOverlay: {
@@ -603,10 +372,10 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   confirmBtnBuy: {
-    backgroundColor: "#2E7D32",
+    backgroundColor: "#1B5E20",
   },
   confirmBtnSell: {
-    backgroundColor: "#C62828",
+    backgroundColor: "#B71C1C",
   },
   confirmBtnText: {
     fontSize: 12,
