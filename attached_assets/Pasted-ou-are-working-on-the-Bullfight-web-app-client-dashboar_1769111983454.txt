@@ -1,0 +1,125 @@
+ou are working on the Bullfight web app (client dashboard + competitions + leaderboard). Implement the following product and data fixes end-to-end. This is not a UI-only task — it must include backend + database + API + frontend wiring so the data actually updates in production.
+
+1) Require Username on Signup (Visible on Leaderboard)
+
+Add a required username field during signup.
+
+Validation rules:
+
+3–20 characters
+
+letters, numbers, underscore only
+
+case-insensitive uniqueness (no duplicates)
+
+Store username on the user record.
+
+Ensure every user has a username (migration plan):
+
+For existing users without username, prompt them on next login to create one before continuing OR auto-generate a temporary username (e.g. trader_483920) and force them to change it later.
+
+2) Allow Username Change in Profile
+
+Add Profile setting: Change Username
+
+Requirements:
+
+same validation rules as signup
+
+must be unique
+
+rate-limit changes (e.g. once every 7 days) or at least block rapid repeated changes
+
+Update anywhere username is displayed:
+
+dashboard header
+
+competitions tables
+
+leaderboard
+
+competitor drilldown panels
+
+3) Leaderboard Must Show Trader Usernames (Not Blank)
+
+Right now traders show no info. Fix this so the leaderboard and top-25 competitor list returns:
+
+username (primary display label)
+
+optional: avatar initial (first letter) if no avatar
+
+rank / return / equity / win rate / trades count
+
+Ensure leaderboard queries join the competition stats to the user table and return usernames reliably.
+
+4) Fix Dashboard Not Updating in Production (Critical)
+
+The dashboard is not reflecting real performance metrics in prod:
+
+equity chart not updating
+
+return % not updating
+
+balance not updating
+
+win rate not updating
+
+trader rows show missing data
+
+Fix the data pipeline so metrics are computed and displayed correctly and update in real-time or near real-time.
+
+Specific Requirements
+
+Create a single source of truth endpoint for the dashboard:
+
+GET /api/me/dashboard
+
+returns:
+
+active competitions + your stats per competition
+
+account metrics: balance, equity, return %, drawdown %, win rate, trades count
+
+equity chart timeseries (for selected range)
+
+Ensure metrics are computed from actual trades:
+
+Balance updates on closed trades (realized PnL applied)
+
+Equity = balance + unrealized PnL (open positions)
+
+Return % calculated from starting balance
+
+Win rate calculated from closed trades
+
+Ensure frontend actually consumes the new endpoint and rerenders when data changes:
+
+polling every N seconds OR websocket/SSE push
+
+loading states and empty states handled cleanly
+
+5) Production Push / Deployment Fix
+
+The dashboard update is not pushing to production. Identify and fix the cause:
+
+Confirm the correct branch is being deployed
+
+Confirm build is succeeding and environment variables are present
+
+Confirm API base URLs / CORS / auth tokens are correct for prod
+
+Add logging to verify dashboard endpoints are hit in prod
+
+Add error handling on frontend so we can see API failures instead of silent empty UI
+
+Deliverables
+
+Username required at signup, stored, validated, unique
+
+Username change in profile, validated + uniqueness enforced
+
+Leaderboard/top-25 competitor list shows usernames reliably
+
+Dashboard performance metrics and equity chart update correctly (prod + dev)
+
+Confirm the prod deployment is receiving and displaying live data (no static placeholders)

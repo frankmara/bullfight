@@ -29,8 +29,10 @@ import bcrypt from "bcryptjs";
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
   getUserByResetToken(token: string): Promise<User | undefined>;
-  createUser(email: string, password: string, role?: string): Promise<User>;
+  createUser(email: string, password: string, username?: string, role?: string): Promise<User>;
+  updateUsername(userId: string, username: string): Promise<User | undefined>;
   verifyPassword(user: User, password: string): Promise<boolean>;
   setResetToken(userId: string, token: string, expiresAt: Date): Promise<void>;
   clearResetToken(userId: string): Promise<void>;
@@ -109,6 +111,7 @@ export interface UserStats {
 export interface LeaderboardEntry {
   rank: number;
   userId: string;
+  username: string;
   userEmail: string;
   equityCents: number;
   returnPct: number;
@@ -128,9 +131,18 @@ class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(sql`LOWER(${users.username}) = LOWER(${username})`);
+    return user;
+  }
+
   async createUser(
     email: string,
     password: string,
+    username?: string,
     role: string = "user"
   ): Promise<User> {
     const passwordHash = await bcrypt.hash(password, 10);
@@ -138,9 +150,19 @@ class DatabaseStorage implements IStorage {
       .insert(users)
       .values({
         email: email.toLowerCase(),
+        username: username || null,
         passwordHash,
         role,
       })
+      .returning();
+    return user;
+  }
+
+  async updateUsername(userId: string, username: string): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({ username, usernameChangedAt: new Date() })
+      .where(eq(users.id, userId))
       .returning();
     return user;
   }
@@ -422,6 +444,7 @@ class DatabaseStorage implements IStorage {
       leaderboard.push({
         rank: 0,
         userId: entry.userId,
+        username: user?.username || `trader_${entry.userId.slice(0, 6)}`,
         userEmail: user?.email || "Unknown",
         equityCents: entry.equityCents,
         returnPct,

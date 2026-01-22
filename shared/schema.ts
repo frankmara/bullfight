@@ -17,10 +17,12 @@ export const users = pgTable("users", {
     .primaryKey()
     .default(sql`gen_random_uuid()`),
   email: text("email").notNull().unique(),
+  username: text("username").unique(),
   passwordHash: text("password_hash").notNull(),
   role: text("role").notNull().default("user"),
   resetToken: text("reset_token"),
   resetTokenExpiresAt: timestamp("reset_token_expires_at"),
+  usernameChangedAt: timestamp("username_changed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -278,9 +280,15 @@ export const pvpChallenges = pgTable("pvp_challenges", {
 
 export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
+  username: true,
   passwordHash: true,
   role: true,
 });
+
+export const usernameSchema = z.string()
+  .min(3, "Username must be at least 3 characters")
+  .max(20, "Username must be at most 20 characters")
+  .regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores");
 
 export const insertCompetitionSchema = createInsertSchema(competitions).omit({
   id: true,
