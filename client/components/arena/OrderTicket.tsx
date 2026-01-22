@@ -42,7 +42,6 @@ const MIN_LOTS = 0.01;
 const MAX_LOTS = 100.0;
 const LOT_STEP = 0.01;
 
-const QUICK_LOTS = [0.01, 0.05, 0.10, 0.50, 1.00];
 
 function formatUnits(lots: number): string {
   const units = lots * UNITS_PER_LOT;
@@ -126,9 +125,6 @@ export function OrderTicket({
     onLotSizeChange(newValue.toFixed(2));
   }, [lotSize, onLotSizeChange]);
 
-  const setQuickLot = useCallback((value: number) => {
-    onLotSizeChange(value.toFixed(2));
-  }, [onLotSizeChange]);
 
   const handleLotInputChange = useCallback((text: string) => {
     const cleaned = text.replace(/[^0-9.]/g, '');
@@ -285,24 +281,11 @@ export function OrderTicket({
         </Pressable>
       </View>
 
-      {/* Lot Helper + Quick Presets */}
+      {/* Lot Helper */}
       <View style={styles.helperRow}>
         <ThemedText style={styles.helperText}>
           {lots.toFixed(2)} lots = {formatUnits(lots)} units
         </ThemedText>
-        <View style={styles.quickLots}>
-          {QUICK_LOTS.map((q) => (
-            <Pressable 
-              key={q} 
-              style={[styles.quickLotBtn, lots === q && styles.quickLotBtnActive]}
-              onPress={() => setQuickLot(q)}
-            >
-              <ThemedText style={[styles.quickLotText, lots === q && styles.quickLotTextActive]}>
-                {q.toFixed(2)}
-              </ThemedText>
-            </Pressable>
-          ))}
-        </View>
       </View>
 
       {/* Confirm Modal */}
@@ -566,40 +549,15 @@ const styles = StyleSheet.create({
   // Helper Row
   helperRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "flex-start",
     alignItems: "center",
-    marginTop: 10,
+    marginTop: 8,
     paddingHorizontal: 4,
   },
   helperText: {
     fontSize: 10,
     color: TerminalColors.textMuted,
     fontVariant: ["tabular-nums"],
-  },
-  quickLots: {
-    flexDirection: "row",
-    gap: 4,
-  },
-  quickLotBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    backgroundColor: "#101924",
-    borderWidth: 1,
-    borderColor: "#1C2533",
-  },
-  quickLotBtnActive: {
-    backgroundColor: "rgba(209, 75, 58, 0.2)",
-    borderColor: TerminalColors.accent,
-  },
-  quickLotText: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: TerminalColors.textMuted,
-    fontVariant: ["tabular-nums"],
-  },
-  quickLotTextActive: {
-    color: TerminalColors.accent,
   },
 
   // Modal
