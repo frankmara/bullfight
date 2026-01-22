@@ -1,0 +1,311 @@
+Replit Prompt: Add Leverage/Margin + Fix Balance Settlement on Close
+
+You are the senior engineer on this trading competition platform. Implement Leverage/Margin across:
+
+Challenge Creation
+
+PvP Creation
+
+Trading Platform (order placement + account metrics UI)
+
+Also fix a bug: Balance is not updating after trades close (it stays at starting balance).
+
+Goals / Acceptance Criteria
+Leverage + Margin
+
+Admin can set leverage (example: 1:100) when creating a Challenge and a PvP.
+
+Each trading account created for that Challenge/PvP inherits the configured leverage.
+
+Trading platform enforces margin requirements:
+
+User cannot open a new trade if Free Margin < Required Margin.
+
+Trading platform displays:
+
+Balance
+
+Equity
+
+Used Margin
+
+Free Margin
+
+Margin Level (%)
+
+Current leverage (e.g., “Leverage 1:100”) on the ticket and/or account header.
+
+Balance Fix
+
+When a trade is closed, realized P&L is applied to Balance.
+
+Balance must equal:
+startingBalance + sum(realizedPnL) - fees - commissions (if any)
+
+Equity must equal:
+balance + unrealizedPnL(open positions)
+
+After closing trades, UI updates immediately (or within 1 refresh cycle) and no longer shows static starting balance.
+
+1) Data Model Changes (DB + Types)
+Add leverage fields
+
+Add these fields wherever you store “challenge config” and “pvp config” (names may differ):
+
+leverage (integer) — store as 100 for “1:100”
+
+default leverage if missing: 100
+
+Add to accounts (or whatever represents a trading account):
+
+leverage (integer) copied from the associated challenge/pvp at account creation.
+
+Add/confirm instrument metadata needed for margin
+
+Margin math needs:
+
+contractSize (for FX: 100,000 per 1.0 lot; for indices/crypto it varies)
+
+quoteCurrency, baseCurrency
+
+price (bid/ask mid or execution-side price)
+If you already have symbol metadata, ensure contractSize exists and is used.
+
+2) API Changes
+Challenge / PvP creation endpoints
+
+Extend create/update payloads to include leverage.
+
+Validate leverage is one of allowed values (start with a controlled list):
+
+1:10, 1:25, 1:50, 1:100, 1:200 (store as 10/25/50/100/200)
+
+Persist in DB and return in API responses.
+
+Account bootstrap endpoint (when a user joins)
+
+Ensure newly created account gets leverage from its parent challenge/pvp config.
+
+Return leverage and margin metrics in account “state” response.
+
+3) Margin Math + Enforcement (Backend)
+Definitions
+
+Units = lots * contractSize
+
+Notional (in quote ccy):
+
+For EURUSD, notional in USD = units * price
+
+Required Margin:
+
+requiredMargin = notional / leverage
+
+Used Margin:
+
+Sum requiredMargin across open positions (and optionally reserved margin for pending orders if you support them)
+
+Free Margin:
+
+freeMargin = equity - usedMargin
+
+Margin Level:
+
+if usedMargin > 0: marginLevel = (equity / usedMargin) * 100 else null/∞
+
+Currency conversion (if account currency != quote currency)
+
+If account currency differs from notional currency, convert notional using available FX rates.
+
+If your platform is currently only USD accounts and USD-quoted majors, keep it simple:
+
+Assume accountCurrency = USD for MVP.
+
+If you support multi-ccy already, implement conversion using existing quote feed.
+
+Order placement checks
+
+When user tries to open a position:
+
+compute requiredMargin for the new order
+
+compute usedMargin from current open positions (+ optionally pending)
+
+compute equity (balance + unrealizedPnL)
+
+compute freeMargin
+
+If freeMargin < requiredMargin: reject with clear error:
+“Insufficient free margin. Required X, available Y.”
+
+Where to compute
+
+Centralize account state in one place (service function):
+
+getAccountState(accountId) returns:
+
+balance, equity, unrealizedPnl, realizedPnlTotal
+
+usedMargin, freeMargin, marginLevel
+
+leverage
+
+Use this:
+
+after trade open
+
+after trade close
+
+when UI loads
+
+during polling / websocket pushes
+
+4) Fix: Balance Not Updating After Closed Trades
+
+Right now balance appears hardcoded to starting balance. Fix settlement.
+
+Required behavior on trade close
+
+When a position is closed:
+
+Persist a closed trade record that contains:
+
+realizedPnL
+
+closePrice
+
+openPrice
+
+size (lots/units)
+
+timestamps
+
+Update account balance OR derive it from ledger.
+
+Preferred solution (robust): ledger-based
+
+Create an account_ledger table (or equivalent) with entries like:
+
+type: TRADE_OPEN (optional), TRADE_CLOSE, FEE, COMMISSION, ADJUSTMENT
+
+amount: positive/negative
+
+refId: tradeId
+
+Then compute:
+
+balance = startingBalance + sum(ledger.amount)
+This prevents drift and ensures recomputation is always correct.
+
+Minimal solution (if you must)
+
+If you already store balance on the account:
+
+On trade close transactionally:
+
+account.balance += realizedPnL - fee - commission
+
+persist closed trade
+
+ensure no double-apply (idempotency by tradeId)
+
+UI sync
+
+After close:
+
+Backend returns updated account state, OR
+
+Websocket/SSE event pushes updated state, OR
+
+Frontend triggers refetch of account state.
+
+5) Frontend Updates (Challenge/PvP + Trading UI)
+Challenge Creation UI
+
+Add a “Leverage” dropdown:
+
+1:10, 1:25, 1:50, 1:100, 1:200
+
+Store as integer in API payload (10/25/50/100/200).
+
+Show it in summary / review step.
+
+PvP Creation UI
+
+Same leverage dropdown.
+
+Ensure PvP accounts inherit it.
+
+Trading platform UI (based on current layout)
+
+Add a small account metrics strip (top of positions panel or near the ticket):
+
+Balance
+
+Equity
+
+Used Margin
+
+Free Margin
+
+Margin Level
+Also show:
+
+“Leverage 1:100” near the symbol selector or in the ticket.
+
+Order ticket
+
+When user changes lots:
+
+display “Required Margin: $X” live.
+
+disable BUY/SELL if insufficient margin with tooltip.
+
+6) Test Plan (must implement)
+Unit tests
+
+Margin calc for FX:
+
+EURUSD price 1.1745
+
+lots 0.1, contractSize 100,000 → units 10,000
+
+notional = 10,000 * 1.1745 = 11,745
+
+leverage 100 → margin = 117.45
+
+Used margin sum across multiple positions.
+
+Free margin block:
+
+if equity 1,000 and usedMargin 950, freeMargin 50
+
+requiredMargin 80 → reject
+
+Integration tests
+
+Create challenge with leverage 100 → join → account leverage = 100
+
+Open trade → usedMargin increases
+
+Close trade with +$50 → balance increases by $50
+
+Equity updates accordingly
+
+UI reflects changes.
+
+7) Deliverables
+
+DB migration(s)
+
+Updated API payloads + validation
+
+Backend account state service refactor
+
+Margin enforcement on order placement
+
+Balance settlement fix on close (ledger or transactional update)
+
+Frontend changes for leverage selection + margin metrics display
+
+Tests passing

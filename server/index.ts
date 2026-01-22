@@ -229,9 +229,17 @@ function serveLandingPage({
   const baseUrl = `${protocol}://${host}`;
   const expsUrl = `${host}`;
   
-  // Web app runs on port 8081 in development, same host in production
-  const webAppHost = host?.replace(":5000", ":8081") || host;
-  const webAppUrl = `${protocol}://${webAppHost}`;
+  // Web app URL:
+  // - In development (port 5000): redirect to port 8081 (Metro dev server)
+  // - In production (no port): redirect to /app route (static Expo build)
+  let webAppUrl: string;
+  if (host?.includes(":5000")) {
+    // Development mode - Metro runs on 8081
+    webAppUrl = `${protocol}://${host.replace(":5000", ":8081")}`;
+  } else {
+    // Production mode - serve static web app at /app route
+    webAppUrl = `${protocol}://${host}/app`;
+  }
 
   log(`baseUrl`, baseUrl);
   log(`expsUrl`, expsUrl);
@@ -287,6 +295,25 @@ function configureExpoAndLanding(app: express.Application) {
 
   app.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
   app.use(express.static(path.resolve(process.cwd(), "static-build")));
+  
+  // Serve Expo web build at /app for production
+  const webBuildPath = path.resolve(process.cwd(), "client", "dist");
+  app.use("/app", express.static(webBuildPath));
+  
+  // SPA fallback for /app routes - serve index.html for client-side routing
+  // Use middleware pattern instead of wildcard routes for Express 5 compatibility
+  app.use("/app", (req: Request, res: Response, next: NextFunction) => {
+    // If it's a static file request that was already handled, skip
+    if (res.headersSent) return next();
+    
+    const indexPath = path.resolve(webBuildPath, "index.html");
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      // If no build exists, redirect to root landing page
+      res.redirect("/");
+    }
+  });
 
   log("Expo routing: Checking expo-platform header on / and /manifest");
 }
