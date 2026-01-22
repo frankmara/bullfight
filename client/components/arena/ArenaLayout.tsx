@@ -7,7 +7,7 @@ interface ArenaLayoutProps {
   header: React.ReactNode;
   toolDock: React.ReactNode;
   chartToolbar: React.ReactNode;
-  chart: React.ReactNode;
+  chart: React.ReactNode | ((isBlotterCollapsed: boolean) => React.ReactNode);
   marketWatch: React.ReactNode;
   orderTicket: React.ReactNode;
   blotter: React.ReactNode;
@@ -58,7 +58,7 @@ export function ArenaLayout({
             {chartToolbar}
           </View>
           <View style={styles.chartArea}>
-            {chart}
+            {typeof chart === 'function' ? chart(isBlotterCollapsed) : chart}
           </View>
         </View>
         
