@@ -357,11 +357,11 @@ export function OrderTicket({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: "#0E141C",
+    backgroundColor: TerminalColors.bgPanel,
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderTopWidth: 1,
-    borderTopColor: "#1C2533",
+    borderTopColor: TerminalColors.border,
   },
   
   // Header Row
@@ -375,12 +375,12 @@ const styles = StyleSheet.create({
   symbolDropdown: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#101924",
+    backgroundColor: TerminalColors.bgElevated,
     paddingHorizontal: 8,
     paddingVertical: 6,
     borderRadius: 4,
     borderWidth: 1,
-    borderColor: "#1C2533",
+    borderColor: TerminalColors.border,
     gap: 6,
   },
   symbolIcon: {
@@ -397,7 +397,7 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   orderTypePill: {
-    backgroundColor: "#1C2533",
+    backgroundColor: TerminalColors.bgElevated,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 4,
@@ -417,9 +417,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 4,
-    backgroundColor: "#101924",
+    backgroundColor: TerminalColors.bgElevated,
     borderWidth: 1,
-    borderColor: "#1C2533",
+    borderColor: TerminalColors.border,
   },
   toggleChipActive: {
     backgroundColor: "rgba(209, 75, 58, 0.2)",
@@ -437,9 +437,9 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 4,
-    backgroundColor: "#101924",
+    backgroundColor: TerminalColors.bgElevated,
     borderWidth: 1,
-    borderColor: "#1C2533",
+    borderColor: TerminalColors.border,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -518,17 +518,17 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 4,
-    backgroundColor: "#0A0F14",
+    backgroundColor: TerminalColors.bgBase,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#1C2533",
+    borderColor: TerminalColors.border,
   },
   lotInputWrapper: {
-    backgroundColor: "#0A0F14",
+    backgroundColor: TerminalColors.bgBase,
     borderRadius: 4,
     borderWidth: 1,
-    borderColor: "#1C2533",
+    borderColor: TerminalColors.border,
     width: 72,
     height: 40,
     justifyContent: "center",
@@ -564,10 +564,10 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: 320,
-    backgroundColor: "#0E141C",
+    backgroundColor: TerminalColors.bgPanel,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#1C2533",
+    borderColor: TerminalColors.border,
   },
   modalHeader: {
     flexDirection: "row",
@@ -576,7 +576,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#1C2533",
+    borderBottomColor: TerminalColors.border,
   },
   modalTitle: {
     fontSize: 14,
@@ -613,13 +613,13 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: "#1C2533",
+    borderTopColor: TerminalColors.border,
   },
   cancelBtn: {
     flex: 1,
     paddingVertical: 12,
     alignItems: "center",
-    backgroundColor: "#1C2533",
+    backgroundColor: TerminalColors.bgElevated,
     borderRadius: 8,
   },
   cancelBtnText: {
