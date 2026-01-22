@@ -1,28 +1,16 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "node:http";
 import { storage } from "./storage";
-
-const quotes: Record<string, { bid: number; ask: number; timestamp: number }> = {
-  "EUR-USD": { bid: 1.0873, ask: 1.0875, timestamp: Date.now() },
-  "GBP-USD": { bid: 1.2648, ask: 1.2652, timestamp: Date.now() },
-  "USD-JPY": { bid: 149.48, ask: 149.52, timestamp: Date.now() },
-  "AUD-USD": { bid: 0.6518, ask: 0.6522, timestamp: Date.now() },
-  "USD-CAD": { bid: 1.3578, ask: 1.3582, timestamp: Date.now() },
-};
-
-setInterval(() => {
-  Object.keys(quotes).forEach((pair) => {
-    const q = quotes[pair];
-    const change = (Math.random() - 0.5) * 0.0010;
-    const mid = (q.bid + q.ask) / 2 + change;
-    const spread = pair.includes("JPY") ? 0.04 : 0.0002;
-    quotes[pair] = {
-      bid: mid - spread / 2,
-      ask: mid + spread / 2,
-      timestamp: Date.now(),
-    };
-  });
-}, 1000);
+import { marketDataService } from "./services/MarketDataService";
+import {
+  executeMarketOrder,
+  partialClosePosition,
+  updatePositionSLTP,
+  getDeals,
+  getTrades,
+  lotsToUnits,
+  unitsToLots,
+} from "./services/ExecutionService";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/register", async (req: Request, res: Response) => {
@@ -249,7 +237,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       let unrealizedPnl = 0;
       const positionsWithPnl = positions.map((pos) => {
-        const quote = quotes[pos.pair];
+        const quote = marketDataService.getQuote(pos.pair);
         if (quote) {
           const currentPrice = pos.side === "buy" ? quote.bid : quote.ask;
           const pipsPerUnit = pos.pair.includes("JPY") ? 0.01 : 0.0001;
@@ -258,9 +246,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
             : pos.avgEntryPrice - currentPrice;
           const pnlCents = Math.round(priceDiff / pipsPerUnit * pos.quantityUnits * 0.1);
           unrealizedPnl += pnlCents;
-          return { ...pos, unrealizedPnlCents: pnlCents };
+          return {
+            ...pos,
+            unrealizedPnlCents: pnlCents,
+            lots: unitsToLots(pos.quantityUnits),
+            stopLossPrice: pos.stopLossPrice,
+            takeProfitPrice: pos.takeProfitPrice,
+          };
         }
-        return { ...pos, unrealizedPnlCents: 0 };
+        return {
+          ...pos,
+          unrealizedPnlCents: 0,
+          lots: unitsToLots(pos.quantityUnits),
+        };
       });
 
       const equityCents = entry.cashCents + unrealizedPnl;
@@ -270,6 +268,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const leaderboard = await storage.getLeaderboard(id, comp.startingBalanceCents);
       const rank = leaderboard.find((l) => l.userId === userId)?.rank;
+
+      const quotes: Record<string, any> = {};
+      for (const q of marketDataService.getAllQuotes()) {
+        quotes[q.pair] = {
+          bid: q.bid,
+          ask: q.ask,
+          timestamp: q.timestamp,
+          spreadPips: q.spreadPips,
+          status: q.status,
+        };
+      }
 
       res.json({
         competition: {
@@ -288,6 +297,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         positions: positionsWithPnl,
         pendingOrders,
         quotes,
+        isUsingMockData: marketDataService.isUsingMock(),
       });
     } catch (error: any) {
       console.error("Get arena error:", error);
@@ -323,13 +333,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         side,
         type,
         quantityUnits,
+        lots,
         limitPrice,
         stopPrice,
         stopLossPrice,
         takeProfitPrice,
       } = req.body;
 
-      if (!pair || !side || !type || !quantityUnits) {
+      const tradeLots = lots ?? unitsToLots(quantityUnits || 0);
+      if (!pair || !side || !type || tradeLots <= 0) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
@@ -337,60 +349,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Pair not allowed in this competition" });
       }
 
-      const order = await storage.createOrder({
-        competitionId: id,
-        userId,
-        pair,
-        side,
-        type,
-        quantityUnits,
-        limitPrice,
-        stopPrice,
-        stopLossPrice,
-        takeProfitPrice,
-        status: type === "market" ? "filled" : "pending",
-      });
-
       if (type === "market") {
-        const quote = quotes[pair];
-        if (!quote) {
-          return res.status(400).json({ error: "No quote available for pair" });
+        const result = await executeMarketOrder({
+          competitionId: id,
+          userId,
+          pair,
+          side,
+          lots: tradeLots,
+          stopLossPrice: stopLossPrice ? parseFloat(stopLossPrice) : undefined,
+          takeProfitPrice: takeProfitPrice ? parseFloat(takeProfitPrice) : undefined,
+          spreadMarkupPips: comp.spreadMarkupPips,
+          maxSlippagePips: comp.maxSlippagePips,
+        });
+
+        if (!result.success) {
+          return res.status(400).json({ error: result.error });
         }
 
-        const fillPrice = side === "buy" 
-          ? quote.ask + comp.spreadMarkupPips * (pair.includes("JPY") ? 0.01 : 0.0001)
-          : quote.bid - comp.spreadMarkupPips * (pair.includes("JPY") ? 0.01 : 0.0001);
+        res.json({
+          success: true,
+          deal: result.deal,
+          position: result.position,
+        });
+      } else {
+        const order = await storage.createOrder({
+          competitionId: id,
+          userId,
+          pair,
+          side,
+          type,
+          quantityUnits: lotsToUnits(tradeLots),
+          limitPrice: limitPrice ? parseFloat(limitPrice) : undefined,
+          stopPrice: stopPrice ? parseFloat(stopPrice) : undefined,
+          stopLossPrice: stopLossPrice ? parseFloat(stopLossPrice) : undefined,
+          takeProfitPrice: takeProfitPrice ? parseFloat(takeProfitPrice) : undefined,
+          status: "pending",
+        });
 
-        const existingPositions = await storage.getPositions(id, userId);
-        const existingPos = existingPositions.find(
-          (p) => p.pair === pair && p.side === side
-        );
-
-        if (existingPos) {
-          const totalQty = existingPos.quantityUnits + quantityUnits;
-          const avgPrice =
-            (existingPos.avgEntryPrice * existingPos.quantityUnits +
-              fillPrice * quantityUnits) /
-            totalQty;
-
-          await storage.updatePosition(existingPos.id, {
-            quantityUnits: totalQty,
-            avgEntryPrice: avgPrice,
-          });
-        } else {
-          await storage.createPosition({
-            competitionId: id,
-            userId,
-            pair,
-            side,
-            quantityUnits,
-            avgEntryPrice: fillPrice,
-            realizedPnlCents: 0,
-          });
-        }
+        res.json({ success: true, order });
       }
-
-      res.json({ success: true, order });
     } catch (error: any) {
       console.error("Create order error:", error);
       res.status(500).json({ error: error.message });
@@ -413,36 +410,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ error: "Trading is not active" });
         }
 
-        const positions = await storage.getPositions(id, userId);
-        const position = positions.find((p) => p.id === positionId);
+        const result = await partialClosePosition({
+          competitionId: id,
+          userId,
+          positionId,
+          closePercentage: 100,
+        });
 
-        if (!position) {
-          return res.status(404).json({ error: "Position not found" });
+        if (!result.success) {
+          return res.status(400).json({ error: result.error });
         }
 
-        const quote = quotes[position.pair];
-        if (!quote) {
-          return res.status(400).json({ error: "No quote available" });
-        }
-
-        const closePrice = position.side === "buy" ? quote.bid : quote.ask;
-        const pipsPerUnit = position.pair.includes("JPY") ? 0.01 : 0.0001;
-        const priceDiff = position.side === "buy" 
-          ? closePrice - position.avgEntryPrice 
-          : position.avgEntryPrice - closePrice;
-        const pnlCents = Math.round(priceDiff / pipsPerUnit * position.quantityUnits * 0.1);
-
-        const entry = await storage.getCompetitionEntry(id, userId);
-        if (entry) {
-          await storage.updateCompetitionEntry(entry.id, {
-            cashCents: entry.cashCents + pnlCents,
-            equityCents: entry.equityCents + pnlCents,
-          });
-        }
-
-        await storage.deletePosition(positionId);
-
-        res.json({ success: true, pnlCents });
+        res.json({ success: true, deal: result.deal });
       } catch (error: any) {
         console.error("Close position error:", error);
         res.status(500).json({ error: error.message });
@@ -487,22 +466,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ error: "Trading is not active" });
         }
 
-        const positions = await storage.getPositions(id, userId);
-        const position = positions.find((p) => p.id === positionId);
+        const result = await updatePositionSLTP({
+          competitionId: id,
+          userId,
+          positionId,
+          stopLossPrice: stopLossPrice !== undefined
+            ? (stopLossPrice ? parseFloat(stopLossPrice) : null)
+            : undefined,
+          takeProfitPrice: takeProfitPrice !== undefined
+            ? (takeProfitPrice ? parseFloat(takeProfitPrice) : null)
+            : undefined,
+        });
 
-        if (!position) {
-          return res.status(404).json({ error: "Position not found" });
+        if (!result.success) {
+          return res.status(400).json({ error: result.error });
         }
 
-        const updates: any = {};
-        if (stopLossPrice !== undefined) {
-          updates.stopLossPrice = stopLossPrice ? parseFloat(stopLossPrice) : null;
-        }
-        if (takeProfitPrice !== undefined) {
-          updates.takeProfitPrice = takeProfitPrice ? parseFloat(takeProfitPrice) : null;
-        }
-
-        await storage.updatePosition(positionId, updates);
         res.json({ success: true });
       } catch (error: any) {
         console.error("Modify position error:", error);
@@ -517,14 +496,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const { id, positionId } = req.params;
         const userId = req.headers["x-user-id"] as string;
-        const { quantity } = req.body;
+        const { lots, percentage } = req.body;
 
         if (!userId) {
           return res.status(401).json({ error: "Authentication required" });
         }
 
-        if (!quantity || quantity <= 0) {
-          return res.status(400).json({ error: "Invalid quantity" });
+        if (!lots && !percentage) {
+          return res.status(400).json({ error: "Specify lots or percentage to close" });
         }
 
         const comp = await storage.getCompetition(id);
@@ -532,42 +511,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ error: "Trading is not active" });
         }
 
-        const positions = await storage.getPositions(id, userId);
-        const position = positions.find((p) => p.id === positionId);
-
-        if (!position) {
-          return res.status(404).json({ error: "Position not found" });
-        }
-
-        if (quantity >= position.quantityUnits) {
-          return res.status(400).json({ error: "Quantity exceeds position size. Use full close instead." });
-        }
-
-        const quote = quotes[position.pair];
-        if (!quote) {
-          return res.status(400).json({ error: "No quote available" });
-        }
-
-        const closePrice = position.side === "buy" ? quote.bid : quote.ask;
-        const pipsPerUnit = position.pair.includes("JPY") ? 0.01 : 0.0001;
-        const priceDiff = position.side === "buy" 
-          ? closePrice - position.avgEntryPrice 
-          : position.avgEntryPrice - closePrice;
-        const pnlCents = Math.round(priceDiff / pipsPerUnit * quantity * 0.1);
-
-        const entry = await storage.getCompetitionEntry(id, userId);
-        if (entry) {
-          await storage.updateCompetitionEntry(entry.id, {
-            cashCents: entry.cashCents + pnlCents,
-            equityCents: entry.equityCents + pnlCents,
-          });
-        }
-
-        await storage.updatePosition(positionId, {
-          quantityUnits: position.quantityUnits - quantity,
+        const result = await partialClosePosition({
+          competitionId: id,
+          userId,
+          positionId,
+          closeLots: lots ? parseFloat(lots) : undefined,
+          closePercentage: percentage ? parseFloat(percentage) : undefined,
         });
 
-        res.json({ success: true, pnlCents, remainingQuantity: position.quantityUnits - quantity });
+        if (!result.success) {
+          return res.status(400).json({ error: result.error });
+        }
+
+        res.json({
+          success: true,
+          deal: result.deal,
+          position: result.position,
+        });
       } catch (error: any) {
         console.error("Partial close error:", error);
         res.status(500).json({ error: error.message });
@@ -687,7 +647,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   app.get("/api/quotes", (_req: Request, res: Response) => {
+    const quotes: Record<string, any> = {};
+    for (const q of marketDataService.getAllQuotes()) {
+      quotes[q.pair] = {
+        bid: q.bid,
+        ask: q.ask,
+        timestamp: q.timestamp,
+        spreadPips: q.spreadPips,
+        status: q.status,
+      };
+    }
     res.json(quotes);
+  });
+
+  app.get("/api/market/candles/:pair", async (req: Request, res: Response) => {
+    try {
+      const { pair } = req.params;
+      const timeframe = (req.query.timeframe as string) || "1m";
+      const limit = parseInt(req.query.limit as string) || 500;
+
+      const candles = await marketDataService.getCandles(pair, timeframe, limit);
+      res.json({
+        pair,
+        timeframe,
+        candles,
+        isUsingMock: marketDataService.isUsingMock(),
+      });
+    } catch (error: any) {
+      console.error("Get candles error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/market/status", (_req: Request, res: Response) => {
+    res.json({
+      isUsingMock: marketDataService.isUsingMock(),
+      pairs: marketDataService.getAllQuotes().map((q) => ({
+        pair: q.pair,
+        status: q.status,
+      })),
+    });
+  });
+
+  app.get("/api/arena/:id/deals", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const userId = req.headers["x-user-id"] as string;
+
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const dealsList = await getDeals(id, userId);
+      res.json(dealsList);
+    } catch (error: any) {
+      console.error("Get deals error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/arena/:id/trades", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const userId = req.headers["x-user-id"] as string;
+
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const tradesList = await getTrades(id, userId);
+      res.json(tradesList);
+    } catch (error: any) {
+      console.error("Get trades error:", error);
+      res.status(500).json({ error: error.message });
+    }
   });
 
   app.get("/api/pvp/challenges", async (req: Request, res: Response) => {
