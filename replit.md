@@ -41,8 +41,15 @@ Key entities defined in the schema:
 - `competitions`: Trading tournaments with configurable buy-ins, rake, prize splits, and trading parameters
 - `competitionEntries`: User participation tracking with equity and P&L
 - `orders`, `fills`, `positions`: Paper trading engine state
+- `trades`, `deals`: Professional FX deal-based execution model (Orders → Deals → Trades → Positions)
 - `payments`, `payouts`: Financial transaction records
 - `auditLog`: System event tracking
+
+### Execution Model
+- **ExecutionService** (`/server/services/ExecutionService.ts`) handles order execution
+- Deal-based model: market orders create deals, deals create trades, trades update positions via netting
+- Supports market orders, partial closes (by lots or percentage), SL/TP modification
+- Units conversion: 1 lot = 100,000 units (UNITS_PER_LOT constant)
 
 ### Real-time Features
 - Simulated forex quotes generated server-side (EUR-USD, GBP-USD, USD-JPY, AUD-USD, USD-CAD)
@@ -56,10 +63,13 @@ Key entities defined in the schema:
 - Drizzle ORM for schema management and queries
 - Migrations stored in `/migrations` directory
 
-### Market Data (Planned)
-- Polygon.io or Massive.com for live forex quotes
-- Configurable base URLs via `POLYGON_REST_BASE_URL` and `POLYGON_WS_BASE_URL`
-- Currently using simulated quotes with realistic spreads
+### Market Data
+- **MarketDataService** (`/server/services/MarketDataService.ts`) provides unified market data access
+- Auto-detects `POLYGON_API_KEY` environment variable for live data, falls back to mock data
+- Polygon.io REST API for historical candles, WebSocket for real-time quotes (when API key provided)
+- Mock data generates realistic forex quotes with proper spreads when no API key
+- API endpoint `/api/market/status` returns `{ isUsingMock: boolean }` for data source indicator
+- Supported pairs: EUR-USD, GBP-USD, USD-JPY, AUD-USD, USD-CAD
 
 ### Payments (Planned)
 - Stripe integration for buy-ins and payouts (TEST mode)
@@ -83,7 +93,8 @@ Key entities defined in the schema:
 - Integrated lightweight-charts v5 for candlestick charting in Arena
 - Chart component: `/client/components/TradingViewChart.tsx`
 - Uses `chart.addSeries(CandlestickSeries, options)` for v5 API compatibility
-- Real-time simulated price data with 1-minute candle updates
+- Fetches candles from `/api/market/candles/:pair` endpoint (MarketDataService)
+- Real-time price updates with 1-minute candle intervals
 
 ### Trading Flow
 - Late entry enabled: users can join both "open" and "running" competitions
@@ -99,11 +110,14 @@ Key entities defined in the schema:
 ### Professional Trading Terminal (Arena)
 - 3-column desktop layout: watchlist (left), chart (center), order ticket (right)
 - Top header with comprehensive metrics: Balance, Equity, P&L, Return%, Rank, Drawdown
+- Data status indicator shows MOCK (amber) or LIVE (green) next to competition status
 - Enhanced watchlist: search input, favorite symbols with stars, tick indicators (up/down arrows), spread display
-- Order ticket: one-click trading toggle, BUY/SELL buttons with live prices, quick size buttons (1K-100K), SL/TP inputs
-- Tabbed bottom blotter: Positions, Orders, History tabs with dense sortable tables
-- Chart overlays: position entry lines, pending order lines, SL/TP price lines using lightweight-charts createPriceLine API
+- Order ticket: one-click trading toggle, BUY/SELL buttons with live prices, quick lot size buttons (0.01-1.0), SL/TP inputs
+- Lots-based sizing: 1 lot = 100,000 units (standard FX contract), quick sizes: 0.01, 0.05, 0.1, 0.5, 1.0
+- Tabbed bottom blotter: Positions, Orders, History tabs with LOTS column (displays 0.10 format, not raw units)
+- Chart overlays: position entry lines showing lots (e.g., "BUY 0.10 lots"), pending order lines, SL/TP price lines
 - Collapsible leaderboard panel slides in from right side
+- Order confirmation: uses window.confirm() on web, Alert.alert on mobile
 
 ### Keyboard Shortcuts
 - B = Buy at market
