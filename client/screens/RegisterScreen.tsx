@@ -24,14 +24,25 @@ export default function RegisterScreen() {
   const { register } = useAuthContext();
 
   const [email, setEmail] = useState("");
+  const [username, setUsernameValue] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const handleRegister = async () => {
-    if (!email || !password || !confirmPassword) {
+    if (!email || !username || !password || !confirmPassword) {
       setError("Please fill in all fields");
+      return;
+    }
+
+    if (username.length < 3 || username.length > 20) {
+      setError("Username must be 3-20 characters");
+      return;
+    }
+
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+      setError("Username can only contain letters, numbers, and underscores");
       return;
     }
 
@@ -49,7 +60,7 @@ export default function RegisterScreen() {
     setError("");
 
     try {
-      await register(email, password);
+      await register(email, password, username);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       navigation.goBack();
       navigation.goBack();
@@ -100,6 +111,18 @@ export default function RegisterScreen() {
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={styles.input}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <ThemedText style={styles.inputLabel}>Username</ThemedText>
+              <Input
+                placeholder="Choose a username (3-20 characters)"
+                value={username}
+                onChangeText={setUsernameValue}
                 autoCapitalize="none"
                 autoCorrect={false}
                 style={styles.input}

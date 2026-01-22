@@ -18,7 +18,7 @@ import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 
 interface Competitor {
   rank: number;
-  oderId: string;
+  userId: string;
   username: string;
   returnPct: number;
   equityCents: number;
@@ -64,7 +64,7 @@ export function CompetitorDrawer({
     points: { time: number; value: number }[];
   }>({
     queryKey: [
-      `/api/competitions/${competitionId}/competitors/${competitor?.oderId}/equity`,
+      `/api/competitions/${competitionId}/competitors/${competitor?.userId}/equity`,
       equityRange,
     ],
     enabled: visible && !!competitor,
@@ -72,21 +72,21 @@ export function CompetitorDrawer({
 
   const { data: trades, isLoading: tradesLoading } = useQuery<any[]>({
     queryKey: [
-      `/api/competitions/${competitionId}/competitors/${competitor?.oderId}/trades`,
+      `/api/competitions/${competitionId}/competitors/${competitor?.userId}/trades`,
     ],
     enabled: visible && !!competitor && activeTab === "trades",
   });
 
   const { data: deals, isLoading: dealsLoading } = useQuery<any[]>({
     queryKey: [
-      `/api/competitions/${competitionId}/competitors/${competitor?.oderId}/deals`,
+      `/api/competitions/${competitionId}/competitors/${competitor?.userId}/deals`,
     ],
     enabled: visible && !!competitor && activeTab === "deals",
   });
 
   const { data: orders, isLoading: ordersLoading } = useQuery<any[]>({
     queryKey: [
-      `/api/competitions/${competitionId}/competitors/${competitor?.oderId}/orders`,
+      `/api/competitions/${competitionId}/competitors/${competitor?.userId}/orders`,
     ],
     enabled: visible && !!competitor && activeTab === "orders",
   });

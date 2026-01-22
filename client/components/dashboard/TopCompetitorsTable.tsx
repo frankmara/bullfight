@@ -14,7 +14,7 @@ import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 
 interface Competitor {
   rank: number;
-  oderId: string;
+  userId: string;
   username: string;
   returnPct: number;
   equityCents: number;
@@ -78,7 +78,7 @@ export function TopCompetitorsTable({
 
       {competitors.map((competitor, index) => (
         <Pressable
-          key={competitor.oderId}
+          key={competitor.userId}
           style={[
             styles.tableRow,
             index % 2 === 0 && styles.tableRowAlt,

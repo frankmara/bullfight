@@ -17,6 +17,7 @@ import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { Button } from "@/components/Button";
+import { UsernameSetupModal } from "@/components/UsernameSetupModal";
 import {
   PerformanceSnapshot,
   CompetitionRow,
@@ -57,7 +58,7 @@ interface EquityData {
 
 interface Competitor {
   rank: number;
-  oderId: string;
+  userId: string;
   username: string;
   returnPct: number;
   equityCents: number;
@@ -81,7 +82,7 @@ export default function DashboardScreen() {
   const rawHeaderHeight = useSafeHeaderHeight();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { width } = useWindowDimensions();
-  const { user, isAuthenticated } = useAuthContext();
+  const { user, isAuthenticated, needsUsername } = useAuthContext();
 
   const isDesktop = Platform.OS === "web" && width >= DESKTOP_BREAKPOINT;
   const headerHeight = isDesktop ? 0 : rawHeaderHeight;
@@ -200,8 +201,10 @@ export default function DashboardScreen() {
       showsVerticalScrollIndicator={false}
     >
       <ThemedText style={styles.greeting}>
-        Welcome back, {user?.email?.split("@")[0]}
+        Welcome back, {user?.username || user?.email?.split("@")[0]}
       </ThemedText>
+
+      <UsernameSetupModal visible={needsUsername} />
 
       <PerformanceSnapshot
         points={equityData?.points || []}
@@ -275,9 +278,11 @@ export default function DashboardScreen() {
       }
       showsVerticalScrollIndicator={false}
     >
+      <UsernameSetupModal visible={needsUsername} />
+
       <View style={styles.desktopHeader}>
         <ThemedText style={styles.greeting}>
-          Welcome back, {user?.email?.split("@")[0]}
+          Welcome back, {user?.username || user?.email?.split("@")[0]}
         </ThemedText>
         <View style={styles.statsRow}>
           <View style={styles.statPill}>

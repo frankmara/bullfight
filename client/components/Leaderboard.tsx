@@ -7,6 +7,7 @@ import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 interface LeaderboardEntry {
   rank: number;
   userId: string;
+  username?: string;
   userEmail: string;
   equityCents: number;
   returnPct: number;
@@ -66,7 +67,7 @@ export function Leaderboard({
         </View>
         <View style={styles.userInfo}>
           <ThemedText style={[styles.email, compact && styles.emailCompact]} numberOfLines={1}>
-            {item.userEmail}
+            {item.username || item.userEmail?.split("@")[0] || `Trader ${item.rank}`}
           </ThemedText>
         </View>
         <View style={styles.statsContainer}>

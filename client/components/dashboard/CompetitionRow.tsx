@@ -24,7 +24,7 @@ interface Competition {
 
 interface Competitor {
   rank: number;
-  oderId: string;
+  userId: string;
   username: string;
   returnPct: number;
   equityCents: number;

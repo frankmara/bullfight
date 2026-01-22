@@ -5,7 +5,9 @@ import { apiRequest } from "@/lib/query-client";
 interface User {
   id: string;
   email: string;
+  username?: string;
   role: string;
+  needsUsername?: boolean;
 }
 
 interface AuthContextType {
@@ -13,8 +15,10 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   isAdmin: boolean;
+  needsUsername: boolean;
   login: (email: string, password: string) => Promise<User>;
-  register: (email: string, password: string) => Promise<User>;
+  register: (email: string, password: string, username: string) => Promise<User>;
+  setUsername: (username: string) => Promise<User>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -70,16 +74,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return loggedInUser;
   }, []);
 
-  const register = useCallback(async (email: string, password: string) => {
+  const register = useCallback(async (email: string, password: string, username: string) => {
     const res = await apiRequest("POST", "/api/auth/register", {
       email,
       password,
+      username,
     });
     const data = await res.json();
     const registeredUser = data.user;
     await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(registeredUser));
     setUser(registeredUser);
     return registeredUser;
+  }, []);
+
+  const setUsername = useCallback(async (username: string) => {
+    const res = await apiRequest("POST", "/api/auth/set-username", { username });
+    const data = await res.json();
+    const updatedUser = data.user;
+    await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
+    setUser(updatedUser);
+    return updatedUser;
   }, []);
 
   const logout = useCallback(async () => {
@@ -94,8 +108,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         isAuthenticated: !!user,
         isAdmin: user?.role === "admin",
+        needsUsername: !!user?.needsUsername || (!!user && !user.username),
         login,
         register,
+        setUsername,
         logout,
         refreshUser,
       }}
