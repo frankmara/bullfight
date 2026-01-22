@@ -54,6 +54,7 @@ class MarketDataService {
   private mockInterval: NodeJS.Timeout | null = null;
   private isUsingMockData: boolean = !POLYGON_API_KEY;
   private lastCandles: Map<string, Candle> = new Map();
+  private wsConnected: boolean = false;
 
   constructor() {
     this.initializeQuotes();
@@ -160,6 +161,7 @@ class MarketDataService {
 
       this.ws.on("open", () => {
         console.log("[MarketDataService] WebSocket connected");
+        this.wsConnected = true;
         this.ws?.send(JSON.stringify({ action: "auth", params: POLYGON_API_KEY }));
       });
 
@@ -176,6 +178,7 @@ class MarketDataService {
 
       this.ws.on("close", () => {
         console.log("[MarketDataService] WebSocket closed, reconnecting...");
+        this.wsConnected = false;
         this.scheduleReconnect();
       });
 
@@ -238,11 +241,23 @@ class MarketDataService {
     if (!quote) return undefined;
 
     const age = Date.now() - quote.timestamp;
-    let status: Quote["status"] = "live";
-    if (age > 10000) status = "stale";
-    else if (age > 2000) status = "delayed";
+    let status: Quote["status"];
+    
+    if (!this.wsConnected && !this.isUsingMockData) {
+      status = "disconnected";
+    } else if (age > 10000) {
+      status = "stale";
+    } else if (age > 2000) {
+      status = "delayed";
+    } else {
+      status = "live";
+    }
 
     return { ...quote, status };
+  }
+
+  public isConnected(): boolean {
+    return this.wsConnected || this.isUsingMockData;
   }
 
   public getAllQuotes(): Quote[] {

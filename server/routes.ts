@@ -759,6 +759,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  app.get("/api/market/quotes", (_req: Request, res: Response) => {
+    const quotes = marketDataService.getAllQuotes();
+    const now = Date.now();
+    res.json({
+      isUsingMock: marketDataService.isUsingMock(),
+      isConnected: marketDataService.isConnected(),
+      serverTime: now,
+      quotes: quotes.map((q) => ({
+        pair: q.pair,
+        bid: q.bid,
+        ask: q.ask,
+        spreadPips: q.spreadPips,
+        timestamp: q.timestamp,
+        ageMs: now - q.timestamp,
+        status: q.status,
+      })),
+    });
+  });
+
   app.get("/api/arena/:id/deals", async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
