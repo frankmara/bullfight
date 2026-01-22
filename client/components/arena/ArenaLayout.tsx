@@ -12,6 +12,7 @@ interface ArenaLayoutProps {
   orderTicket: React.ReactNode;
   blotter: React.ReactNode;
   overlays?: React.ReactNode;
+  isFullscreen?: boolean;
 }
 
 const TOOL_DOCK_WIDTH = 48;
@@ -29,6 +30,7 @@ export function ArenaLayout({
   orderTicket,
   blotter,
   overlays,
+  isFullscreen = false,
 }: ArenaLayoutProps) {
   if (Platform.OS !== "web") {
     return null;
@@ -37,7 +39,7 @@ export function ArenaLayout({
   return (
     <View style={styles.container}>
       {header}
-      {accountMetrics}
+      {!isFullscreen && accountMetrics}
       
       <View style={styles.mainGrid}>
         <View style={styles.toolDockColumn}>
@@ -53,22 +55,26 @@ export function ArenaLayout({
           </View>
         </View>
         
-        <View style={styles.rightColumn}>
-          <View style={styles.marketWatchSection}>
-            {marketWatch}
+        {!isFullscreen && (
+          <View style={styles.rightColumn}>
+            <View style={styles.marketWatchSection}>
+              {marketWatch}
+            </View>
+            <View style={styles.orderTicketSection}>
+              {orderTicket}
+            </View>
           </View>
-          <View style={styles.orderTicketSection}>
-            {orderTicket}
-          </View>
-        </View>
+        )}
       </View>
       
-      <View style={styles.blotterRow}>
-        <View style={styles.blotterDockSpacer} />
-        <View style={styles.blotterContent}>
-          {blotter}
+      {!isFullscreen && (
+        <View style={styles.blotterRow}>
+          <View style={styles.blotterDockSpacer} />
+          <View style={styles.blotterContent}>
+            {blotter}
+          </View>
         </View>
-      </View>
+      )}
       
       {overlays}
     </View>

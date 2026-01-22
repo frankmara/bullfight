@@ -181,6 +181,7 @@ export default function ArenaScreen() {
   const [activeBlotterTab, setActiveBlotterTab] = useState<BlotterTab>("positions");
   const [timeRemaining, setTimeRemaining] = useState("");
   const [selectedTimeframe, setSelectedTimeframe] = useState("15m");
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   
   const toastOpacity = useSharedValue(0);
@@ -933,12 +934,14 @@ export default function ArenaScreen() {
               timeframe={selectedTimeframe}
               onTimeframeChange={setSelectedTimeframe}
               formatPrice={(price) => formatPrice(price, selectedPair)}
+              isFullscreen={isFullscreen}
+              onToggleFullscreen={() => setIsFullscreen(!isFullscreen)}
             />
           }
           chart={
             <TradingViewChart
               pair={selectedPair}
-              height={height - 520}
+              height={isFullscreen ? height - 120 : height - 520}
               positions={positions.filter((p) => p.pair === selectedPair)}
               orders={pendingOrders.filter((o) => o.pair === selectedPair)}
               timeframe={selectedTimeframe}
@@ -1000,6 +1003,7 @@ export default function ArenaScreen() {
               {renderToast()}
             </>
           }
+          isFullscreen={isFullscreen}
         />
       </View>
     );

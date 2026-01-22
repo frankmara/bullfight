@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, StyleSheet, Pressable } from "react-native";
+import { View, StyleSheet, Pressable, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { TerminalColors, TerminalTypography } from "@/components/terminal";
@@ -20,9 +20,18 @@ interface ChartToolbarProps {
   timeframe: string;
   onTimeframeChange: (tf: string) => void;
   formatPrice: (price: number) => string;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
 }
 
-const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1D"];
+const TIMEFRAMES = [
+  { label: "1m", value: "1m" },
+  { label: "5m", value: "5m" },
+  { label: "15m", value: "15m" },
+  { label: "1H", value: "1h" },
+  { label: "4H", value: "4h" },
+  { label: "1D", value: "1D" },
+];
 
 const STATUS_COLORS: Record<QuoteStatus, string> = {
   live: "#16C784",
@@ -31,20 +40,16 @@ const STATUS_COLORS: Record<QuoteStatus, string> = {
   disconnected: "#FF3B3B",
 };
 
-const STATUS_LABELS: Record<QuoteStatus, string> = {
-  live: "LIVE",
-  delayed: "DELAYED",
-  stale: "STALE",
-  disconnected: "DISCONNECTED",
-};
-
 export function ChartToolbar({ 
   symbol, 
   currentQuote, 
   timeframe, 
   onTimeframeChange,
-  formatPrice 
+  formatPrice,
+  isFullscreen = false,
+  onToggleFullscreen,
 }: ChartToolbarProps) {
+  const [showTimeframeMenu, setShowTimeframeMenu] = useState(false);
   const [tickAge, setTickAge] = useState<number>(0);
 
   useEffect(() => {
@@ -60,67 +65,121 @@ export function ChartToolbar({
     return () => clearInterval(interval);
   }, [currentQuote?.timestamp]);
 
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen && onToggleFullscreen) {
+        onToggleFullscreen();
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen, onToggleFullscreen]);
+
   const status = currentQuote?.status || "disconnected";
   const statusColor = STATUS_COLORS[status];
-  const statusLabel = STATUS_LABELS[status];
+  const currentTfLabel = TIMEFRAMES.find(tf => tf.value === timeframe)?.label || timeframe;
+
+  const handleTimeframeSelect = (tf: string) => {
+    onTimeframeChange(tf);
+    setShowTimeframeMenu(false);
+  };
 
   return (
     <View style={styles.container}>
       <View style={styles.leftSection}>
-        <ThemedText style={styles.symbol}>{symbol.replace("-", "/")}</ThemedText>
+        <View style={styles.timeframeDropdown}>
+          <Pressable 
+            style={styles.timeframeBtn}
+            onPress={() => setShowTimeframeMenu(!showTimeframeMenu)}
+          >
+            <ThemedText style={styles.timeframeBtnText}>{currentTfLabel}</ThemedText>
+            <Feather name="chevron-down" size={12} color={TerminalColors.textMuted} />
+          </Pressable>
+          
+          {showTimeframeMenu && (
+            <View style={styles.timeframeMenu}>
+              {TIMEFRAMES.map((tf) => (
+                <Pressable
+                  key={tf.value}
+                  style={[styles.timeframeMenuItem, timeframe === tf.value && styles.timeframeMenuItemActive]}
+                  onPress={() => handleTimeframeSelect(tf.value)}
+                >
+                  <ThemedText style={[styles.timeframeMenuItemText, timeframe === tf.value && styles.timeframeMenuItemTextActive]}>
+                    {tf.label}
+                  </ThemedText>
+                </Pressable>
+              ))}
+            </View>
+          )}
+        </View>
+
+        <View style={styles.separator} />
         
-        {currentQuote ? (
-          <>
-            <View style={styles.priceGroup}>
-              <View style={styles.priceItem}>
-                <ThemedText style={styles.priceLabel}>BID</ThemedText>
-                <ThemedText style={styles.bidPrice}>{formatPrice(currentQuote.bid)}</ThemedText>
-              </View>
-              <View style={styles.priceItem}>
-                <ThemedText style={styles.priceLabel}>ASK</ThemedText>
-                <ThemedText style={styles.askPrice}>{formatPrice(currentQuote.ask)}</ThemedText>
-              </View>
-              <View style={styles.priceItem}>
-                <ThemedText style={styles.priceLabel}>SPREAD</ThemedText>
-                <ThemedText style={styles.spreadValue}>{currentQuote.spreadPips.toFixed(1)} pips</ThemedText>
-              </View>
-            </View>
-            
-            <View style={[styles.statusBadge, { backgroundColor: statusColor + "20", borderColor: statusColor }]}>
-              <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-              <ThemedText style={[styles.statusText, { color: statusColor }]}>{statusLabel}</ThemedText>
-            </View>
-            
-            <ThemedText style={styles.tickAge}>Last tick: {tickAge}s</ThemedText>
-          </>
-        ) : null}
+        <Pressable style={styles.toolBtn}>
+          <Feather name="bar-chart" size={14} color={TerminalColors.textMuted} />
+        </Pressable>
+        
+        <Pressable style={styles.indicatorBtn}>
+          <Feather name="activity" size={14} color={TerminalColors.textMuted} />
+          <ThemedText style={styles.indicatorText}>Indicators</ThemedText>
+        </Pressable>
+        
+        <View style={styles.separator} />
+        
+        <Pressable style={styles.toolBtn}>
+          <Feather name="grid" size={14} color={TerminalColors.textMuted} />
+        </Pressable>
+        
+        <Pressable style={styles.toolBtn}>
+          <Feather name="settings" size={14} color={TerminalColors.textMuted} />
+        </Pressable>
       </View>
       
       <View style={styles.centerSection}>
-        <View style={styles.timeframeGroup}>
-          {TIMEFRAMES.map((tf) => (
-            <Pressable
-              key={tf}
-              style={[styles.timeframeBtn, timeframe === tf && styles.timeframeBtnActive]}
-              onPress={() => onTimeframeChange(tf)}
-            >
-              <ThemedText style={[styles.timeframeBtnText, timeframe === tf && styles.timeframeBtnTextActive]}>
-                {tf}
-              </ThemedText>
-            </Pressable>
-          ))}
+        <View style={styles.symbolInfo}>
+          <ThemedText style={styles.symbolName}>{symbol.replace("-", " / ")}</ThemedText>
+          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+          <ThemedText style={styles.symbolMeta}>• {currentTfLabel}</ThemedText>
+          {currentQuote && (
+            <ThemedText style={styles.tickAgeText}>• {tickAge}s ago</ThemedText>
+          )}
         </View>
       </View>
       
       <View style={styles.rightSection}>
-        <Pressable style={styles.iconBtn}>
-          <Feather name="bar-chart-2" size={14} color={TerminalColors.textMuted} />
+        <Pressable style={styles.saveBtn}>
+          <ThemedText style={styles.saveBtnText}>Save</ThemedText>
+          <Feather name="chevron-down" size={12} color={TerminalColors.textMuted} />
         </Pressable>
-        <Pressable style={styles.iconBtn}>
-          <Feather name="settings" size={14} color={TerminalColors.textMuted} />
+        
+        <View style={styles.separator} />
+        
+        <Pressable style={styles.toolBtn}>
+          <Feather name="rotate-ccw" size={14} color={TerminalColors.textMuted} />
         </Pressable>
-        <Pressable style={styles.iconBtn}>
-          <Feather name="maximize-2" size={14} color={TerminalColors.textMuted} />
+        
+        <Pressable style={styles.toolBtn}>
+          <Feather name="rotate-cw" size={14} color={TerminalColors.textMuted} />
+        </Pressable>
+        
+        <View style={styles.separator} />
+        
+        <Pressable style={styles.toolBtn}>
+          <Feather name="camera" size={14} color={TerminalColors.textMuted} />
+        </Pressable>
+        
+        <Pressable 
+          style={[styles.toolBtn, isFullscreen && styles.toolBtnActive]}
+          onPress={onToggleFullscreen}
+        >
+          <Feather 
+            name={isFullscreen ? "minimize-2" : "maximize-2"} 
+            size={14} 
+            color={isFullscreen ? TerminalColors.accent : TerminalColors.textMuted} 
+          />
         </Pressable>
       </View>
     </View>
@@ -132,65 +191,129 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    gap: 16,
+    paddingHorizontal: 8,
+    backgroundColor: TerminalColors.bgPanel,
+    borderBottomWidth: 1,
+    borderBottomColor: TerminalColors.border,
   },
   
   leftSection: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
+    gap: 4,
   },
   
-  symbol: {
-    fontSize: 14,
-    fontWeight: "700",
+  centerSection: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  
+  rightSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  
+  separator: {
+    width: 1,
+    height: 20,
+    backgroundColor: TerminalColors.border,
+    marginHorizontal: 6,
+  },
+  
+  timeframeDropdown: {
+    position: "relative",
+  },
+  
+  timeframeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: TerminalColors.bgElevated,
+    borderRadius: 4,
+    gap: 6,
+  },
+  
+  timeframeBtnText: {
+    fontSize: 12,
+    fontWeight: "600",
     color: TerminalColors.textPrimary,
   },
   
-  priceGroup: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  
-  priceItem: {
-    alignItems: "center",
-  },
-  
-  priceLabel: {
-    fontSize: 9,
-    fontWeight: "500",
-    color: TerminalColors.textMuted,
-    marginBottom: 1,
-  },
-  
-  bidPrice: {
-    ...TerminalTypography.price,
-    color: TerminalColors.negative,
-    fontSize: 13,
-  },
-  
-  askPrice: {
-    ...TerminalTypography.price,
-    color: TerminalColors.positive,
-    fontSize: 13,
-  },
-  
-  spreadValue: {
-    ...TerminalTypography.price,
-    color: TerminalColors.textSecondary,
-    fontSize: 12,
-  },
-  
-  statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+  timeframeMenu: {
+    position: "absolute",
+    top: 32,
+    left: 0,
+    backgroundColor: TerminalColors.bgPanel,
     borderRadius: 4,
     borderWidth: 1,
-    gap: 5,
+    borderColor: TerminalColors.border,
+    minWidth: 80,
+    zIndex: 100,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  
+  timeframeMenuItem: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  
+  timeframeMenuItemActive: {
+    backgroundColor: TerminalColors.bgElevated,
+  },
+  
+  timeframeMenuItemText: {
+    fontSize: 12,
+    color: TerminalColors.textSecondary,
+  },
+  
+  timeframeMenuItemTextActive: {
+    color: TerminalColors.accent,
+    fontWeight: "600",
+  },
+  
+  toolBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  
+  toolBtnActive: {
+    backgroundColor: TerminalColors.bgElevated,
+  },
+  
+  indicatorBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 4,
+    gap: 6,
+  },
+  
+  indicatorText: {
+    fontSize: 12,
+    color: TerminalColors.textMuted,
+  },
+  
+  symbolInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  
+  symbolName: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: TerminalColors.textPrimary,
   },
   
   statusDot: {
@@ -199,60 +322,28 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   
-  statusText: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 0.5,
+  symbolMeta: {
+    fontSize: 12,
+    color: TerminalColors.textMuted,
   },
   
-  tickAge: {
+  tickAgeText: {
     fontSize: 11,
     color: TerminalColors.textMuted,
     fontVariant: ["tabular-nums"],
   },
   
-  centerSection: {
-    flex: 1,
+  saveBtn: {
+    flexDirection: "row",
     alignItems: "center",
-  },
-  
-  timeframeGroup: {
-    flexDirection: "row",
-    backgroundColor: TerminalColors.bgElevated,
-    borderRadius: 4,
-    padding: 2,
-  },
-  
-  timeframeBtn: {
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 3,
-  },
-  
-  timeframeBtnActive: {
-    backgroundColor: TerminalColors.accent,
-  },
-  
-  timeframeBtnText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: TerminalColors.textMuted,
-  },
-  
-  timeframeBtnTextActive: {
-    color: TerminalColors.textPrimary,
-  },
-  
-  rightSection: {
-    flexDirection: "row",
+    paddingVertical: 6,
+    borderRadius: 4,
     gap: 4,
   },
   
-  iconBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 4,
-    alignItems: "center",
-    justifyContent: "center",
+  saveBtnText: {
+    fontSize: 12,
+    color: TerminalColors.textMuted,
   },
 });
