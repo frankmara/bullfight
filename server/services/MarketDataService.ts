@@ -447,9 +447,9 @@ class MarketDataService {
     const to = new Date(now).toISOString().split("T")[0];
 
     // Request more data from Polygon than needed - Polygon's limit can affect aggregation
-    // We request up to 5000 rows and then slice to the desired limit ourselves
+    // Use sort=desc to get the most recent candles first (in case there are more candles than limit)
     const polygonLimit = Math.min(5000, Math.max(limit * 10, 500));
-    const url = `${POLYGON_REST_BASE_URL}/v2/aggs/ticker/${ticker}/range/${tf.multiplier}/${tf.timespan}/${from}/${to}?adjusted=true&sort=asc&limit=${polygonLimit}&apiKey=${POLYGON_API_KEY}`;
+    const url = `${POLYGON_REST_BASE_URL}/v2/aggs/ticker/${ticker}/range/${tf.multiplier}/${tf.timespan}/${from}/${to}?adjusted=true&sort=desc&limit=${polygonLimit}&apiKey=${POLYGON_API_KEY}`;
 
     try {
       console.log(`[MarketDataService] Fetching candles from Polygon REST API: ${ticker} ${from} to ${to}, limit=${limit}`);
@@ -476,6 +476,7 @@ class MarketDataService {
         return { candles: [], mock: false };
       }
 
+      // Results come in descending order (newest first), so reverse to get chronological order
       const candles: Candle[] = data.results.map((r: any) => ({
         time: Math.floor(r.t / 1000),
         open: r.o,
@@ -483,19 +484,21 @@ class MarketDataService {
         low: r.l,
         close: r.c,
         volume: r.v,
-      }));
+      })).reverse();
 
       // Return only real candles from Polygon - no fake gap-filling
-      console.log(`[MarketDataService] Retrieved ${candles.length} real candles from Polygon REST API for ${pair}`);
+      // Take the last N candles (most recent) after reversing to chronological order
+      const recentCandles = candles.slice(-limit);
+      console.log(`[MarketDataService] Retrieved ${candles.length} real candles from Polygon REST API for ${pair}, returning ${recentCandles.length}`);
 
       const cacheKey = `${pair}:${timeframe}:${limit}`;
       this.candleCache.set(cacheKey, {
-        candles: candles,
+        candles: recentCandles,
         fetchedAt: Date.now(),
         mock: false,
       });
 
-      return { candles: candles.slice(-limit), mock: false };
+      return { candles: recentCandles, mock: false };
     } catch (e) {
       console.error("[MarketDataService] Failed to fetch Polygon candles:", e);
       // Check for real-time candles instead of mock
