@@ -133,9 +133,57 @@ export const positions = pgTable("positions", {
   side: text("side").notNull(),
   quantityUnits: integer("quantity_units").notNull(),
   avgEntryPrice: real("avg_entry_price").notNull(),
+  stopLossPrice: real("stop_loss_price"),
+  takeProfitPrice: real("take_profit_price"),
   openAt: timestamp("open_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   realizedPnlCents: integer("realized_pnl_cents").notNull().default(0),
+});
+
+export const trades = pgTable("trades", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  competitionId: varchar("competition_id")
+    .references(() => competitions.id)
+    .notNull(),
+  userId: varchar("user_id")
+    .references(() => users.id)
+    .notNull(),
+  pair: text("pair").notNull(),
+  sideInitial: text("side_initial").notNull(),
+  totalInUnits: integer("total_in_units").notNull().default(0),
+  totalOutUnits: integer("total_out_units").notNull().default(0),
+  avgEntryPrice: real("avg_entry_price").notNull(),
+  avgExitPrice: real("avg_exit_price"),
+  realizedPnlCents: integer("realized_pnl_cents").notNull().default(0),
+  status: text("status").notNull().default("open"),
+  openedAt: timestamp("opened_at").defaultNow().notNull(),
+  closedAt: timestamp("closed_at"),
+});
+
+export const deals = pgTable("deals", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  tradeId: varchar("trade_id")
+    .references(() => trades.id)
+    .notNull(),
+  competitionId: varchar("competition_id")
+    .references(() => competitions.id)
+    .notNull(),
+  userId: varchar("user_id")
+    .references(() => users.id)
+    .notNull(),
+  orderId: varchar("order_id").references(() => orders.id),
+  pair: text("pair").notNull(),
+  side: text("side").notNull(),
+  units: integer("units").notNull(),
+  lots: real("lots").notNull(),
+  price: real("price").notNull(),
+  kind: text("kind").notNull(),
+  realizedPnlCents: integer("realized_pnl_cents").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const payments = pgTable("payments", {
@@ -270,6 +318,16 @@ export const insertPvpChallengeSchema = createInsertSchema(pvpChallenges).omit({
   updatedAt: true,
 });
 
+export const insertTradeSchema = createInsertSchema(trades).omit({
+  id: true,
+  openedAt: true,
+});
+
+export const insertDealSchema = createInsertSchema(deals).omit({
+  id: true,
+  createdAt: true,
+});
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type Competition = typeof competitions.$inferSelect;
@@ -290,3 +348,7 @@ export type Payout = typeof payouts.$inferSelect;
 export type InsertPayout = z.infer<typeof insertPayoutSchema>;
 export type PvpChallenge = typeof pvpChallenges.$inferSelect;
 export type InsertPvpChallenge = z.infer<typeof insertPvpChallengeSchema>;
+export type Trade = typeof trades.$inferSelect;
+export type InsertTrade = z.infer<typeof insertTradeSchema>;
+export type Deal = typeof deals.$inferSelect;
+export type InsertDeal = z.infer<typeof insertDealSchema>;
