@@ -98,19 +98,8 @@ export function CompetitionSwitcher({
 
   return (
     <>
-      <Pressable style={styles.trigger} onPress={() => setIsOpen(true)}>
-        <View style={styles.triggerIcon}>
-          <Feather name="layers" size={14} color={TerminalColors.accent} />
-        </View>
-        <View style={styles.triggerContent}>
-          <ThemedText style={styles.triggerTitle} numberOfLines={1}>
-            {currentCompetitionTitle}
-          </ThemedText>
-          {currentRank ? (
-            <ThemedText style={styles.triggerRank}>Rank #{currentRank}</ThemedText>
-          ) : null}
-        </View>
-        <Feather name="chevron-up" size={14} color={TerminalColors.textMuted} />
+      <Pressable style={styles.iconButton} onPress={() => setIsOpen(true)}>
+        <Feather name="layers" size={18} color={TerminalColors.accent} />
       </Pressable>
 
       <Modal
@@ -198,46 +187,22 @@ export function CompetitionSwitcher({
 }
 
 const styles = StyleSheet.create({
-  trigger: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: TerminalColors.bgPanel,
+  iconButton: {
+    width: 36,
+    height: 36,
     borderRadius: 6,
-    borderWidth: 1,
-    borderColor: TerminalColors.border,
-    maxWidth: 200,
-  },
-  triggerIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 4,
-    backgroundColor: TerminalColors.accent + '20',
+    backgroundColor: TerminalColors.accent + '15',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  triggerContent: {
-    flex: 1,
-  },
-  triggerTitle: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: TerminalColors.textPrimary,
-  },
-  triggerRank: {
-    fontSize: 9,
-    color: TerminalColors.textMuted,
+    borderWidth: 1,
+    borderColor: TerminalColors.accent + '30',
   },
 
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'flex-end',
-    alignItems: 'flex-start',
-    paddingBottom: 80,
-    paddingLeft: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   popover: {
     backgroundColor: TerminalColors.bgPanel,

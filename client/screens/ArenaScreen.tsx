@@ -1233,21 +1233,21 @@ export default function ArenaScreen() {
               }}
             />
           }
+          blotterDockButton={
+            <CompetitionSwitcher
+              currentCompetitionId={competition.id}
+              currentCompetitionTitle={competition.title}
+              currentRank={entry.rank}
+              onSwitchCompetition={(newId) => {
+                navigation.navigate('Arena', { id: newId });
+              }}
+            />
+          }
           overlays={
             <>
               {renderLeaderboardPanel()}
               {renderToast()}
               {renderSLTPDragModal()}
-              <View style={styles.competitionSwitcherContainer}>
-                <CompetitionSwitcher
-                  currentCompetitionId={competition.id}
-                  currentCompetitionTitle={competition.title}
-                  currentRank={entry.rank}
-                  onSwitchCompetition={(newId) => {
-                    navigation.navigate('Arena', { id: newId });
-                  }}
-                />
-              </View>
             </>
           }
           isFullscreen={isFullscreen}
@@ -2129,10 +2129,4 @@ const styles = StyleSheet.create({
     color: THEME.textPrimary,
   },
 
-  competitionSwitcherContainer: {
-    position: "absolute",
-    bottom: 16,
-    left: 16,
-    zIndex: 100,
-  },
 });

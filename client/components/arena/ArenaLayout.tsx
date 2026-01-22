@@ -10,6 +10,7 @@ interface ArenaLayoutProps {
   marketWatch: React.ReactNode;
   orderTicket: React.ReactNode;
   blotter: React.ReactNode;
+  blotterDockButton?: React.ReactNode;
   overlays?: React.ReactNode;
   isFullscreen?: boolean;
 }
@@ -27,6 +28,7 @@ export function ArenaLayout({
   marketWatch,
   orderTicket,
   blotter,
+  blotterDockButton,
   overlays,
   isFullscreen = false,
 }: ArenaLayoutProps) {
@@ -66,7 +68,9 @@ export function ArenaLayout({
       
       {!isFullscreen && (
         <View style={styles.blotterRow}>
-          <View style={styles.blotterDockSpacer} />
+          <View style={styles.blotterDockSpacer}>
+            {blotterDockButton}
+          </View>
           <View style={styles.blotterContent}>
             {blotter}
           </View>
@@ -152,6 +156,8 @@ const styles = StyleSheet.create({
     backgroundColor: TerminalColors.bgPanel,
     borderRightWidth: 1,
     borderRightColor: TerminalColors.border,
+    alignItems: "center",
+    justifyContent: "center",
   },
   
   blotterContent: {
