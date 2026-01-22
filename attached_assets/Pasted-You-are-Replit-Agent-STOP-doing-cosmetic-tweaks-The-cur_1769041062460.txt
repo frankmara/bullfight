@@ -1,0 +1,220 @@
+You are Replit Agent. STOP doing cosmetic tweaks. The current trading arena UI is unacceptable and the chart/data integration is not credible. I need you to rebuild the Arena to feel like a professional web trading terminal (TradeLocker-inspired interaction patterns) and to make the data + trade management correct.
+
+NON-NEGOTIABLE OUTCOME:
+1) The chart MUST be driven by OUR data: Polygon/Massive historical candles + live WS quotes, not “some TradingView embed data.”
+2) Trading must support deal-based execution: one entry deal, multiple exit deals (partial closes), and those deals must build Positions/Trades/History.
+3) FX sizing must be Lots-first UX (0.01, 0.1, 1.0 lots etc). Store units internally but display lots.
+4) I must be able to edit SL/TP after opening, and I must be able to partial close (by lots or %).
+5) The watchlist and ticket must be visually clean, aligned, dense, and “terminal-grade”.
+
+IMPORTANT CONSTRAINTS:
+- Do NOT copy TradeLocker branding/assets.
+- You can mimic professional patterns: dense blotter, tabbed bottom panel, quick trade, resizable panes, right ticket, proper watchlist, etc.
+- Keep existing paper-trading engine concept, but you MUST refactor the execution model to support deals + partial closes.
+- Keep Next.js + TS + Tailwind.
+- Use Replit Postgres + Drizzle.
+- Keep Socket.io.
+
+PHASED DELIVERY (avoid half-baked)
+P0 (must ship fully working): Data-integrated chart + watchlist, market orders, deal model, lots sizing, partial close, edit SL/TP, blotter (Positions/Orders/Deals/Trades).
+P1 (nice): limit/stop, trailing stop, drag SL/TP on chart.
+If you cannot do P1 cleanly, do not fake it; leave disabled with TODO.
+
+========================
+A) DATA INTEGRITY & MARKET DATA LAYER (fix this first)
+========================
+Create a server-side MarketDataService that is the SINGLE source of truth for:
+- latest bid/ask per pair (from WS)
+- computed spread in pips
+- candle history (REST)
+- realtime candle updates (using WS quotes)
+
+ENV:
+- POLYGON_API_KEY
+- POLYGON_REST_BASE_URL default https://api.polygon.io
+- POLYGON_WS_BASE_URL default wss://socket.polygon.io
+
+FX PAIR MAPPING:
+- UI pairs are "EUR-USD", "GBP-USD", "AUD-USD", "USD-JPY", "USD-CAD"
+- REST ticker format for aggregates: "C:EURUSD" (remove dash)
+- WS subscription format: subscribe to Forex Quotes event type "C" with pair like "EUR-USD"
+  (example params: "C.EUR-USD,C.GBP-USD")
+
+PIP RULES:
+- If quote currency is JPY => pip = 0.01
+- Else pip = 0.0001
+spreadPips = (ask - bid) / pip
+Display spread to 0.1 pip.
+
+STALE DATA DETECTION:
+- Track lastTickTs per pair.
+- In UI show status badge:
+  LIVE (tick < 2s), DELAYED (2–10s), STALE (>10s), DISCONNECTED.
+Also show “Last update: Xs”.
+
+HISTORICAL CANDLES:
+Implement REST candle fetch for timeframe:
+- 1m, 5m, 15m, 1h, 4h, 1d
+Use Polygon aggregates range endpoint with limit ~500-1500 bars.
+Cache results per pair+timeframe for 30s to reduce load.
+
+REALTIME CANDLE UPDATES:
+- Use mid = (bid+ask)/2 to update the last candle close.
+- If new timeframe bucket begins, push a new candle.
+Broadcast candle updates to client via Socket.io.
+
+IF POLYGON KEY MISSING:
+- Generate mock quotes + candles (random walk) but clearly show “MOCK DATA” badge.
+
+========================
+B) CHARTING: MUST LOOK AND FEEL LIKE A REAL TERMINAL
+========================
+Do NOT use the basic TradingView embed widget unless it can be fed our custom data (it cannot). Instead:
+- Use TradingView Lightweight Charts (official) and build a TradingView-like toolbar.
+
+CHART REQUIREMENTS:
+- Candlestick chart with crosshair, zoom/scroll.
+- Top chart toolbar:
+  - timeframe buttons (1m 5m 15m 1h 4h 1D)
+  - candle/line toggle
+  - indicators dropdown (SMA/EMA/RSI basic)
+  - reset zoom
+- Show live price line.
+- Optional: show bid/ask lines.
+- MUST render cleanly and match the rest of the UI (dark, crisp).
+
+OVERLAYS (P0):
+- Display open position entry line with label: side, lots, entry, unrealized PnL.
+- Display SL and TP as horizontal lines if set (read-only in P0 ok, editable in P1).
+- Display pending orders as lines (if limit/stop implemented).
+
+IMPORTANT:
+The top-of-screen bid/ask MUST match the MarketDataService quotes used for the chart.
+
+========================
+C) EXECUTION MODEL: DEALS, TRADES, POSITIONS (P0)
+========================
+Right now the logic is wrong/incomplete. Refactor to a deal-based model like pro platforms:
+
+TERMS:
+- Order: instruction (market/limit/stop)
+- Deal: an execution/fill event (deal in, deal out)
+- Position: current open net exposure per symbol
+- Trade: a completed lifecycle from position open (size goes from 0 to non-zero) to fully closed (back to 0).
+A trade contains multiple deals.
+
+IMPLEMENT NETTING MODE (one position per symbol per user/competition):
+- If position size = 0 and a fill happens => start new tradeId and create deal IN.
+- Additional fills in same direction => additional deal IN, recalc weighted avg entry.
+- Partial close => create deal OUT, reduce size, realize PnL for that closed portion.
+- If size reaches 0 => close trade, mark trade closed with realized PnL.
+
+DATABASE CHANGES (Drizzle migration):
+Add tables:
+- trades (id, competitionId, userId, pair, openedAt, closedAt, sideInitial, totalInUnits, totalOutUnits, avgEntryPrice, avgExitPrice, realizedPnlCents)
+- deals (id, tradeId, competitionId, userId, orderId nullable, pair, side, units, lots, price, kind IN|OUT, realizedPnlCents, createdAt)
+Keep existing fills table OR replace fills with deals; but UI must show Deals.
+
+LOTS CONVERSION:
+- 1 standard lot = 100,000 units for FX.
+- UI inputs in lots (float, min step 0.01), convert to units internally.
+- Display both in ticket: “0.10 lots (10,000 units)”
+- Quick buttons: 0.01, 0.05, 0.10, 0.50, 1.00 lots.
+
+PNL (USD account):
+- For XXX-USD pairs: PnL USD = (exit - entry) * units for LONG; (entry - exit) * units for SHORT.
+- For USD-JPY / USD-CAD: implement correct conversion OR temporarily restrict trading to XXX-USD pairs until conversion is correct.
+Do not fake it. If conversion not implemented, disable those pairs and show tooltip “Conversion TODO”.
+
+PARTIAL CLOSE (P0):
+- From Positions table:
+  - “Close” (full)
+  - “Close Partial” opens a modal:
+     amount type: lots or %
+     input
+     confirm executes a market close for that portion
+- This creates a deal OUT and updates position + trade.
+
+EDIT SL/TP (P0):
+- In Positions table, SL and TP should be editable (pencil icon → modal).
+- Updates should store on the position record and be enforced by the engine on quote updates.
+- If SL/TP hits, auto-close relevant portion (full close for now).
+
+========================
+D) UI REBUILD: MAKE IT LOOK LIKE A REAL TERMINAL (P0)
+========================
+Use a real layout system:
+- Use react-resizable-panels (preferred) for resizable panes.
+
+LAYOUT:
+- Top Header (sticky, dense):
+  left: back + competition name + status + countdown
+  center: symbol selector + bid/ask + spread + data status badge
+  right: Balance, Equity, Unrealized PnL, Return %, Rank, Drawdown
+
+- Left Panel: Watchlist
+  - Search (Ctrl/Cmd+K)
+  - Rows: Symbol | Bid | Ask | Spread(pips) | tiny tick arrow
+  - Perfect alignment (tabular numbers), small font, dense rows.
+  - Highlight selected symbol.
+  - Show connection/stale status per symbol.
+
+- Center: Chart
+  - Lightweight Charts with toolbar.
+  - No empty wasted space; reduce margins.
+  - If data unavailable, show clear empty-state with retry.
+
+- Right: Order Ticket
+  - Looks like a pro ticket:
+    - Buy/Sell buttons showing current bid/ask
+    - One-click toggle (OFF by default)
+    - Order type tabs: Market (P0) / Limit/Stop (P1 disabled if not implemented)
+    - Size input in lots + units conversion text
+    - SL/TP inputs (price + pips toggle optional)
+    - Confirm modal when one-click is off
+    - Show expected fill logic (bid/ask + spread markup + slippage), with tooltip.
+  - Disable trading when competition not running, but keep ticket visible.
+
+- Bottom: Blotter tabs (dense, actionable)
+  Tabs: Positions | Orders | Deals | Trades
+  - Positions: live mark, UPL, SL/TP, actions (close/partial/modify)
+  - Deals: every execution (in/out), realized PnL per deal
+  - Trades: grouped lifecycle summary (opened/closed, total size, realized PnL)
+
+VISUAL QUALITY:
+- Use consistent typography (Inter), consistent spacing scale.
+- Use tabular-nums for prices.
+- Improve contrast of tables (headers readable).
+- Remove “toy-like” spacing. Make it crisp.
+
+INTERACTION:
+- Toasts: order sent, deal executed, partial close executed, SL/TP updated, stop hit.
+- Keyboard shortcuts: Ctrl/Cmd+K search, ESC close modal.
+
+========================
+E) TRADINGVIEW “LOOK EXACTLY LIKE TRADINGVIEW” NOTE
+========================
+You must NOT claim we are using the full TradingView Charting Library unless we actually have it.
+We are implementing a TradingView-like UX with Lightweight Charts + our own toolbar.
+
+========================
+F) ACCEPTANCE TESTS (must pass)
+========================
+1) Watchlist updates bid/ask/spread in real-time and shows LIVE/STALE status.
+2) Chart loads 500+ candles from Polygon REST and updates last candle from WS quotes.
+3) Market buy/sell in lots opens a position, creates a trade + a deal IN.
+4) Partial close creates a deal OUT and reduces position size; multiple partial outs supported.
+5) Deals tab shows deal in and multiple deal out rows with realized PnL per deal.
+6) SL/TP can be edited post-entry and is enforced by engine (auto close when hit).
+7) All numbers are aligned and formatted correctly (pip decimals, prices).
+8) The UI looks professional: dense, aligned, resizable, no placeholder vibe.
+
+DELIVERABLE:
+- Implement in existing repo
+- Include migration + seed updates
+- Add docs: /docs/arena-terminal.md describing the model (orders → deals → trades → positions) and how to extend it (limit/stop/trailing).
+
+Before coding:
+1) Inspect current Arena code and output a file list of components/services involved.
+2) Output a precise plan: what you will replace vs refactor.
+Then code.

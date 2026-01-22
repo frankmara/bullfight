@@ -1,19 +1,23 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import PvPListScreen from "@/screens/PvPListScreen";
-import { Colors } from "@/constants/theme";
+import { HeaderTitle } from "@/components/HeaderTitle";
+import { useScreenOptions } from "@/hooks/useScreenOptions";
 
 const Stack = createNativeStackNavigator();
 
 export default function PvPStackNavigator() {
+  const screenOptions = useScreenOptions();
+
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: Colors.dark.backgroundRoot },
-      }}
-    >
-      <Stack.Screen name="PvPListMain" component={PvPListScreen} />
+    <Stack.Navigator screenOptions={screenOptions}>
+      <Stack.Screen
+        name="PvPListMain"
+        component={PvPListScreen}
+        options={{
+          headerTitle: () => <HeaderTitle title="PvP" />,
+        }}
+      />
     </Stack.Navigator>
   );
 }

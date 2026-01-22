@@ -211,7 +211,7 @@ export default function PvPListScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: headerHeight }]}>
-      <View style={[styles.contentWrapper, { maxWidth: containerWidth }]}>
+      <View style={[styles.contentWrapper, isDesktop && { maxWidth: containerWidth }]}>
         <View style={styles.header}>
           <View>
             <ThemedText style={styles.pageTitle}>PvP Challenges</ThemedText>
