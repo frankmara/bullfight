@@ -228,13 +228,19 @@ function serveLandingPage({
   const host = forwardedHost || req.get("host");
   const baseUrl = `${protocol}://${host}`;
   const expsUrl = `${host}`;
+  
+  // Web app runs on port 8081 in development, same host in production
+  const webAppHost = host?.replace(":5000", ":8081") || host;
+  const webAppUrl = `${protocol}://${webAppHost}`;
 
   log(`baseUrl`, baseUrl);
   log(`expsUrl`, expsUrl);
+  log(`webAppUrl`, webAppUrl);
 
   const html = landingPageTemplate
     .replace(/BASE_URL_PLACEHOLDER/g, baseUrl)
     .replace(/EXPS_URL_PLACEHOLDER/g, expsUrl)
+    .replace(/WEB_APP_URL_PLACEHOLDER/g, webAppUrl)
     .replace(/APP_NAME_PLACEHOLDER/g, appName);
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");

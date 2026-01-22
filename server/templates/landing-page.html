@@ -201,6 +201,42 @@
         opacity: 0.9;
       }
 
+      /* Desktop CTA styles */
+      .desktop-cta {
+        display: none;
+        margin-bottom: 32px;
+        text-align: center;
+      }
+      .web-app-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        padding: 18px 48px;
+        font-size: 18px;
+        font-weight: 600;
+        border-radius: 12px;
+        text-decoration: none;
+        color: #fff;
+        background: linear-gradient(135deg, #D14B3A 0%, #FF6B5A 100%);
+        box-shadow: 0 4px 20px rgba(209, 75, 58, 0.4);
+        transition: all 0.2s;
+      }
+      .web-app-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 24px rgba(209, 75, 58, 0.5);
+      }
+      .web-icon {
+        width: 24px;
+        height: 24px;
+      }
+      .desktop-or {
+        font-size: 14px;
+        color: #888;
+        margin-top: 16px;
+        margin-bottom: 0;
+      }
+
       /* Desktop styles */
       @media (min-width: 768px) {
         body {
@@ -337,7 +373,18 @@
 
       <div class="content" id="content">
         <h1>APP_NAME_PLACEHOLDER</h1>
-        <p class="subtitle">Preview this app on your phone</p>
+        <p class="subtitle" id="subtitle">Preview this app on your phone</p>
+
+        <!-- Desktop CTA -->
+        <div class="desktop-cta" id="desktop-cta">
+          <a href="WEB_APP_URL_PLACEHOLDER" class="web-app-button" id="web-app-btn">
+            <svg class="web-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+            </svg>
+            Launch Web App
+          </a>
+          <p class="desktop-or">or get the mobile app below</p>
+        </div>
 
         <div class="steps-container">
           <div class="step">
@@ -399,13 +446,23 @@
         const ua = navigator.userAgent;
         const loadingEl = document.getElementById("loading");
         const contentEl = document.getElementById("content");
+        const desktopCta = document.getElementById("desktop-cta");
+        const subtitle = document.getElementById("subtitle");
 
         const isAndroid = /Android/i.test(ua);
         const isIOS =
           /iPhone|iPad|iPod/i.test(ua) ||
           (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+        const isMobile = isAndroid || isIOS;
+        const isDesktop = !isMobile;
 
         const deepLink = "exps://EXPS_URL_PLACEHOLDER";
+
+        // Show desktop CTA for desktop users
+        if (isDesktop && desktopCta) {
+          desktopCta.style.display = "block";
+          subtitle.textContent = "Competitive paper trading platform";
+        }
 
         // Adjust store buttons based on platform
         const appStoreBtn = document.getElementById("app-store-btn");
@@ -450,7 +507,7 @@
 
         qrCode.append(document.getElementById("qr-code"));
 
-        if (isAndroid || isIOS) {
+        if (isMobile) {
           loadingEl.style.display = "block";
           contentEl.style.display = "none";
           window.location.href = deepLink;
