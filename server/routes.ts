@@ -3,6 +3,7 @@ import { createServer, type Server } from "node:http";
 import { storage } from "./storage";
 import { marketDataService } from "./services/MarketDataService";
 import { EmailService } from "./services/EmailService";
+import { startScheduledJobs, triggerDailyStandingsNow } from "./services/ScheduledJobs";
 import {
   executeMarketOrder,
   partialClosePosition,
@@ -1324,6 +1325,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: error.message });
     }
   });
+
+  app.post("/api/admin/email/trigger-standings", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      await triggerDailyStandingsNow();
+      res.json({ success: true, message: "Daily standings emails triggered" });
+    } catch (error: any) {
+      console.error("Trigger standings error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  startScheduledJobs();
 
   const httpServer = createServer(app);
 
