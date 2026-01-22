@@ -1587,6 +1587,7 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     ...TerminalTypography.label,
+    color: THEME.textSecondary,
     marginBottom: 8,
   },
   lotSizeInputRow: {
@@ -1626,7 +1627,7 @@ const styles = StyleSheet.create({
   quickLotText: {
     fontSize: 12,
     fontWeight: "600",
-    color: THEME.textMuted,
+    color: THEME.textSecondary,
   },
   quickLotTextActive: {
     color: THEME.accent,
@@ -1656,6 +1657,7 @@ const styles = StyleSheet.create({
   },
   slTpLabel: {
     ...TerminalTypography.label,
+    color: THEME.textSecondary,
     marginBottom: 6,
   },
   slTpInput: {
@@ -1714,9 +1716,9 @@ const styles = StyleSheet.create({
     ...TerminalTypography.priceLarge,
   },
   spreadLabel: {
-    fontSize: 8,
+    fontSize: 9,
     fontWeight: "600",
-    color: THEME.textMuted,
+    color: THEME.textSecondary,
     letterSpacing: 0.5,
   },
 

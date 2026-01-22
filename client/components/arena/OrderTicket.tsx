@@ -458,7 +458,7 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 11,
-    color: TerminalColors.textMuted,
+    color: TerminalColors.textSecondary,
   },
 
   // Execution Row
@@ -550,8 +550,8 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   helperText: {
-    fontSize: 10,
-    color: TerminalColors.textMuted,
+    fontSize: 11,
+    color: TerminalColors.textSecondary,
     fontVariant: ["tabular-nums"],
   },
 
