@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRoute, useNavigation, RouteProp } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -106,10 +107,27 @@ interface LeaderboardEntry {
 }
 
 const DESKTOP_BREAKPOINT = 1024;
-const TABLET_BREAKPOINT = 768;
 const QUICK_LOT_SIZES = [0.01, 0.05, 0.1, 0.5, 1.0];
 const UNITS_PER_LOT = 100000;
 const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1d"];
+
+const THEME = {
+  bg: "#0A0A0A",
+  bgCard: "#121212",
+  bgElevated: "#1A1A1A",
+  bgInput: "#0D0D0D",
+  border: "#252525",
+  borderLight: "#333333",
+  accent: "#FF3B3B",
+  accentGlow: "rgba(255, 59, 59, 0.3)",
+  success: "#00C853",
+  successGlow: "rgba(0, 200, 83, 0.2)",
+  danger: "#FF3B3B",
+  dangerGlow: "rgba(255, 59, 59, 0.2)",
+  textPrimary: "#FFFFFF",
+  textSecondary: "#B0B0B0",
+  textMuted: "#666666",
+};
 
 function unitsToLots(units: number): number {
   return Math.round((units / UNITS_PER_LOT) * 100) / 100;
@@ -126,9 +144,7 @@ export default function ArenaScreen() {
   const { user } = useAuthContext();
   const { id } = route.params;
 
-  const isDesktop = Platform.OS === "web" && width > DESKTOP_BREAKPOINT;
-  const isTablet = Platform.OS === "web" && width > TABLET_BREAKPOINT && width <= DESKTOP_BREAKPOINT;
-  const isMobile = !isDesktop && !isTablet;
+  const isDesktop = Platform.OS === "web" && width >= DESKTOP_BREAKPOINT;
 
   const [selectedPair, setSelectedPair] = useState("EUR-USD");
   const [orderSide, setOrderSide] = useState<"buy" | "sell">("buy");
@@ -141,7 +157,6 @@ export default function ArenaScreen() {
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [oneClickTrading, setOneClickTrading] = useState(false);
-  const [watchlistSearch, setWatchlistSearch] = useState("");
   const [activeBlotterTab, setActiveBlotterTab] = useState<BlotterTab>("positions");
   const [timeRemaining, setTimeRemaining] = useState("");
   const [selectedTimeframe, setSelectedTimeframe] = useState("15m");
@@ -276,17 +291,6 @@ export default function ArenaScreen() {
     return prices[pair] || 1.0;
   };
 
-  const getPairName = (pair: string) => {
-    const names: Record<string, string> = {
-      "EUR-USD": "Euro / US Dollar",
-      "GBP-USD": "British Pound / US Dollar",
-      "USD-JPY": "US Dollar / Japanese Yen",
-      "AUD-USD": "Australian Dollar / US Dollar",
-      "USD-CAD": "US Dollar / Canadian Dollar",
-    };
-    return names[pair] || pair;
-  };
-
   const placeOrderMutation = useMutation({
     mutationFn: async (orderData: any) => {
       const res = await apiRequest("POST", `/api/arena/${id}/orders`, orderData);
@@ -384,12 +388,6 @@ export default function ArenaScreen() {
     }
   }, [selectedPair, orderSide, orderType, lotSize, limitPrice, stopPrice, stopLoss, takeProfit, oneClickTrading, quotes, placeOrderMutation]);
 
-  const filteredPairs = useMemo(() => {
-    const pairs = arenaData?.competition.allowedPairsJson || [];
-    if (!watchlistSearch) return pairs;
-    return pairs.filter((p) => p.toLowerCase().includes(watchlistSearch.toLowerCase()));
-  }, [arenaData?.competition.allowedPairsJson, watchlistSearch]);
-
   if (isLoading) {
     return (
       <View style={[styles.container, styles.loadingContainer]}>
@@ -409,6 +407,7 @@ export default function ArenaScreen() {
   const { competition, entry, positions, pendingOrders } = arenaData;
   const fills = arenaData.fills || [];
   const currentQuote = quotes[selectedPair];
+  const pairs = competition.allowedPairsJson || [];
 
   const formatPrice = (price: number, pair?: string) => {
     const pairToCheck = pair || selectedPair;
@@ -422,20 +421,120 @@ export default function ArenaScreen() {
     `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
 
   const unrealizedPnl = positions.reduce((sum, p) => sum + p.unrealizedPnlCents, 0);
-  const returnPct =
-    ((entry.equityCents - competition.startingBalanceCents) / competition.startingBalanceCents) * 100;
-  const balance = entry.cashCents;
-  const equity = entry.equityCents;
-  const marginUsed = positions.length > 0 ? positions.reduce((sum, p) => sum + Math.abs(p.quantityUnits * p.avgEntryPrice * 0.01), 0) : 0;
-  const marginAvailable = equity - marginUsed;
-  const marginLevel = marginUsed > 0 ? ((equity / marginUsed) * 100) : 0;
-
+  const returnPct = ((entry.equityCents - competition.startingBalanceCents) / competition.startingBalanceCents) * 100;
   const isTradeDisabled = competition.status !== "running";
 
-  const renderChartToolbar = () => (
-    <View style={styles.chartToolbar}>
-      <View style={styles.toolbarLeft}>
-        <View style={styles.timeframeSelector}>
+  const renderHeader = () => (
+    <View style={styles.header}>
+      <View style={styles.headerLeft}>
+        <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
+          <Feather name="arrow-left" size={20} color={THEME.textPrimary} />
+        </Pressable>
+        <View style={styles.headerInfo}>
+          <ThemedText style={styles.competitionName}>{competition.title}</ThemedText>
+          <View style={styles.headerMeta}>
+            <StatusBadge status={competition.status} />
+            {timeRemaining ? (
+              <View style={styles.timerChip}>
+                <Feather name="clock" size={12} color={THEME.accent} />
+                <ThemedText style={styles.timerText}>{timeRemaining}</ThemedText>
+              </View>
+            ) : null}
+            <View style={[styles.dataChip, marketStatus?.isUsingMock ? styles.dataChipMock : styles.dataChipLive]}>
+              <View style={[styles.dataChipDot, marketStatus?.isUsingMock ? styles.dotMock : styles.dotLive]} />
+              <ThemedText style={[styles.dataChipText, marketStatus?.isUsingMock ? styles.textMock : styles.textLive]}>
+                {marketStatus?.isUsingMock ? "DEMO" : "LIVE"}
+              </ThemedText>
+            </View>
+          </View>
+        </View>
+      </View>
+      <Pressable style={styles.leaderboardButton} onPress={() => setShowLeaderboard(!showLeaderboard)}>
+        <Feather name="award" size={18} color={showLeaderboard ? THEME.accent : THEME.textSecondary} />
+      </Pressable>
+    </View>
+  );
+
+  const renderAccountSummary = () => (
+    <View style={styles.accountSummary}>
+      <View style={styles.summaryCard}>
+        <ThemedText style={styles.summaryLabel}>EQUITY</ThemedText>
+        <ThemedText style={styles.summaryValueLarge}>{formatCurrency(entry.equityCents)}</ThemedText>
+      </View>
+      <View style={styles.summaryCard}>
+        <ThemedText style={styles.summaryLabel}>P&L</ThemedText>
+        <ThemedText style={[styles.summaryValueLarge, { color: unrealizedPnl >= 0 ? THEME.success : THEME.danger }]}>
+          {unrealizedPnl >= 0 ? "+" : ""}{formatCurrency(unrealizedPnl)}
+        </ThemedText>
+      </View>
+      <View style={styles.summaryCard}>
+        <ThemedText style={styles.summaryLabel}>RETURN</ThemedText>
+        <ThemedText style={[styles.summaryValueLarge, { color: returnPct >= 0 ? THEME.success : THEME.danger }]}>
+          {returnPct >= 0 ? "+" : ""}{returnPct.toFixed(2)}%
+        </ThemedText>
+      </View>
+      <View style={styles.summaryCard}>
+        <ThemedText style={styles.summaryLabel}>RANK</ThemedText>
+        <ThemedText style={[styles.summaryValueLarge, styles.rankText]}>#{entry.rank || "-"}</ThemedText>
+      </View>
+    </View>
+  );
+
+  const renderInstrumentSelector = () => (
+    <View style={styles.instrumentSelector}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.instrumentList}>
+        {pairs.map((pair) => {
+          const quote = quotes[pair];
+          const isSelected = selectedPair === pair;
+          const bidChange = quote && quote.prevBid ? (quote.bid > quote.prevBid ? 'up' : quote.bid < quote.prevBid ? 'down' : null) : null;
+          
+          return (
+            <Pressable
+              key={pair}
+              style={[styles.instrumentCard, isSelected && styles.instrumentCardSelected]}
+              onPress={() => setSelectedPair(pair)}
+            >
+              {isSelected ? (
+                <LinearGradient
+                  colors={['rgba(255, 59, 59, 0.15)', 'rgba(255, 59, 59, 0.05)']}
+                  style={StyleSheet.absoluteFill}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                />
+              ) : null}
+              <ThemedText style={[styles.instrumentPair, isSelected && styles.instrumentPairSelected]}>
+                {pair.replace("-", "/")}
+              </ThemedText>
+              <View style={styles.instrumentPrices}>
+                <ThemedText style={[styles.instrumentBid, bidChange === 'up' && styles.priceUp, bidChange === 'down' && styles.priceDown]}>
+                  {quote ? formatPrice(quote.bid, pair) : "-.-----"}
+                </ThemedText>
+                <ThemedText style={styles.instrumentSpread}>
+                  {quote ? ((quote.ask - quote.bid) * 10000).toFixed(1) : "-"}
+                </ThemedText>
+                <ThemedText style={styles.instrumentAsk}>
+                  {quote ? formatPrice(quote.ask, pair) : "-.-----"}
+                </ThemedText>
+              </View>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+
+  const renderChartSection = () => (
+    <View style={styles.chartSection}>
+      <View style={styles.chartHeader}>
+        <View style={styles.symbolInfo}>
+          <ThemedText style={styles.chartSymbol}>{selectedPair.replace("-", "/")}</ThemedText>
+          {currentQuote ? (
+            <ThemedText style={[styles.chartPrice, { color: THEME.success }]}>
+              {formatPrice(currentQuote.ask)}
+            </ThemedText>
+          ) : null}
+        </View>
+        <View style={styles.timeframeButtons}>
           {TIMEFRAMES.map((tf) => (
             <Pressable
               key={tf}
@@ -448,548 +547,11 @@ export default function ArenaScreen() {
             </Pressable>
           ))}
         </View>
-        <Pressable style={styles.toolbarBtn}>
-          <Feather name="sliders" size={14} color={Colors.dark.textSecondary} />
-          <ThemedText style={styles.toolbarBtnText}>Indicators</ThemedText>
-        </Pressable>
       </View>
-      <View style={styles.toolbarCenter}>
-        <ThemedText style={styles.symbolTitle}>{selectedPair.replace("-", " / ")}</ThemedText>
-        {currentQuote ? (
-          <View style={styles.ohlcDisplay}>
-            <ThemedText style={styles.ohlcLabel}>O:</ThemedText>
-            <ThemedText style={styles.ohlcValue}>{formatPrice(currentQuote.bid)}</ThemedText>
-            <ThemedText style={styles.ohlcLabel}>H:</ThemedText>
-            <ThemedText style={styles.ohlcValue}>{formatPrice(currentQuote.ask + 0.0005)}</ThemedText>
-            <ThemedText style={styles.ohlcLabel}>L:</ThemedText>
-            <ThemedText style={styles.ohlcValue}>{formatPrice(currentQuote.bid - 0.0005)}</ThemedText>
-            <ThemedText style={styles.ohlcLabel}>C:</ThemedText>
-            <ThemedText style={[styles.ohlcValue, { color: Colors.dark.success }]}>{formatPrice(currentQuote.ask)}</ThemedText>
-          </View>
-        ) : null}
-      </View>
-      <View style={styles.toolbarRight}>
-        <View style={[styles.dataStatusBadge, marketStatus?.isUsingMock ? styles.dataStatusMock : styles.dataStatusLive]}>
-          <View style={[styles.dataStatusDot, marketStatus?.isUsingMock ? styles.dataDotMock : styles.dataDotLive]} />
-          <ThemedText style={[styles.dataStatusText, marketStatus?.isUsingMock ? styles.dataStatusTextMock : styles.dataStatusTextLive]}>
-            {marketStatus?.isUsingMock ? "MOCK" : "LIVE"}
-          </ThemedText>
-        </View>
-        <Pressable style={styles.toolbarBtn} onPress={() => setShowLeaderboard(!showLeaderboard)}>
-          <Feather name="bar-chart-2" size={14} color={showLeaderboard ? Colors.dark.accent : Colors.dark.textSecondary} />
-        </Pressable>
-      </View>
-    </View>
-  );
-
-  const renderMarketWatch = () => (
-    <View style={styles.marketWatch}>
-      <View style={styles.marketWatchHeader}>
-        <View style={styles.marketWatchTitleRow}>
-          <Feather name="activity" size={14} color={Colors.dark.accent} />
-          <ThemedText style={styles.marketWatchTitle}>Market Watch</ThemedText>
-        </View>
-        <View style={styles.searchContainer}>
-          <Feather name="search" size={12} color={Colors.dark.textMuted} />
-          <TextInput
-            ref={searchInputRef}
-            style={styles.searchInput}
-            value={watchlistSearch}
-            onChangeText={setWatchlistSearch}
-            placeholder="Search..."
-            placeholderTextColor={Colors.dark.textMuted}
-          />
-          <View style={styles.allDropdown}>
-            <ThemedText style={styles.allDropdownText}>All</ThemedText>
-            <Feather name="chevron-down" size={10} color={Colors.dark.textMuted} />
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.marketWatchTable}>
-        <View style={styles.marketWatchTableHeader}>
-          <ThemedText style={[styles.tableHeaderCell, { flex: 1.5 }]}>SYMBOL</ThemedText>
-          <ThemedText style={[styles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}>BID</ThemedText>
-          <ThemedText style={[styles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}>ASK</ThemedText>
-          <ThemedText style={[styles.tableHeaderCell, { flex: 0.6, textAlign: 'right' }]}>SPREAD</ThemedText>
-        </View>
-        <ScrollView style={styles.marketWatchTableBody} showsVerticalScrollIndicator={false}>
-          {filteredPairs.map((pair) => {
-            const quote = quotes[pair];
-            const isSelected = selectedPair === pair;
-            const spread = quote ? ((quote.ask - quote.bid) * 10000).toFixed(1) : "—";
-            const bidUp = quote && quote.prevBid ? quote.bid > quote.prevBid : false;
-            const bidDown = quote && quote.prevBid ? quote.bid < quote.prevBid : false;
-
-            return (
-              <Pressable
-                key={pair}
-                style={[styles.marketWatchRow, isSelected && styles.marketWatchRowSelected]}
-                onPress={() => setSelectedPair(pair)}
-              >
-                <View style={[styles.tableCell, { flex: 1.5 }]}>
-                  <ThemedText style={[styles.symbolText, isSelected && styles.symbolTextSelected]}>
-                    {pair}
-                  </ThemedText>
-                </View>
-                <View style={[styles.tableCell, { flex: 1, alignItems: 'flex-end' }]}>
-                  <ThemedText style={[styles.bidText, bidUp && styles.priceUp, bidDown && styles.priceDown]}>
-                    {quote ? formatPrice(quote.bid, pair) : "—"}
-                  </ThemedText>
-                </View>
-                <View style={[styles.tableCell, { flex: 1, alignItems: 'flex-end' }]}>
-                  <ThemedText style={styles.askText}>
-                    {quote ? formatPrice(quote.ask, pair) : "—"}
-                  </ThemedText>
-                </View>
-                <View style={[styles.tableCell, { flex: 0.6, alignItems: 'flex-end' }]}>
-                  <ThemedText style={styles.spreadText}>{spread}</ThemedText>
-                </View>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      <View style={styles.orderTicket}>
-        <View style={styles.orderTicketHeader}>
-          <View style={styles.symbolDropdown}>
-            <ThemedText style={styles.symbolDropdownText}>{selectedPair}</ThemedText>
-            <Feather name="chevron-down" size={12} color={Colors.dark.textSecondary} />
-          </View>
-          <View style={styles.orderTypeSelector}>
-            {(["market", "limit", "stop"] as const).map((type) => (
-              <Pressable
-                key={type}
-                style={[styles.orderTypeBtn, orderType === type && styles.orderTypeBtnActive]}
-                onPress={() => setOrderType(type)}
-              >
-                <ThemedText style={[styles.orderTypeBtnText, orderType === type && styles.orderTypeBtnTextActive]}>
-                  {type.toUpperCase()}
-                </ThemedText>
-              </Pressable>
-            ))}
-          </View>
-          <View style={styles.oneClickToggle}>
-            <Pressable
-              style={[styles.toggleBtn, oneClickTrading && styles.toggleBtnActive]}
-              onPress={() => setOneClickTrading(!oneClickTrading)}
-            >
-              <View style={[styles.toggleKnob, oneClickTrading && styles.toggleKnobActive]} />
-            </Pressable>
-          </View>
-        </View>
-
-        {currentQuote ? (
-          <View style={styles.bidAskRow}>
-            <Pressable
-              style={[styles.priceBtn, styles.sellBtn, orderSide === "sell" && styles.priceBtnActive]}
-              onPress={() => { setOrderSide("sell"); if (oneClickTrading) handlePlaceOrder(); }}
-            >
-              <ThemedText style={styles.priceBtnPrice}>{formatPrice(currentQuote.bid)}</ThemedText>
-              <ThemedText style={styles.priceBtnLabel}>SELL</ThemedText>
-            </Pressable>
-            <View style={styles.spreadCenter}>
-              <ThemedText style={styles.spreadCenterValue}>
-                {((currentQuote.ask - currentQuote.bid) * 10000).toFixed(1)}
-              </ThemedText>
-            </View>
-            <View style={styles.lotSizeContainer}>
-              <TextInput
-                style={styles.lotSizeInput}
-                value={lotSize}
-                onChangeText={setLotSize}
-                keyboardType="decimal-pad"
-                placeholderTextColor={Colors.dark.textMuted}
-              />
-            </View>
-            <Pressable
-              style={[styles.priceBtn, styles.buyBtn, orderSide === "buy" && styles.priceBtnActive]}
-              onPress={() => { setOrderSide("buy"); if (oneClickTrading) handlePlaceOrder(); }}
-            >
-              <ThemedText style={styles.priceBtnPrice}>{formatPrice(currentQuote.ask)}</ThemedText>
-              <ThemedText style={styles.priceBtnLabel}>BUY</ThemedText>
-            </Pressable>
-          </View>
-        ) : null}
-
-        <View style={styles.quickSizeRow}>
-          {QUICK_LOT_SIZES.map((size) => (
-            <Pressable
-              key={size}
-              style={[styles.quickSizeBtn, parseFloat(lotSize) === size && styles.quickSizeBtnActive]}
-              onPress={() => setLotSize(size.toString())}
-            >
-              <ThemedText style={[styles.quickSizeBtnText, parseFloat(lotSize) === size && styles.quickSizeBtnTextActive]}>
-                {size}
-              </ThemedText>
-            </Pressable>
-          ))}
-        </View>
-
-        {orderType !== "market" ? (
-          <View style={styles.priceInputRow}>
-            <ThemedText style={styles.priceInputLabel}>{orderType === "limit" ? "Limit" : "Stop"} Price</ThemedText>
-            <TextInput
-              style={styles.priceInput}
-              value={orderType === "limit" ? limitPrice : stopPrice}
-              onChangeText={orderType === "limit" ? setLimitPrice : setStopPrice}
-              keyboardType="decimal-pad"
-              placeholder={currentQuote ? formatPrice(currentQuote.bid) : ""}
-              placeholderTextColor={Colors.dark.textMuted}
-            />
-          </View>
-        ) : null}
-
-        <View style={styles.slTpRow}>
-          <View style={styles.slTpInputContainer}>
-            <ThemedText style={styles.slTpLabel}>SL</ThemedText>
-            <TextInput
-              style={styles.slTpInput}
-              value={stopLoss}
-              onChangeText={setStopLoss}
-              keyboardType="decimal-pad"
-              placeholder="—"
-              placeholderTextColor={Colors.dark.textMuted}
-            />
-          </View>
-          <View style={styles.slTpInputContainer}>
-            <ThemedText style={styles.slTpLabel}>TP</ThemedText>
-            <TextInput
-              style={styles.slTpInput}
-              value={takeProfit}
-              onChangeText={setTakeProfit}
-              keyboardType="decimal-pad"
-              placeholder="—"
-              placeholderTextColor={Colors.dark.textMuted}
-            />
-          </View>
-        </View>
-
-        {!oneClickTrading ? (
-          <Pressable
-            style={[
-              styles.executeBtn,
-              orderSide === "buy" ? styles.executeBtnBuy : styles.executeBtnSell,
-              (isTradeDisabled || placeOrderMutation.isPending) && styles.executeBtnDisabled,
-            ]}
-            onPress={handlePlaceOrder}
-            disabled={isTradeDisabled || placeOrderMutation.isPending}
-          >
-            <ThemedText style={styles.executeBtnText}>
-              {placeOrderMutation.isPending
-                ? "EXECUTING..."
-                : `${orderSide.toUpperCase()} ${parseFloat(lotSize || "0.1").toFixed(2)} LOTS`}
-            </ThemedText>
-          </Pressable>
-        ) : null}
-
-        {isTradeDisabled ? (
-          <View style={styles.disabledBanner}>
-            <Feather name="alert-circle" size={12} color={Colors.dark.textMuted} />
-            <ThemedText style={styles.disabledText}>Competition not running</ThemedText>
-          </View>
-        ) : null}
-      </View>
-    </View>
-  );
-
-  const renderBlotterSummary = () => (
-    <View style={styles.blotterSummary}>
-      <View style={styles.summaryItem}>
-        <ThemedText style={styles.summaryLabel}>BALANCE</ThemedText>
-        <ThemedText style={styles.summaryValue}>{formatCurrency(balance)}</ThemedText>
-      </View>
-      <View style={styles.summaryDivider} />
-      <View style={styles.summaryItem}>
-        <ThemedText style={styles.summaryLabel}>EQUITY</ThemedText>
-        <ThemedText style={styles.summaryValue}>{formatCurrency(equity)}</ThemedText>
-      </View>
-      <View style={styles.summaryDivider} />
-      <View style={styles.summaryItem}>
-        <ThemedText style={styles.summaryLabel}>PROFIT & LOSS</ThemedText>
-        <ThemedText style={[styles.summaryValue, { color: unrealizedPnl >= 0 ? Colors.dark.success : Colors.dark.danger }]}>
-          {unrealizedPnl >= 0 ? "+" : ""}{formatCurrency(unrealizedPnl)}
-        </ThemedText>
-      </View>
-      <View style={styles.summaryDivider} />
-      <View style={styles.summaryItem}>
-        <ThemedText style={styles.summaryLabel}>RETURN</ThemedText>
-        <ThemedText style={[styles.summaryValue, { color: returnPct >= 0 ? Colors.dark.success : Colors.dark.danger }]}>
-          {returnPct >= 0 ? "+" : ""}{returnPct.toFixed(2)}%
-        </ThemedText>
-      </View>
-      <View style={styles.summaryDivider} />
-      <View style={styles.summaryItem}>
-        <ThemedText style={styles.summaryLabel}>MARGIN USED</ThemedText>
-        <ThemedText style={styles.summaryValue}>{formatCurrency(Math.round(marginUsed))}</ThemedText>
-      </View>
-      <View style={styles.summaryDivider} />
-      <View style={styles.summaryItem}>
-        <ThemedText style={styles.summaryLabel}>MARGIN AVAIL</ThemedText>
-        <ThemedText style={styles.summaryValue}>{formatCurrency(Math.round(marginAvailable))}</ThemedText>
-      </View>
-      <View style={styles.summaryDivider} />
-      <View style={styles.summaryItem}>
-        <ThemedText style={styles.summaryLabel}>MARGIN LEVEL</ThemedText>
-        <ThemedText style={styles.summaryValue}>{marginLevel > 0 ? marginLevel.toFixed(1) + "%" : "—"}</ThemedText>
-      </View>
-      <View style={styles.summaryDivider} />
-      <View style={styles.summaryItem}>
-        <ThemedText style={styles.summaryLabel}>RANK</ThemedText>
-        <ThemedText style={[styles.summaryValue, styles.rankValue]}>#{entry.rank || "—"}</ThemedText>
-      </View>
-      <View style={{ flex: 1 }} />
-      <Pressable style={styles.closeAllBtn}>
-        <Feather name="x" size={12} color={Colors.dark.textSecondary} />
-        <ThemedText style={styles.closeAllBtnText}>Close All</ThemedText>
-        <Feather name="chevron-down" size={10} color={Colors.dark.textSecondary} />
-      </Pressable>
-    </View>
-  );
-
-  const renderBlotterTabs = () => (
-    <View style={styles.blotterTabs}>
-      {([
-        { key: "positions", label: "Positions", count: positions.length },
-        { key: "orders", label: "Pending", count: pendingOrders.length },
-        { key: "history", label: "History", count: fills.length },
-      ] as const).map((tab) => (
-        <Pressable
-          key={tab.key}
-          style={[styles.blotterTab, activeBlotterTab === tab.key && styles.blotterTabActive]}
-          onPress={() => setActiveBlotterTab(tab.key)}
-        >
-          <ThemedText style={[styles.blotterTabText, activeBlotterTab === tab.key && styles.blotterTabTextActive]}>
-            {tab.label}
-          </ThemedText>
-          <View style={[styles.blotterTabCount, activeBlotterTab === tab.key && styles.blotterTabCountActive]}>
-            <ThemedText style={[styles.blotterTabCountText, activeBlotterTab === tab.key && styles.blotterTabCountTextActive]}>
-              {tab.count}
-            </ThemedText>
-          </View>
-        </Pressable>
-      ))}
-    </View>
-  );
-
-  const renderPositionsBlotter = () => (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-      <View style={styles.blotterTable}>
-        <View style={styles.blotterHeader}>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 70 }]}>SYMBOL</ThemedText>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 45 }]}>SIDE</ThemedText>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 55 }]}>SIZE</ThemedText>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 100 }]}>ENTRY → MARKET</ThemedText>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 60 }]}>SL</ThemedText>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 60 }]}>TP</ThemedText>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 65 }]}>MARGIN</ThemedText>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 65 }]}>COMM</ThemedText>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 55 }]}>SWAP</ThemedText>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 70 }]}>P&L</ThemedText>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 120 }]}>OPEN TIME</ThemedText>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 60 }]}>ACTIONS</ThemedText>
-        </View>
-        {positions.length > 0 ? (
-          positions.map((pos) => {
-            const quote = quotes[pos.pair];
-            const markPrice = pos.side === "buy" ? quote?.bid : quote?.ask;
-            return (
-              <View key={pos.id} style={styles.blotterRow}>
-                <ThemedText style={[styles.blotterCell, { width: 70 }]}>{pos.pair}</ThemedText>
-                <View style={[styles.blotterCell, { width: 45 }]}>
-                  <ThemedText style={[styles.sideText, pos.side === "buy" ? styles.buyText : styles.sellText]}>
-                    {pos.side.toUpperCase()}
-                  </ThemedText>
-                </View>
-                <ThemedText style={[styles.blotterCell, styles.monoText, { width: 55 }]}>
-                  {unitsToLots(pos.quantityUnits).toFixed(2)}
-                </ThemedText>
-                <View style={[styles.blotterCell, { width: 100, flexDirection: 'row' }]}>
-                  <ThemedText style={[styles.monoText, { color: Colors.dark.textSecondary }]}>
-                    {formatPrice(pos.avgEntryPrice, pos.pair)}
-                  </ThemedText>
-                  <ThemedText style={{ color: Colors.dark.textMuted }}> → </ThemedText>
-                  <ThemedText style={styles.monoText}>
-                    {markPrice ? formatPrice(markPrice, pos.pair) : "—"}
-                  </ThemedText>
-                </View>
-                <ThemedText style={[styles.blotterCell, styles.monoText, { width: 60 }]}>
-                  {pos.stopLossPrice ? formatPrice(pos.stopLossPrice, pos.pair) : "—"}
-                </ThemedText>
-                <ThemedText style={[styles.blotterCell, styles.monoText, { width: 60 }]}>
-                  {pos.takeProfitPrice ? formatPrice(pos.takeProfitPrice, pos.pair) : "—"}
-                </ThemedText>
-                <ThemedText style={[styles.blotterCell, styles.monoText, { width: 65 }]}>
-                  {formatCurrency(Math.round(pos.quantityUnits * pos.avgEntryPrice * 0.01))}
-                </ThemedText>
-                <ThemedText style={[styles.blotterCell, styles.monoText, { width: 65 }]}>$0.00</ThemedText>
-                <ThemedText style={[styles.blotterCell, styles.monoText, { width: 55 }]}>$0.00</ThemedText>
-                <ThemedText
-                  style={[
-                    styles.blotterCell,
-                    styles.monoText,
-                    { width: 70, color: pos.unrealizedPnlCents >= 0 ? Colors.dark.success : Colors.dark.danger },
-                  ]}
-                >
-                  {pos.unrealizedPnlCents >= 0 ? "+" : ""}{formatCurrency(pos.unrealizedPnlCents)}
-                </ThemedText>
-                <ThemedText style={[styles.blotterCell, styles.monoText, { width: 120, fontSize: 10 }]}>
-                  {pos.openedAt ? new Date(pos.openedAt).toLocaleString() : "—"}
-                </ThemedText>
-                <View style={[styles.blotterCell, { width: 60, flexDirection: 'row', gap: 4 }]}>
-                  <Pressable style={styles.actionBtn} onPress={() => closePositionMutation.mutate(pos.id)}>
-                    <Feather name="x" size={12} color={Colors.dark.danger} />
-                  </Pressable>
-                  <Pressable style={styles.actionBtn}>
-                    <Feather name="edit-2" size={12} color={Colors.dark.textSecondary} />
-                  </Pressable>
-                </View>
-              </View>
-            );
-          })
-        ) : (
-          <View style={styles.emptyBlotter}>
-            <ThemedText style={styles.emptyBlotterText}>No open positions</ThemedText>
-          </View>
-        )}
-      </View>
-    </ScrollView>
-  );
-
-  const renderOrdersBlotter = () => (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-      <View style={styles.blotterTable}>
-        <View style={styles.blotterHeader}>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 70 }]}>SYMBOL</ThemedText>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 50 }]}>TYPE</ThemedText>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 45 }]}>SIDE</ThemedText>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 55 }]}>SIZE</ThemedText>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 80 }]}>PRICE</ThemedText>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 60 }]}>SL</ThemedText>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 60 }]}>TP</ThemedText>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 60 }]}>ACTIONS</ThemedText>
-        </View>
-        {pendingOrders.length > 0 ? (
-          pendingOrders.map((order) => (
-            <View key={order.id} style={styles.blotterRow}>
-              <ThemedText style={[styles.blotterCell, { width: 70 }]}>{order.pair}</ThemedText>
-              <ThemedText style={[styles.blotterCell, { width: 50, color: Colors.dark.accent }]}>
-                {order.type.toUpperCase()}
-              </ThemedText>
-              <View style={[styles.blotterCell, { width: 45 }]}>
-                <ThemedText style={[styles.sideText, order.side === "buy" ? styles.buyText : styles.sellText]}>
-                  {order.side.toUpperCase()}
-                </ThemedText>
-              </View>
-              <ThemedText style={[styles.blotterCell, styles.monoText, { width: 55 }]}>
-                {unitsToLots(order.quantityUnits).toFixed(2)}
-              </ThemedText>
-              <ThemedText style={[styles.blotterCell, styles.monoText, { width: 80 }]}>
-                {order.limitPrice
-                  ? formatPrice(order.limitPrice, order.pair)
-                  : order.stopPrice
-                  ? formatPrice(order.stopPrice, order.pair)
-                  : "—"}
-              </ThemedText>
-              <ThemedText style={[styles.blotterCell, styles.monoText, { width: 60 }]}>
-                {order.stopLossPrice ? formatPrice(order.stopLossPrice, order.pair) : "—"}
-              </ThemedText>
-              <ThemedText style={[styles.blotterCell, styles.monoText, { width: 60 }]}>
-                {order.takeProfitPrice ? formatPrice(order.takeProfitPrice, order.pair) : "—"}
-              </ThemedText>
-              <View style={[styles.blotterCell, { width: 60, flexDirection: 'row', gap: 4 }]}>
-                <Pressable style={styles.actionBtn} onPress={() => cancelOrderMutation.mutate(order.id)}>
-                  <Feather name="x" size={12} color={Colors.dark.danger} />
-                </Pressable>
-                <Pressable style={styles.actionBtn}>
-                  <Feather name="edit-2" size={12} color={Colors.dark.textSecondary} />
-                </Pressable>
-              </View>
-            </View>
-          ))
-        ) : (
-          <View style={styles.emptyBlotter}>
-            <ThemedText style={styles.emptyBlotterText}>No pending orders</ThemedText>
-          </View>
-        )}
-      </View>
-    </ScrollView>
-  );
-
-  const renderHistoryBlotter = () => (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-      <View style={styles.blotterTable}>
-        <View style={styles.blotterHeader}>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 120 }]}>TIME</ThemedText>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 70 }]}>SYMBOL</ThemedText>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 45 }]}>SIDE</ThemedText>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 55 }]}>SIZE</ThemedText>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 80 }]}>PRICE</ThemedText>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 70 }]}>P&L</ThemedText>
-        </View>
-        {fills.length > 0 ? (
-          fills.map((fill) => (
-            <View key={fill.id} style={styles.blotterRow}>
-              <ThemedText style={[styles.blotterCell, styles.monoText, { width: 120, fontSize: 10 }]}>
-                {new Date(fill.filledAt).toLocaleString()}
-              </ThemedText>
-              <ThemedText style={[styles.blotterCell, { width: 70 }]}>{fill.pair}</ThemedText>
-              <View style={[styles.blotterCell, { width: 45 }]}>
-                <ThemedText style={[styles.sideText, fill.side === "buy" ? styles.buyText : styles.sellText]}>
-                  {fill.side.toUpperCase()}
-                </ThemedText>
-              </View>
-              <ThemedText style={[styles.blotterCell, styles.monoText, { width: 55 }]}>
-                {unitsToLots(fill.quantityUnits).toFixed(2)}
-              </ThemedText>
-              <ThemedText style={[styles.blotterCell, styles.monoText, { width: 80 }]}>
-                {formatPrice(fill.fillPrice, fill.pair)}
-              </ThemedText>
-              <ThemedText
-                style={[
-                  styles.blotterCell,
-                  styles.monoText,
-                  {
-                    width: 70,
-                    color: (fill.realizedPnlCents || 0) >= 0 ? Colors.dark.success : Colors.dark.danger,
-                  },
-                ]}
-              >
-                {fill.realizedPnlCents !== undefined
-                  ? `${fill.realizedPnlCents >= 0 ? "+" : ""}${formatCurrency(fill.realizedPnlCents)}`
-                  : "—"}
-              </ThemedText>
-            </View>
-          ))
-        ) : (
-          <View style={styles.emptyBlotter}>
-            <ThemedText style={styles.emptyBlotterText}>No trade history</ThemedText>
-          </View>
-        )}
-      </View>
-    </ScrollView>
-  );
-
-  const renderBlotter = () => (
-    <View style={styles.blotter}>
-      {renderBlotterTabs()}
-      {renderBlotterSummary()}
-      <View style={styles.blotterContent}>
-        {activeBlotterTab === "positions" && renderPositionsBlotter()}
-        {activeBlotterTab === "orders" && renderOrdersBlotter()}
-        {activeBlotterTab === "history" && renderHistoryBlotter()}
-      </View>
-    </View>
-  );
-
-  const renderChart = () => (
-    <View style={styles.chartContainer}>
-      {renderChartToolbar()}
-      <View style={styles.chartArea}>
+      <View style={styles.chartContainer}>
         <TradingViewChart
           pair={selectedPair}
-          height={isDesktop ? Math.max(height - 380, 250) : 280}
+          height={isDesktop ? Math.max(height - 520, 300) : 280}
           positions={positions.filter((p) => p.pair === selectedPair)}
           orders={pendingOrders.filter((o) => o.pair === selectedPair)}
         />
@@ -997,40 +559,312 @@ export default function ArenaScreen() {
     </View>
   );
 
-  const renderTopBar = () => (
-    <View style={[styles.topBar, { paddingTop: isMobile ? insets.top : 0 }]}>
-      <View style={styles.topBarLeft}>
-        <Pressable style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Feather name="arrow-left" size={16} color={Colors.dark.textSecondary} />
-        </Pressable>
-        <ThemedText style={styles.competitionTitle} numberOfLines={1}>
-          {competition.title}
-        </ThemedText>
-        <StatusBadge status={competition.status} />
-        {timeRemaining ? (
-          <View style={styles.timerBadge}>
-            <Feather name="clock" size={11} color={Colors.dark.textSecondary} />
-            <ThemedText style={styles.timerText}>{timeRemaining}</ThemedText>
-          </View>
-        ) : null}
+  const renderOrderPanel = () => (
+    <View style={styles.orderPanel}>
+      <View style={styles.orderPanelHeader}>
+        <ThemedText style={styles.orderPanelTitle}>Place Order</ThemedText>
+        <View style={styles.oneClickRow}>
+          <ThemedText style={styles.oneClickLabel}>1-Click</ThemedText>
+          <Pressable
+            style={[styles.toggle, oneClickTrading && styles.toggleActive]}
+            onPress={() => setOneClickTrading(!oneClickTrading)}
+          >
+            <View style={[styles.toggleKnob, oneClickTrading && styles.toggleKnobActive]} />
+          </Pressable>
+        </View>
       </View>
+
+      <View style={styles.orderTypeRow}>
+        {(["market", "limit", "stop"] as const).map((type) => (
+          <Pressable
+            key={type}
+            style={[styles.orderTypeBtn, orderType === type && styles.orderTypeBtnActive]}
+            onPress={() => setOrderType(type)}
+          >
+            <ThemedText style={[styles.orderTypeBtnText, orderType === type && styles.orderTypeBtnTextActive]}>
+              {type.toUpperCase()}
+            </ThemedText>
+          </Pressable>
+        ))}
+      </View>
+
+      <View style={styles.lotSizeSection}>
+        <ThemedText style={styles.inputLabel}>LOT SIZE</ThemedText>
+        <View style={styles.lotSizeInputRow}>
+          <TextInput
+            style={styles.lotSizeInput}
+            value={lotSize}
+            onChangeText={setLotSize}
+            keyboardType="decimal-pad"
+            placeholderTextColor={THEME.textMuted}
+          />
+        </View>
+        <View style={styles.quickLotRow}>
+          {QUICK_LOT_SIZES.map((size) => (
+            <Pressable
+              key={size}
+              style={[styles.quickLotBtn, parseFloat(lotSize) === size && styles.quickLotBtnActive]}
+              onPress={() => setLotSize(size.toString())}
+            >
+              <ThemedText style={[styles.quickLotText, parseFloat(lotSize) === size && styles.quickLotTextActive]}>
+                {size}
+              </ThemedText>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+
+      {orderType !== "market" ? (
+        <View style={styles.priceInputSection}>
+          <ThemedText style={styles.inputLabel}>{orderType === "limit" ? "LIMIT PRICE" : "STOP PRICE"}</ThemedText>
+          <TextInput
+            style={styles.priceInputField}
+            value={orderType === "limit" ? limitPrice : stopPrice}
+            onChangeText={orderType === "limit" ? setLimitPrice : setStopPrice}
+            keyboardType="decimal-pad"
+            placeholder={currentQuote ? formatPrice(currentQuote.bid) : ""}
+            placeholderTextColor={THEME.textMuted}
+          />
+        </View>
+      ) : null}
+
+      <View style={styles.slTpRow}>
+        <View style={styles.slTpField}>
+          <ThemedText style={styles.slTpLabel}>SL</ThemedText>
+          <TextInput
+            style={styles.slTpInput}
+            value={stopLoss}
+            onChangeText={setStopLoss}
+            keyboardType="decimal-pad"
+            placeholder="—"
+            placeholderTextColor={THEME.textMuted}
+          />
+        </View>
+        <View style={styles.slTpField}>
+          <ThemedText style={styles.slTpLabel}>TP</ThemedText>
+          <TextInput
+            style={styles.slTpInput}
+            value={takeProfit}
+            onChangeText={setTakeProfit}
+            keyboardType="decimal-pad"
+            placeholder="—"
+            placeholderTextColor={THEME.textMuted}
+          />
+        </View>
+      </View>
+
+      {currentQuote ? (
+        <View style={styles.tradeButtons}>
+          <Pressable
+            style={[styles.tradeBtn, styles.sellBtn, orderSide === "sell" && styles.tradeBtnActive]}
+            onPress={() => {
+              setOrderSide("sell");
+              if (oneClickTrading && !isTradeDisabled) handlePlaceOrder();
+            }}
+            disabled={isTradeDisabled}
+          >
+            <ThemedText style={styles.tradeBtnPrice}>{formatPrice(currentQuote.bid)}</ThemedText>
+            <ThemedText style={styles.tradeBtnLabel}>SELL</ThemedText>
+          </Pressable>
+          
+          <View style={styles.spreadBadge}>
+            <ThemedText style={styles.spreadValue}>{((currentQuote.ask - currentQuote.bid) * 10000).toFixed(1)}</ThemedText>
+            <ThemedText style={styles.spreadLabel}>SPREAD</ThemedText>
+          </View>
+
+          <Pressable
+            style={[styles.tradeBtn, styles.buyBtn, orderSide === "buy" && styles.tradeBtnActive]}
+            onPress={() => {
+              setOrderSide("buy");
+              if (oneClickTrading && !isTradeDisabled) handlePlaceOrder();
+            }}
+            disabled={isTradeDisabled}
+          >
+            <ThemedText style={styles.tradeBtnPrice}>{formatPrice(currentQuote.ask)}</ThemedText>
+            <ThemedText style={styles.tradeBtnLabel}>BUY</ThemedText>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {!oneClickTrading ? (
+        <Pressable
+          style={[
+            styles.executeBtn,
+            orderSide === "buy" ? styles.executeBtnBuy : styles.executeBtnSell,
+            (isTradeDisabled || placeOrderMutation.isPending) && styles.executeBtnDisabled,
+          ]}
+          onPress={handlePlaceOrder}
+          disabled={isTradeDisabled || placeOrderMutation.isPending}
+        >
+          <ThemedText style={styles.executeBtnText}>
+            {placeOrderMutation.isPending
+              ? "EXECUTING..."
+              : `${orderSide.toUpperCase()} ${parseFloat(lotSize || "0.1").toFixed(2)} LOTS`}
+          </ThemedText>
+        </Pressable>
+      ) : null}
+
+      {isTradeDisabled ? (
+        <View style={styles.disabledNotice}>
+          <Feather name="info" size={14} color={THEME.textMuted} />
+          <ThemedText style={styles.disabledText}>Competition not running</ThemedText>
+        </View>
+      ) : null}
+    </View>
+  );
+
+  const renderPositionsPanel = () => (
+    <View style={styles.positionsPanel}>
+      <View style={styles.panelHeader}>
+        <View style={styles.panelTabs}>
+          {([
+            { key: "positions", label: "Positions", count: positions.length },
+            { key: "orders", label: "Orders", count: pendingOrders.length },
+            { key: "history", label: "History", count: fills.length },
+          ] as const).map((tab) => (
+            <Pressable
+              key={tab.key}
+              style={[styles.panelTab, activeBlotterTab === tab.key && styles.panelTabActive]}
+              onPress={() => setActiveBlotterTab(tab.key)}
+            >
+              <ThemedText style={[styles.panelTabText, activeBlotterTab === tab.key && styles.panelTabTextActive]}>
+                {tab.label}
+              </ThemedText>
+              {tab.count > 0 ? (
+                <View style={[styles.tabBadge, activeBlotterTab === tab.key && styles.tabBadgeActive]}>
+                  <ThemedText style={[styles.tabBadgeText, activeBlotterTab === tab.key && styles.tabBadgeTextActive]}>
+                    {tab.count}
+                  </ThemedText>
+                </View>
+              ) : null}
+            </Pressable>
+          ))}
+        </View>
+      </View>
+
+      <ScrollView style={styles.panelContent} showsVerticalScrollIndicator={false}>
+        {activeBlotterTab === "positions" && (
+          positions.length > 0 ? (
+            positions.map((pos) => {
+              const quote = quotes[pos.pair];
+              const markPrice = pos.side === "buy" ? quote?.bid : quote?.ask;
+              return (
+                <View key={pos.id} style={styles.positionRow}>
+                  <View style={styles.positionMain}>
+                    <View style={styles.positionSymbol}>
+                      <ThemedText style={styles.positionPair}>{pos.pair}</ThemedText>
+                      <View style={[styles.sideBadge, pos.side === "buy" ? styles.sideBadgeBuy : styles.sideBadgeSell]}>
+                        <ThemedText style={styles.sideBadgeText}>{pos.side.toUpperCase()}</ThemedText>
+                      </View>
+                    </View>
+                    <ThemedText style={styles.positionLots}>{unitsToLots(pos.quantityUnits).toFixed(2)} lots</ThemedText>
+                  </View>
+                  <View style={styles.positionDetails}>
+                    <View style={styles.positionPriceRow}>
+                      <ThemedText style={styles.positionLabel}>Entry</ThemedText>
+                      <ThemedText style={styles.positionValue}>{formatPrice(pos.avgEntryPrice, pos.pair)}</ThemedText>
+                    </View>
+                    <View style={styles.positionPriceRow}>
+                      <ThemedText style={styles.positionLabel}>Current</ThemedText>
+                      <ThemedText style={styles.positionValue}>{markPrice ? formatPrice(markPrice, pos.pair) : "—"}</ThemedText>
+                    </View>
+                    <View style={styles.positionPriceRow}>
+                      <ThemedText style={styles.positionLabel}>P&L</ThemedText>
+                      <ThemedText style={[styles.positionPnl, { color: pos.unrealizedPnlCents >= 0 ? THEME.success : THEME.danger }]}>
+                        {pos.unrealizedPnlCents >= 0 ? "+" : ""}{formatCurrency(pos.unrealizedPnlCents)}
+                      </ThemedText>
+                    </View>
+                  </View>
+                  <Pressable style={styles.closeBtn} onPress={() => closePositionMutation.mutate(pos.id)}>
+                    <Feather name="x" size={16} color={THEME.danger} />
+                  </Pressable>
+                </View>
+              );
+            })
+          ) : (
+            <View style={styles.emptyState}>
+              <Feather name="inbox" size={32} color={THEME.textMuted} />
+              <ThemedText style={styles.emptyStateText}>No open positions</ThemedText>
+            </View>
+          )
+        )}
+
+        {activeBlotterTab === "orders" && (
+          pendingOrders.length > 0 ? (
+            pendingOrders.map((order) => (
+              <View key={order.id} style={styles.positionRow}>
+                <View style={styles.positionMain}>
+                  <View style={styles.positionSymbol}>
+                    <ThemedText style={styles.positionPair}>{order.pair}</ThemedText>
+                    <View style={[styles.sideBadge, order.side === "buy" ? styles.sideBadgeBuy : styles.sideBadgeSell]}>
+                      <ThemedText style={styles.sideBadgeText}>{order.side.toUpperCase()}</ThemedText>
+                    </View>
+                    <View style={styles.typeBadge}>
+                      <ThemedText style={styles.typeBadgeText}>{order.type.toUpperCase()}</ThemedText>
+                    </View>
+                  </View>
+                  <ThemedText style={styles.positionLots}>{unitsToLots(order.quantityUnits).toFixed(2)} lots</ThemedText>
+                </View>
+                <View style={styles.positionDetails}>
+                  <View style={styles.positionPriceRow}>
+                    <ThemedText style={styles.positionLabel}>Price</ThemedText>
+                    <ThemedText style={styles.positionValue}>
+                      {order.limitPrice ? formatPrice(order.limitPrice, order.pair) : order.stopPrice ? formatPrice(order.stopPrice, order.pair) : "—"}
+                    </ThemedText>
+                  </View>
+                </View>
+                <Pressable style={styles.closeBtn} onPress={() => cancelOrderMutation.mutate(order.id)}>
+                  <Feather name="x" size={16} color={THEME.textMuted} />
+                </Pressable>
+              </View>
+            ))
+          ) : (
+            <View style={styles.emptyState}>
+              <Feather name="inbox" size={32} color={THEME.textMuted} />
+              <ThemedText style={styles.emptyStateText}>No pending orders</ThemedText>
+            </View>
+          )
+        )}
+
+        {activeBlotterTab === "history" && (
+          fills.length > 0 ? (
+            fills.slice(0, 20).map((fill) => (
+              <View key={fill.id} style={styles.historyRow}>
+                <View style={styles.historyMain}>
+                  <ThemedText style={styles.historyPair}>{fill.pair}</ThemedText>
+                  <View style={[styles.sideBadge, fill.side === "buy" ? styles.sideBadgeBuy : styles.sideBadgeSell]}>
+                    <ThemedText style={styles.sideBadgeText}>{fill.side.toUpperCase()}</ThemedText>
+                  </View>
+                </View>
+                <ThemedText style={styles.historyLots}>{unitsToLots(fill.quantityUnits).toFixed(2)} @ {formatPrice(fill.fillPrice, fill.pair)}</ThemedText>
+                <ThemedText style={[styles.historyPnl, { color: (fill.realizedPnlCents || 0) >= 0 ? THEME.success : THEME.danger }]}>
+                  {fill.realizedPnlCents !== undefined ? `${fill.realizedPnlCents >= 0 ? "+" : ""}${formatCurrency(fill.realizedPnlCents)}` : "—"}
+                </ThemedText>
+              </View>
+            ))
+          ) : (
+            <View style={styles.emptyState}>
+              <Feather name="inbox" size={32} color={THEME.textMuted} />
+              <ThemedText style={styles.emptyStateText}>No trade history</ThemedText>
+            </View>
+          )
+        )}
+      </ScrollView>
     </View>
   );
 
   const renderLeaderboardPanel = () =>
     showLeaderboard ? (
-      <View style={styles.leaderboardPanel}>
-        <View style={styles.leaderboardHeader}>
-          <ThemedText style={styles.leaderboardTitle}>LEADERBOARD</ThemedText>
-          <Pressable onPress={() => setShowLeaderboard(false)}>
-            <Feather name="x" size={16} color={Colors.dark.textSecondary} />
-          </Pressable>
+      <View style={styles.leaderboardOverlay}>
+        <View style={styles.leaderboardPanel}>
+          <View style={styles.leaderboardHeader}>
+            <ThemedText style={styles.leaderboardTitle}>Leaderboard</ThemedText>
+            <Pressable onPress={() => setShowLeaderboard(false)}>
+              <Feather name="x" size={20} color={THEME.textSecondary} />
+            </Pressable>
+          </View>
+          <Leaderboard entries={leaderboard || []} currentUserId={user?.id} compact />
         </View>
-        <Leaderboard
-          entries={leaderboard || []}
-          currentUserId={user?.id}
-          compact
-        />
       </View>
     ) : null;
 
@@ -1046,7 +880,7 @@ export default function ArenaScreen() {
       >
         <Feather
           name={toast.type === 'success' ? 'check-circle' : toast.type === 'error' ? 'alert-circle' : 'info'}
-          size={14}
+          size={16}
           color="#fff"
         />
         <ThemedText style={styles.toastText}>{toast.message}</ThemedText>
@@ -1056,29 +890,39 @@ export default function ArenaScreen() {
   if (isDesktop) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        {renderTopBar()}
-        <View style={styles.mainContent}>
-          <View style={styles.chartSection}>
-            {renderChart()}
-            {renderBlotter()}
+        {renderHeader()}
+        {renderAccountSummary()}
+        <View style={styles.desktopMain}>
+          <View style={styles.desktopLeft}>
+            {renderInstrumentSelector()}
+            {renderChartSection()}
+            {renderPositionsPanel()}
           </View>
-          {renderMarketWatch()}
-          {renderLeaderboardPanel()}
+          <View style={styles.desktopRight}>
+            {renderOrderPanel()}
+          </View>
         </View>
+        {renderLeaderboardPanel()}
         {renderToast()}
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.mobileContent}>
-        {renderTopBar()}
-        {renderChart()}
-        {renderMarketWatch()}
-        {renderBlotter()}
-        {renderLeaderboardPanel()}
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <ScrollView 
+        style={styles.mobileScroll} 
+        contentContainerStyle={styles.mobileContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {renderHeader()}
+        {renderAccountSummary()}
+        {renderInstrumentSelector()}
+        {renderChartSection()}
+        {renderOrderPanel()}
+        {renderPositionsPanel()}
       </ScrollView>
+      {renderLeaderboardPanel()}
       {renderToast()}
     </View>
   );
@@ -1087,764 +931,797 @@ export default function ArenaScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0A0A0A",
+    backgroundColor: THEME.bg,
   },
   loadingContainer: {
     justifyContent: "center",
     alignItems: "center",
   },
   errorText: {
-    color: Colors.dark.textMuted,
+    color: THEME.textMuted,
     fontSize: 16,
+  },
+  mobileScroll: {
+    flex: 1,
   },
   mobileContent: {
     paddingBottom: 40,
   },
 
-  topBar: {
+  header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#111111",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: THEME.bgCard,
     borderBottomWidth: 1,
-    borderBottomColor: "#1A1A1A",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 6,
-    minHeight: 36,
+    borderBottomColor: THEME.border,
   },
-  topBarLeft: {
+  headerLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.sm,
+    gap: 12,
+    flex: 1,
   },
-  backBtn: {
-    padding: 4,
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: THEME.bgElevated,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  competitionTitle: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: Colors.dark.text,
+  headerInfo: {
+    flex: 1,
   },
-  timerBadge: {
+  competitionName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: THEME.textPrimary,
+    marginBottom: 4,
+  },
+  headerMeta: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
-    backgroundColor: "#1A1A1A",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 3,
+    gap: 8,
+  },
+  timerChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(255, 59, 59, 0.1)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
   timerText: {
-    fontSize: 10,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-    color: Colors.dark.textSecondary,
-  },
-
-  mainContent: {
-    flex: 1,
-    flexDirection: "row",
-  },
-  chartSection: {
-    flex: 1,
-    flexDirection: "column",
-  },
-
-  chartContainer: {
-    flex: 1,
-    backgroundColor: "#0A0A0A",
-  },
-  chartToolbar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#111111",
-    borderBottomWidth: 1,
-    borderBottomColor: "#1A1A1A",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    minHeight: 32,
-  },
-  toolbarLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-  },
-  timeframeSelector: {
-    flexDirection: "row",
-    backgroundColor: "#1A1A1A",
-    borderRadius: 4,
-    padding: 2,
-  },
-  timeframeBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 3,
-  },
-  timeframeBtnActive: {
-    backgroundColor: "#252525",
-  },
-  timeframeBtnText: {
-    fontSize: 10,
-    color: Colors.dark.textMuted,
-    fontWeight: "500",
-  },
-  timeframeBtnTextActive: {
-    color: Colors.dark.text,
-  },
-  toolbarBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  toolbarBtnText: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-  },
-  toolbarCenter: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-  },
-  symbolTitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "600",
-    color: Colors.dark.text,
-  },
-  ohlcDisplay: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  ohlcLabel: {
-    fontSize: 10,
-    color: Colors.dark.textMuted,
-  },
-  ohlcValue: {
-    fontSize: 10,
+    color: THEME.accent,
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-    color: Colors.dark.textSecondary,
-    marginRight: 6,
   },
-  toolbarRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-  },
-  dataStatusBadge: {
+  dataChip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
-  dataStatusMock: {
+  dataChipMock: {
     backgroundColor: "rgba(255, 171, 0, 0.15)",
   },
-  dataStatusLive: {
-    backgroundColor: "rgba(76, 175, 80, 0.15)",
+  dataChipLive: {
+    backgroundColor: "rgba(0, 200, 83, 0.15)",
   },
-  dataStatusDot: {
+  dataChipDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
   },
-  dataDotMock: {
+  dotMock: {
     backgroundColor: "#FFAB00",
   },
-  dataDotLive: {
-    backgroundColor: "#4CAF50",
+  dotLive: {
+    backgroundColor: THEME.success,
   },
-  dataStatusText: {
-    fontSize: 9,
+  dataChipText: {
+    fontSize: 10,
     fontWeight: "700",
     letterSpacing: 0.5,
   },
-  dataStatusTextMock: {
+  textMock: {
     color: "#FFAB00",
   },
-  dataStatusTextLive: {
-    color: "#4CAF50",
+  textLive: {
+    color: THEME.success,
   },
-  chartArea: {
-    flex: 1,
+  leaderboardButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: THEME.bgElevated,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
-  marketWatch: {
-    width: 320,
-    backgroundColor: "#111111",
-    borderLeftWidth: 1,
-    borderLeftColor: "#1A1A1A",
-    flexDirection: "column",
-  },
-  marketWatchHeader: {
-    padding: Spacing.sm,
+  accountSummary: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+    backgroundColor: THEME.bg,
     borderBottomWidth: 1,
-    borderBottomColor: "#1A1A1A",
+    borderBottomColor: THEME.border,
   },
-  marketWatchTitleRow: {
+  summaryCard: {
+    flex: 1,
+    backgroundColor: THEME.bgCard,
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: THEME.border,
+  },
+  summaryLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: THEME.textMuted,
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  summaryValueLarge: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: THEME.textPrimary,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
+  rankText: {
+    color: THEME.accent,
+  },
+
+  instrumentSelector: {
+    backgroundColor: THEME.bgCard,
+    borderBottomWidth: 1,
+    borderBottomColor: THEME.border,
+    paddingVertical: 8,
+  },
+  instrumentList: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  instrumentCard: {
+    backgroundColor: THEME.bgElevated,
+    borderRadius: 8,
+    padding: 12,
+    minWidth: 140,
+    borderWidth: 1,
+    borderColor: THEME.border,
+    overflow: "hidden",
+  },
+  instrumentCardSelected: {
+    borderColor: THEME.accent,
+  },
+  instrumentPair: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: THEME.textSecondary,
+    marginBottom: 8,
+  },
+  instrumentPairSelected: {
+    color: THEME.textPrimary,
+  },
+  instrumentPrices: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    marginBottom: Spacing.xs,
+    justifyContent: "space-between",
   },
-  marketWatchTitle: {
+  instrumentBid: {
     fontSize: 12,
     fontWeight: "600",
-    color: Colors.dark.text,
-    letterSpacing: 0.5,
+    color: THEME.danger,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#1A1A1A",
-    borderRadius: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: 6,
-    color: Colors.dark.text,
-    fontSize: 11,
-    padding: 0,
-  },
-  allDropdown: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-    paddingLeft: 8,
-    borderLeftWidth: 1,
-    borderLeftColor: "#252525",
-  },
-  allDropdownText: {
+  instrumentSpread: {
     fontSize: 10,
-    color: Colors.dark.textMuted,
+    color: THEME.textMuted,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
-
-  marketWatchTable: {
-    flex: 1,
-    maxHeight: 200,
-  },
-  marketWatchTableHeader: {
-    flexDirection: "row",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    backgroundColor: "#0A0A0A",
-    borderBottomWidth: 1,
-    borderBottomColor: "#1A1A1A",
-  },
-  tableHeaderCell: {
-    fontSize: 9,
+  instrumentAsk: {
+    fontSize: 12,
     fontWeight: "600",
-    color: Colors.dark.textMuted,
-    letterSpacing: 0.5,
-  },
-  marketWatchTableBody: {
-    flex: 1,
-  },
-  marketWatchRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: "#1A1A1A",
-  },
-  marketWatchRowSelected: {
-    backgroundColor: "rgba(255, 59, 59, 0.1)",
-    borderLeftWidth: 2,
-    borderLeftColor: "#FF3B3B",
-  },
-  tableCell: {
-    justifyContent: "center",
-  },
-  symbolText: {
-    fontSize: 11,
-    fontWeight: "500",
-    color: Colors.dark.textSecondary,
-  },
-  symbolTextSelected: {
-    color: Colors.dark.text,
-  },
-  bidText: {
-    fontSize: 11,
+    color: THEME.success,
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-    color: "#FF3B3B",
-  },
-  askText: {
-    fontSize: 11,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-    color: "#4CAF50",
-  },
-  spreadText: {
-    fontSize: 10,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-    color: Colors.dark.textMuted,
   },
   priceUp: {
-    color: "#4CAF50",
+    color: THEME.success,
   },
   priceDown: {
-    color: "#FF3B3B",
+    color: THEME.danger,
   },
 
-  orderTicket: {
-    padding: Spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: "#1A1A1A",
+  chartSection: {
+    flex: 1,
+    backgroundColor: THEME.bg,
   },
-  orderTicketHeader: {
+  chartHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.xs,
-    marginBottom: Spacing.sm,
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: THEME.bgCard,
+    borderBottomWidth: 1,
+    borderBottomColor: THEME.border,
   },
-  symbolDropdown: {
+  symbolInfo: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    backgroundColor: "#1A1A1A",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    gap: 12,
+  },
+  chartSymbol: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: THEME.textPrimary,
+  },
+  chartPrice: {
+    fontSize: 14,
+    fontWeight: "600",
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
+  timeframeButtons: {
+    flexDirection: "row",
+    backgroundColor: THEME.bgElevated,
+    borderRadius: 6,
+    padding: 2,
+  },
+  timeframeBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 4,
   },
-  symbolDropdownText: {
+  timeframeBtnActive: {
+    backgroundColor: THEME.accent,
+  },
+  timeframeBtnText: {
     fontSize: 11,
     fontWeight: "600",
-    color: Colors.dark.text,
+    color: THEME.textMuted,
   },
-  orderTypeSelector: {
+  timeframeBtnTextActive: {
+    color: THEME.textPrimary,
+  },
+  chartContainer: {
+    flex: 1,
+    minHeight: 280,
+  },
+
+  orderPanel: {
+    backgroundColor: THEME.bgCard,
+    borderRadius: 12,
+    padding: 16,
+    margin: 16,
+    borderWidth: 1,
+    borderColor: THEME.border,
+  },
+  orderPanelHeader: {
     flexDirection: "row",
-    backgroundColor: "#1A1A1A",
-    borderRadius: 4,
-    padding: 2,
-    flex: 1,
-  },
-  orderTypeBtn: {
-    flex: 1,
     alignItems: "center",
-    paddingVertical: 4,
-    borderRadius: 3,
+    justifyContent: "space-between",
+    marginBottom: 16,
   },
-  orderTypeBtnActive: {
-    backgroundColor: "#252525",
+  orderPanelTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: THEME.textPrimary,
   },
-  orderTypeBtnText: {
-    fontSize: 9,
-    fontWeight: "500",
-    color: Colors.dark.textMuted,
+  oneClickRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
-  orderTypeBtnTextActive: {
-    color: Colors.dark.text,
+  oneClickLabel: {
+    fontSize: 12,
+    color: THEME.textSecondary,
   },
-  oneClickToggle: {
-    padding: 2,
-  },
-  toggleBtn: {
-    width: 28,
-    height: 16,
-    backgroundColor: "#1A1A1A",
-    borderRadius: 8,
+  toggle: {
+    width: 40,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: THEME.bgElevated,
     padding: 2,
     justifyContent: "center",
   },
-  toggleBtnActive: {
-    backgroundColor: "#FF3B3B",
+  toggleActive: {
+    backgroundColor: THEME.accent,
   },
   toggleKnob: {
-    width: 12,
-    height: 12,
-    backgroundColor: Colors.dark.textMuted,
-    borderRadius: 6,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: THEME.textMuted,
   },
   toggleKnobActive: {
-    backgroundColor: "#fff",
+    backgroundColor: THEME.textPrimary,
     marginLeft: "auto",
   },
 
-  bidAskRow: {
+  orderTypeRow: {
     flexDirection: "row",
-    alignItems: "stretch",
-    gap: 4,
-    marginBottom: Spacing.xs,
+    backgroundColor: THEME.bgElevated,
+    borderRadius: 8,
+    padding: 4,
+    marginBottom: 16,
   },
-  priceBtn: {
+  orderTypeBtn: {
     flex: 1,
-    alignItems: "center",
     paddingVertical: 8,
-    borderRadius: 4,
-    borderWidth: 1,
+    alignItems: "center",
+    borderRadius: 6,
   },
-  sellBtn: {
-    backgroundColor: "rgba(255, 59, 59, 0.1)",
-    borderColor: "#FF3B3B",
+  orderTypeBtnActive: {
+    backgroundColor: THEME.bgCard,
   },
-  buyBtn: {
-    backgroundColor: "rgba(76, 175, 80, 0.1)",
-    borderColor: "#4CAF50",
-  },
-  priceBtnActive: {
-    borderWidth: 2,
-  },
-  priceBtnPrice: {
-    fontSize: 13,
-    fontWeight: "700",
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-    color: Colors.dark.text,
-  },
-  priceBtnLabel: {
-    fontSize: 9,
+  orderTypeBtnText: {
+    fontSize: 12,
     fontWeight: "600",
-    color: Colors.dark.textSecondary,
-    marginTop: 1,
+    color: THEME.textMuted,
   },
-  spreadCenter: {
-    justifyContent: "center",
+  orderTypeBtnTextActive: {
+    color: THEME.textPrimary,
+  },
+
+  lotSizeSection: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: THEME.textMuted,
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  lotSizeInputRow: {
+    flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 4,
-  },
-  spreadCenterValue: {
-    fontSize: 9,
-    color: Colors.dark.textMuted,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-  },
-  lotSizeContainer: {
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#1A1A1A",
-    borderRadius: 4,
-    paddingHorizontal: 8,
   },
   lotSizeInput: {
-    fontSize: 13,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-    color: Colors.dark.text,
+    flex: 1,
+    backgroundColor: THEME.bgInput,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 18,
+    fontWeight: "700",
+    color: THEME.textPrimary,
     textAlign: "center",
-    width: 50,
-    padding: 0,
-  },
-
-  quickSizeRow: {
-    flexDirection: "row",
-    gap: 4,
-    marginBottom: Spacing.xs,
-  },
-  quickSizeBtn: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 4,
-    backgroundColor: "#1A1A1A",
-    borderRadius: 3,
-  },
-  quickSizeBtnActive: {
-    backgroundColor: "#FF3B3B",
-  },
-  quickSizeBtnText: {
-    fontSize: 9,
-    color: Colors.dark.textSecondary,
-    fontWeight: "500",
-  },
-  quickSizeBtnTextActive: {
-    color: "#fff",
-  },
-
-  priceInputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: Spacing.xs,
-  },
-  priceInputLabel: {
-    fontSize: 10,
-    color: Colors.dark.textMuted,
-    width: 60,
-  },
-  priceInput: {
-    flex: 1,
-    backgroundColor: "#1A1A1A",
-    borderRadius: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    color: Colors.dark.text,
-    fontSize: 11,
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    borderWidth: 1,
+    borderColor: THEME.border,
+  },
+  quickLotRow: {
+    flexDirection: "row",
+    marginTop: 8,
+    gap: 6,
+  },
+  quickLotBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: "center",
+    backgroundColor: THEME.bgElevated,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: THEME.border,
+  },
+  quickLotBtnActive: {
+    backgroundColor: "rgba(255, 59, 59, 0.15)",
+    borderColor: THEME.accent,
+  },
+  quickLotText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: THEME.textMuted,
+  },
+  quickLotTextActive: {
+    color: THEME.accent,
+  },
+
+  priceInputSection: {
+    marginBottom: 16,
+  },
+  priceInputField: {
+    backgroundColor: THEME.bgInput,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: THEME.textPrimary,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    borderWidth: 1,
+    borderColor: THEME.border,
   },
 
   slTpRow: {
     flexDirection: "row",
-    gap: Spacing.xs,
-    marginBottom: Spacing.sm,
+    gap: 12,
+    marginBottom: 16,
   },
-  slTpInputContainer: {
+  slTpField: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#1A1A1A",
-    borderRadius: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
   },
   slTpLabel: {
-    fontSize: 9,
-    color: Colors.dark.textMuted,
+    fontSize: 11,
     fontWeight: "600",
-    marginRight: 6,
+    color: THEME.textMuted,
+    marginBottom: 6,
   },
   slTpInput: {
-    flex: 1,
-    color: Colors.dark.text,
-    fontSize: 11,
+    backgroundColor: THEME.bgInput,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13,
+    color: THEME.textPrimary,
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-    padding: 0,
+    borderWidth: 1,
+    borderColor: THEME.border,
+    textAlign: "center",
+  },
+
+  tradeButtons: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    marginBottom: 16,
+    gap: 8,
+  },
+  tradeBtn: {
+    flex: 1,
+    paddingVertical: 16,
+    alignItems: "center",
+    borderRadius: 8,
+    borderWidth: 2,
+  },
+  tradeBtnActive: {
+    borderWidth: 3,
+  },
+  sellBtn: {
+    backgroundColor: "rgba(255, 59, 59, 0.1)",
+    borderColor: THEME.danger,
+  },
+  buyBtn: {
+    backgroundColor: "rgba(0, 200, 83, 0.1)",
+    borderColor: THEME.success,
+  },
+  tradeBtnPrice: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: THEME.textPrimary,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    marginBottom: 2,
+  },
+  tradeBtnLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: THEME.textSecondary,
+    letterSpacing: 1,
+  },
+  spreadBadge: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+  },
+  spreadValue: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: THEME.textPrimary,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
+  spreadLabel: {
+    fontSize: 8,
+    fontWeight: "600",
+    color: THEME.textMuted,
+    letterSpacing: 0.5,
   },
 
   executeBtn: {
-    paddingVertical: 10,
-    borderRadius: 4,
+    paddingVertical: 14,
+    borderRadius: 8,
     alignItems: "center",
   },
   executeBtnBuy: {
-    backgroundColor: "#4CAF50",
+    backgroundColor: THEME.success,
   },
   executeBtnSell: {
-    backgroundColor: "#FF3B3B",
+    backgroundColor: THEME.danger,
   },
   executeBtnDisabled: {
     opacity: 0.5,
   },
   executeBtnText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "700",
-    color: "#fff",
+    color: THEME.textPrimary,
     letterSpacing: 0.5,
   },
-  disabledBanner: {
+  disabledNotice: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 4,
-    marginTop: Spacing.xs,
-    padding: 4,
-    backgroundColor: "#1A1A1A",
-    borderRadius: 3,
+    gap: 6,
+    marginTop: 12,
+    paddingVertical: 8,
+    backgroundColor: THEME.bgElevated,
+    borderRadius: 6,
   },
   disabledText: {
-    fontSize: 10,
-    color: Colors.dark.textMuted,
+    fontSize: 12,
+    color: THEME.textMuted,
   },
 
-  blotter: {
-    backgroundColor: "#111111",
-    borderTopWidth: 1,
-    borderTopColor: "#1A1A1A",
-    minHeight: 180,
+  positionsPanel: {
+    backgroundColor: THEME.bgCard,
+    borderRadius: 12,
+    margin: 16,
+    marginTop: 0,
+    borderWidth: 1,
+    borderColor: THEME.border,
+    maxHeight: 300,
   },
-  blotterTabs: {
-    flexDirection: "row",
+  panelHeader: {
     borderBottomWidth: 1,
-    borderBottomColor: "#1A1A1A",
-    paddingHorizontal: Spacing.sm,
+    borderBottomColor: THEME.border,
   },
-  blotterTab: {
+  panelTabs: {
+    flexDirection: "row",
+    paddingHorizontal: 8,
+  },
+  panelTab: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 6,
-    gap: 4,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     borderBottomWidth: 2,
     borderBottomColor: "transparent",
-    marginBottom: -1,
   },
-  blotterTabActive: {
-    borderBottomColor: "#FF3B3B",
+  panelTabActive: {
+    borderBottomColor: THEME.accent,
   },
-  blotterTabText: {
+  panelTabText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: THEME.textMuted,
+  },
+  panelTabTextActive: {
+    color: THEME.textPrimary,
+  },
+  tabBadge: {
+    backgroundColor: THEME.bgElevated,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  tabBadgeActive: {
+    backgroundColor: THEME.accent,
+  },
+  tabBadgeText: {
     fontSize: 10,
-    fontWeight: "500",
-    color: Colors.dark.textMuted,
+    fontWeight: "700",
+    color: THEME.textMuted,
   },
-  blotterTabTextActive: {
-    color: Colors.dark.text,
+  tabBadgeTextActive: {
+    color: THEME.textPrimary,
   },
-  blotterTabCount: {
-    backgroundColor: "#1A1A1A",
-    paddingHorizontal: 5,
-    paddingVertical: 1,
+  panelContent: {
+    flex: 1,
+    padding: 12,
+  },
+
+  positionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: THEME.bgElevated,
     borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: THEME.border,
   },
-  blotterTabCountActive: {
-    backgroundColor: "#FF3B3B",
-  },
-  blotterTabCountText: {
-    fontSize: 9,
-    color: Colors.dark.textMuted,
-    fontWeight: "600",
-  },
-  blotterTabCountTextActive: {
-    color: "#fff",
-  },
-
-  blotterSummary: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 6,
-    backgroundColor: "#0A0A0A",
-    borderBottomWidth: 1,
-    borderBottomColor: "#1A1A1A",
-  },
-  summaryItem: {
-    paddingHorizontal: Spacing.sm,
-  },
-  summaryLabel: {
-    fontSize: 8,
-    color: Colors.dark.textMuted,
-    letterSpacing: 0.3,
-  },
-  summaryValue: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: Colors.dark.text,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-  },
-  summaryDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: "#1A1A1A",
-  },
-  rankValue: {
-    color: "#FF3B3B",
-  },
-  closeAllBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "#1A1A1A",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 3,
-  },
-  closeAllBtnText: {
-    fontSize: 10,
-    color: Colors.dark.textSecondary,
-  },
-
-  blotterContent: {
+  positionMain: {
     flex: 1,
   },
-  blotterTable: {
-    minWidth: "100%",
-  },
-  blotterHeader: {
-    flexDirection: "row",
-    backgroundColor: "#0A0A0A",
-    paddingVertical: 4,
-    paddingHorizontal: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: "#1A1A1A",
-  },
-  blotterHeaderCell: {
-    fontSize: 9,
-    fontWeight: "600",
-    color: Colors.dark.textMuted,
-    letterSpacing: 0.3,
-  },
-  blotterRow: {
+  positionSymbol: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 5,
-    paddingHorizontal: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: "#1A1A1A",
+    gap: 8,
+    marginBottom: 4,
   },
-  blotterCell: {
+  positionPair: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: THEME.textPrimary,
+  },
+  sideBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  sideBadgeBuy: {
+    backgroundColor: "rgba(0, 200, 83, 0.2)",
+  },
+  sideBadgeSell: {
+    backgroundColor: "rgba(255, 59, 59, 0.2)",
+  },
+  sideBadgeText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: THEME.textPrimary,
+    letterSpacing: 0.5,
+  },
+  typeBadge: {
+    backgroundColor: "rgba(255, 59, 59, 0.15)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  typeBadgeText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: THEME.accent,
+    letterSpacing: 0.5,
+  },
+  positionLots: {
+    fontSize: 12,
+    color: THEME.textSecondary,
+  },
+  positionDetails: {
+    alignItems: "flex-end",
+    marginRight: 12,
+  },
+  positionPriceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  positionLabel: {
     fontSize: 10,
-    color: Colors.dark.text,
-    justifyContent: "center",
+    color: THEME.textMuted,
   },
-  monoText: {
+  positionValue: {
+    fontSize: 11,
+    color: THEME.textSecondary,
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
-  sideText: {
-    fontSize: 9,
-    fontWeight: "600",
+  positionPnl: {
+    fontSize: 12,
+    fontWeight: "700",
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
-  buyText: {
-    color: "#4CAF50",
-  },
-  sellText: {
-    color: "#FF3B3B",
-  },
-  actionBtn: {
-    padding: 4,
-    backgroundColor: "#1A1A1A",
-    borderRadius: 3,
-  },
-  emptyBlotter: {
-    padding: Spacing.lg,
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: "rgba(255, 59, 59, 0.1)",
     alignItems: "center",
-  },
-  emptyBlotterText: {
-    fontSize: 11,
-    color: Colors.dark.textMuted,
+    justifyContent: "center",
   },
 
-  leaderboardPanel: {
-    position: "absolute",
-    right: 320,
-    top: 0,
-    bottom: 0,
-    width: 260,
-    backgroundColor: "#111111",
+  historyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: THEME.bgElevated,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: THEME.border,
+  },
+  historyMain: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+  },
+  historyPair: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: THEME.textPrimary,
+  },
+  historyLots: {
+    fontSize: 11,
+    color: THEME.textSecondary,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    flex: 1,
+    textAlign: "center",
+  },
+  historyPnl: {
+    fontSize: 12,
+    fontWeight: "700",
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
+
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+  },
+  emptyStateText: {
+    fontSize: 13,
+    color: THEME.textMuted,
+    marginTop: 8,
+  },
+
+  desktopMain: {
+    flex: 1,
+    flexDirection: "row",
+  },
+  desktopLeft: {
+    flex: 1,
+    flexDirection: "column",
+  },
+  desktopRight: {
+    width: 340,
     borderLeftWidth: 1,
-    borderLeftColor: "#1A1A1A",
-    zIndex: 100,
+    borderLeftColor: THEME.border,
+    backgroundColor: THEME.bg,
+  },
+
+  leaderboardOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1000,
+  },
+  leaderboardPanel: {
+    backgroundColor: THEME.bgCard,
+    borderRadius: 12,
+    padding: 16,
+    width: 320,
+    maxHeight: "80%",
+    borderWidth: 1,
+    borderColor: THEME.border,
   },
   leaderboardHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    padding: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: "#1A1A1A",
+    justifyContent: "space-between",
+    marginBottom: 16,
   },
   leaderboardTitle: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: Colors.dark.textMuted,
-    letterSpacing: 0.5,
+    fontSize: 18,
+    fontWeight: "700",
+    color: THEME.textPrimary,
   },
 
   toast: {
     position: "absolute",
-    bottom: 60,
+    bottom: 100,
     left: "50%",
-    transform: [{ translateX: -140 }],
-    width: 280,
+    transform: [{ translateX: -150 }],
+    width: 300,
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.sm,
-    paddingVertical: 8,
-    paddingHorizontal: Spacing.md,
-    backgroundColor: "#1A1A1A",
-    borderRadius: 6,
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: THEME.bgCard,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#252525",
-    zIndex: 1000,
+    borderColor: THEME.border,
+    zIndex: 2000,
   },
   toastSuccess: {
-    borderColor: "#4CAF50",
-    backgroundColor: "rgba(76, 175, 80, 0.15)",
+    borderColor: THEME.success,
+    backgroundColor: "rgba(0, 200, 83, 0.15)",
   },
   toastError: {
-    borderColor: "#FF3B3B",
+    borderColor: THEME.danger,
     backgroundColor: "rgba(255, 59, 59, 0.15)",
   },
   toastText: {
-    fontSize: 12,
-    color: Colors.dark.text,
+    fontSize: 13,
+    color: THEME.textPrimary,
     flex: 1,
   },
 });
