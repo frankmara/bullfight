@@ -90,9 +90,8 @@ export default function PvPDetailScreen() {
 
   const acceptMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest(`/api/pvp/challenges/${id}/accept`, {
-        method: "POST",
-      });
+      const res = await apiRequest("POST", `/api/pvp/challenges/${id}/accept`, {});
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/pvp/challenges/${id}`] });
@@ -103,10 +102,8 @@ export default function PvPDetailScreen() {
 
   const proposeMutation = useMutation({
     mutationFn: async (data: any) => {
-      return apiRequest(`/api/pvp/challenges/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      });
+      const res = await apiRequest("PUT", `/api/pvp/challenges/${id}`, data);
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/pvp/challenges/${id}`] });
@@ -117,9 +114,8 @@ export default function PvPDetailScreen() {
 
   const payMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest(`/api/pvp/challenges/${id}/pay`, {
-        method: "POST",
-      });
+      const res = await apiRequest("POST", `/api/pvp/challenges/${id}/pay`, {});
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/pvp/challenges/${id}`] });
@@ -130,9 +126,8 @@ export default function PvPDetailScreen() {
 
   const cancelMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest(`/api/pvp/challenges/${id}/cancel`, {
-        method: "POST",
-      });
+      const res = await apiRequest("POST", `/api/pvp/challenges/${id}/cancel`, {});
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/pvp/challenges"] });

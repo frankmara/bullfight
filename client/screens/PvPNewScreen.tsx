@@ -58,10 +58,8 @@ export default function PvPNewScreen() {
 
   const createChallengeMutation = useMutation({
     mutationFn: async (data: any) => {
-      return apiRequest("/api/pvp/challenges", {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
+      const res = await apiRequest("POST", "/api/pvp/challenges", data);
+      return res.json();
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/pvp/challenges"] });
