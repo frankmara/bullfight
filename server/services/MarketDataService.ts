@@ -46,7 +46,7 @@ function formatPolygonTicker(pair: string): string {
 
 class MarketDataService {
   private quotes: Map<string, Quote> = new Map();
-  private candleCache: Map<string, { candles: Candle[]; fetchedAt: number }> = new Map();
+  private candleCache: Map<string, { candles: Candle[]; fetchedAt: number; mock?: boolean }> = new Map();
   private ws: WebSocket | null = null;
   private quoteCallbacks: Set<QuoteCallback> = new Set();
   private candleCallbacks: Set<CandleCallback> = new Set();
@@ -265,30 +265,40 @@ class MarketDataService {
   }
 
   public async getCandles(pair: string, timeframe: string, limit: number = 500): Promise<Candle[]> {
-    const cacheKey = `${pair}:${timeframe}`;
+    const result = await this.getCandlesWithMeta(pair, timeframe, limit);
+    return result.candles;
+  }
+
+  public async getCandlesWithMeta(pair: string, timeframe: string, limit: number = 500): Promise<{ candles: Candle[]; mock: boolean }> {
+    const cacheKey = `${pair}:${timeframe}:${limit}`;
     const cached = this.candleCache.get(cacheKey);
     
     if (cached && Date.now() - cached.fetchedAt < 30000) {
-      return cached.candles.slice(-limit);
+      return { 
+        candles: cached.candles.slice(-limit), 
+        mock: cached.mock || false 
+      };
     }
 
     if (this.isUsingMockData) {
-      return this.generateMockCandles(pair, timeframe, limit);
+      const candles = this.generateMockCandles(pair, timeframe, limit);
+      return { candles, mock: true };
     }
 
-    return this.fetchPolygonCandles(pair, timeframe, limit);
+    return this.fetchPolygonCandlesWithMeta(pair, timeframe, limit);
   }
 
-  private async fetchPolygonCandles(pair: string, timeframe: string, limit: number): Promise<Candle[]> {
+  private async fetchPolygonCandlesWithMeta(pair: string, timeframe: string, limit: number): Promise<{ candles: Candle[]; mock: boolean }> {
     const tf = TIMEFRAME_MAP[timeframe];
     if (!tf) {
       console.error("[MarketDataService] Unknown timeframe:", timeframe);
-      return this.generateMockCandles(pair, timeframe, limit);
+      const candles = this.generateMockCandles(pair, timeframe, limit);
+      return { candles, mock: true };
     }
 
     const ticker = formatPolygonTicker(pair);
     const now = Date.now();
-    const from = new Date(now - tf.seconds * limit * 1000).toISOString().split("T")[0];
+    const from = new Date(now - tf.seconds * limit * 2 * 1000).toISOString().split("T")[0];
     const to = new Date(now).toISOString().split("T")[0];
 
     const url = `${POLYGON_REST_BASE_URL}/v2/aggs/ticker/${ticker}/range/${tf.multiplier}/${tf.timespan}/${from}/${to}?adjusted=true&sort=asc&limit=${limit}&apiKey=${POLYGON_API_KEY}`;
@@ -299,7 +309,8 @@ class MarketDataService {
 
       if (!data.results || data.results.length === 0) {
         console.warn("[MarketDataService] No candle data from Polygon, using mock");
-        return this.generateMockCandles(pair, timeframe, limit);
+        const candles = this.generateMockCandles(pair, timeframe, limit);
+        return { candles, mock: true };
       }
 
       const candles: Candle[] = data.results.map((r: any) => ({
@@ -311,26 +322,37 @@ class MarketDataService {
         volume: r.v,
       }));
 
-      this.candleCache.set(`${pair}:${timeframe}`, {
+      const cacheKey = `${pair}:${timeframe}:${limit}`;
+      this.candleCache.set(cacheKey, {
         candles,
         fetchedAt: Date.now(),
+        mock: false,
       });
 
-      return candles;
+      return { candles: candles.slice(-limit), mock: false };
     } catch (e) {
       console.error("[MarketDataService] Failed to fetch Polygon candles:", e);
-      return this.generateMockCandles(pair, timeframe, limit);
+      const candles = this.generateMockCandles(pair, timeframe, limit);
+      return { candles, mock: true };
     }
   }
 
   private generateMockCandles(pair: string, timeframe: string, limit: number): Candle[] {
-    const cacheKey = `${pair}:${timeframe}`;
+    const cacheKey = `${pair}:${timeframe}:${limit}`;
     const cached = this.candleCache.get(cacheKey);
-    if (cached) return cached.candles.slice(-limit);
+    if (cached && cached.mock) return cached.candles.slice(-limit);
 
     const tf = TIMEFRAME_MAP[timeframe] || TIMEFRAME_MAP["1m"];
     const quote = this.quotes.get(pair);
-    const basePrice = quote ? (quote.bid + quote.ask) / 2 : 1.0;
+    
+    const basePrices: Record<string, number> = {
+      "EUR-USD": 1.0875,
+      "GBP-USD": 1.2650,
+      "USD-JPY": 149.50,
+      "AUD-USD": 0.6520,
+      "USD-CAD": 1.3580,
+    };
+    const basePrice = quote ? (quote.bid + quote.ask) / 2 : (basePrices[pair] || 1.0);
     const candles: Candle[] = [];
     const now = Math.floor(Date.now() / 1000);
 
@@ -355,7 +377,7 @@ class MarketDataService {
       });
     }
 
-    this.candleCache.set(cacheKey, { candles, fetchedAt: Date.now() });
+    this.candleCache.set(cacheKey, { candles, fetchedAt: Date.now(), mock: true });
     return candles;
   }
 

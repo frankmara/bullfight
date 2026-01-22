@@ -733,15 +733,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/market/candles/:pair", async (req: Request, res: Response) => {
     try {
       const { pair } = req.params;
-      const timeframe = (req.query.timeframe as string) || "1m";
-      const limit = parseInt(req.query.limit as string) || 500;
+      const timeframe = (req.query.tf as string) || (req.query.timeframe as string) || "1m";
+      const limit = Math.min(parseInt(req.query.limit as string) || 500, 1000);
 
-      const candles = await marketDataService.getCandles(pair, timeframe, limit);
+      const result = await marketDataService.getCandlesWithMeta(pair, timeframe, limit);
       res.json({
         pair,
         timeframe,
-        candles,
-        isUsingMock: marketDataService.isUsingMock(),
+        mock: result.mock,
+        candles: result.candles,
+      });
+    } catch (error: any) {
+      console.error("Get candles error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/market/candles", async (req: Request, res: Response) => {
+    try {
+      const pair = (req.query.pair as string) || "EUR-USD";
+      const timeframe = (req.query.tf as string) || (req.query.timeframe as string) || "1m";
+      const limit = Math.min(parseInt(req.query.limit as string) || 500, 1000);
+
+      const result = await marketDataService.getCandlesWithMeta(pair, timeframe, limit);
+      res.json({
+        pair,
+        timeframe,
+        mock: result.mock,
+        candles: result.candles,
       });
     } catch (error: any) {
       console.error("Get candles error:", error);

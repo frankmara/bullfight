@@ -68,8 +68,17 @@ Key entities defined in the schema:
 - Auto-detects `POLYGON_API_KEY` environment variable for live data, falls back to mock data
 - Polygon.io REST API for historical candles, WebSocket for real-time quotes (when API key provided)
 - Mock data generates realistic forex quotes with proper spreads when no API key
-- API endpoint `/api/market/status` returns `{ isUsingMock: boolean }` for data source indicator
 - Supported pairs: EUR-USD, GBP-USD, USD-JPY, AUD-USD, USD-CAD
+
+#### Market Data Endpoints
+- `GET /api/market/status` - Returns `{ isUsingMock: boolean }` for data source indicator
+- `GET /api/market/quotes` - Returns all pairs with bid/ask/spreadPips/status/ageMs
+- `GET /api/market/candles?pair=EUR-USD&tf=1m&limit=500` - Returns candle history
+  - Supported timeframes: 1m, 5m, 15m, 1h, 4h, 1d
+  - Returns `{ pair, timeframe, mock: boolean, candles: [{time, open, high, low, close, volume?}] }`
+  - Candle time is in Unix seconds (Lightweight Charts format)
+  - 30-second in-memory cache per pair+tf+limit
+  - Falls back to mock random walk data if Polygon unavailable
 
 ### Payments (Planned)
 - Stripe integration for buy-ins and payouts (TEST mode)
