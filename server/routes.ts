@@ -182,6 +182,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         dq: false,
       });
 
+      const user = await storage.getUser(userId);
+      if (user?.email) {
+        const entries = await storage.getCompetitionEntries(id);
+        const prizePool = entries.reduce((sum, e) => sum + e.paidCents, 0) - (entries.length * Math.round(comp.buyInCents * (comp.rakeBps / 10000)));
+
+        EmailService.sendChallengeEntryConfirmedEmail(
+          user.id,
+          user.email,
+          comp.name,
+          comp.buyInCents,
+          prizePool,
+          comp.startAt || new Date(),
+          comp.startingBalanceCents,
+          id
+        ).catch(err => {
+          console.error("Failed to send challenge entry email:", err);
+        });
+      }
+
       res.json({ success: true, entry });
     } catch (error: any) {
       console.error("Join competition error:", error);
