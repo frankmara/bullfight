@@ -443,48 +443,60 @@ export default function PvPDetailScreen() {
         )}
 
         {challenge.status === "active" && challenge.competitionId ? (
-          <Button onPress={handleEnterArena} style={styles.actionButton}>
+          <Pressable onPress={handleEnterArena} style={styles.primaryButton}>
             <Feather name="activity" size={18} color={Colors.dark.buttonText} />
-            <ThemedText style={styles.actionButtonText}>Enter Arena</ThemedText>
-          </Button>
+            <ThemedText style={styles.primaryButtonText}>Enter Arena</ThemedText>
+          </Pressable>
+        ) : null}
+
+        {isChallenger && challenge.status === "pending" && challenge.challengerAccepted && !challenge.inviteeAccepted ? (
+          <View style={styles.inviteSentCard}>
+            <Feather name="mail" size={24} color={Colors.dark.success} />
+            <View style={{ flex: 1 }}>
+              <ThemedText style={styles.inviteSentTitle}>Invite Sent!</ThemedText>
+              <ThemedText style={styles.inviteSentText}>
+                An invitation has been sent to {challenge.inviteeEmail}. Waiting for their response.
+              </ThemedText>
+            </View>
+          </View>
         ) : null}
 
         {needsAcceptance && !editMode ? (
-          <Button
+          <Pressable
             onPress={() => acceptMutation.mutate()}
             disabled={acceptMutation.isPending}
-            style={styles.actionButton}
+            style={[styles.primaryButton, acceptMutation.isPending && styles.buttonDisabled]}
           >
             {acceptMutation.isPending ? (
               <LoadingSpinner size="small" />
             ) : (
               <>
                 <Feather name="check" size={18} color={Colors.dark.buttonText} />
-                <ThemedText style={styles.actionButtonText}>
+                <ThemedText style={styles.primaryButtonText}>
                   {proposalFromOther ? "Accept Proposed Terms" : "Accept Terms"}
                 </ThemedText>
               </>
             )}
-          </Button>
+          </Pressable>
         ) : null}
 
         {canPay && !hasPaid ? (
-          <Button
+          <Pressable
             onPress={() => payMutation.mutate()}
             disabled={payMutation.isPending}
-            style={styles.actionButton}
+            style={[styles.primaryButton, payMutation.isPending && styles.buttonDisabled]}
           >
             {payMutation.isPending ? (
               <LoadingSpinner size="small" />
             ) : (
               <>
                 <Feather name="credit-card" size={18} color={Colors.dark.buttonText} />
-                <ThemedText style={styles.actionButtonText}>
+                <ThemedText style={styles.primaryButtonText}>
                   Pay {formatCurrency(challenge.stakeCents)}
                 </ThemedText>
               </>
             )}
-          </Button>
+          </Pressable>
         ) : null}
 
         {hasPaid && challenge.status === "payment_pending" ? (
@@ -497,18 +509,17 @@ export default function PvPDetailScreen() {
         ) : null}
 
         {canEdit ? (
-          <Button
-            variant="secondary"
+          <Pressable
             onPress={() => cancelMutation.mutate()}
             disabled={cancelMutation.isPending}
-            style={styles.cancelButton}
+            style={[styles.secondaryButton, cancelMutation.isPending && styles.buttonDisabled]}
           >
             {cancelMutation.isPending ? (
               <LoadingSpinner size="small" />
             ) : (
-              <ThemedText style={styles.cancelButtonText}>Cancel Challenge</ThemedText>
+              <ThemedText style={styles.secondaryButtonText}>Cancel Challenge</ThemedText>
             )}
-          </Button>
+          </Pressable>
         ) : null}
 
         <View style={{ height: insets.bottom + Spacing.xl }} />
@@ -748,18 +759,62 @@ const styles = StyleSheet.create({
   editButton: {
     flex: 1,
   },
-  actionButton: {
+  primaryButton: {
     height: 52,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: Spacing.sm,
     marginBottom: Spacing.md,
+    backgroundColor: Colors.dark.accent,
+    borderRadius: BorderRadius.md,
   },
-  actionButtonText: {
+  primaryButtonText: {
     color: Colors.dark.buttonText,
     fontSize: 16,
     fontWeight: "600",
+  },
+  secondaryButton: {
+    height: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    marginTop: Spacing.lg,
+    backgroundColor: Colors.dark.backgroundCard,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.dark.danger,
+  },
+  secondaryButtonText: {
+    color: Colors.dark.danger,
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  inviteSentCard: {
+    backgroundColor: Colors.dark.success + "15",
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.md,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.dark.success + "40",
+  },
+  inviteSentTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: Colors.dark.success,
+    marginBottom: 4,
+  },
+  inviteSentText: {
+    fontSize: 14,
+    color: Colors.dark.textMuted,
+    lineHeight: 20,
   },
   waitingCard: {
     backgroundColor: Colors.dark.warning + "20",
@@ -775,14 +830,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.dark.warning,
     fontWeight: "500",
-  },
-  cancelButton: {
-    marginTop: Spacing.lg,
-  },
-  cancelButtonText: {
-    color: Colors.dark.danger,
-    fontSize: 16,
-    fontWeight: "600",
   },
   errorText: {
     fontSize: 16,
