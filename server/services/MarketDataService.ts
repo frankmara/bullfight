@@ -440,14 +440,23 @@ class MarketDataService {
 
     const ticker = formatPolygonTicker(pair);
     const now = Date.now();
-    const from = new Date(now - tf.seconds * limit * 2 * 1000).toISOString().split("T")[0];
+    // Request more historical data - go back at least 7 days to ensure we get enough candles
+    // even accounting for weekends when forex markets are closed
+    const daysBack = Math.max(7, Math.ceil((tf.seconds * limit * 3) / 86400));
+    const from = new Date(now - daysBack * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
     const to = new Date(now).toISOString().split("T")[0];
 
-    const url = `${POLYGON_REST_BASE_URL}/v2/aggs/ticker/${ticker}/range/${tf.multiplier}/${tf.timespan}/${from}/${to}?adjusted=true&sort=asc&limit=${limit}&apiKey=${POLYGON_API_KEY}`;
+    // Request more data from Polygon than needed - Polygon's limit can affect aggregation
+    // We request up to 5000 rows and then slice to the desired limit ourselves
+    const polygonLimit = Math.min(5000, Math.max(limit * 10, 500));
+    const url = `${POLYGON_REST_BASE_URL}/v2/aggs/ticker/${ticker}/range/${tf.multiplier}/${tf.timespan}/${from}/${to}?adjusted=true&sort=asc&limit=${polygonLimit}&apiKey=${POLYGON_API_KEY}`;
 
     try {
+      console.log(`[MarketDataService] Fetching candles from Polygon REST API: ${ticker} ${from} to ${to}, limit=${limit}`);
+      console.log(`[MarketDataService] URL: ${url.replace(POLYGON_API_KEY!, 'REDACTED')}`);
       const response = await fetch(url);
       const data = await response.json();
+      console.log(`[MarketDataService] Polygon REST API response: queryCount=${data.queryCount || 0}, resultsCount=${data.resultsCount || 0}, status=${data.status}`);
 
       if (!data.results || data.results.length === 0) {
         // No historical data from Polygon REST API
@@ -476,17 +485,17 @@ class MarketDataService {
         volume: r.v,
       }));
 
-      // Fill gap between last historical candle and current time
-      const filledCandles = this.fillCandleGap(pair, candles, tf.seconds, limit);
+      // Return only real candles from Polygon - no fake gap-filling
+      console.log(`[MarketDataService] Retrieved ${candles.length} real candles from Polygon REST API for ${pair}`);
 
       const cacheKey = `${pair}:${timeframe}:${limit}`;
       this.candleCache.set(cacheKey, {
-        candles: filledCandles,
+        candles: candles,
         fetchedAt: Date.now(),
         mock: false,
       });
 
-      return { candles: filledCandles.slice(-limit), mock: false };
+      return { candles: candles.slice(-limit), mock: false };
     } catch (e) {
       console.error("[MarketDataService] Failed to fetch Polygon candles:", e);
       // Check for real-time candles instead of mock
@@ -536,73 +545,6 @@ class MarketDataService {
     return aggregated;
   }
 
-  private fillCandleGap(pair: string, candles: Candle[], candleSeconds: number, limit: number): Candle[] {
-    if (candles.length === 0) return candles;
-    
-    const quote = this.quotes.get(pair);
-    const currentPrice = quote ? (quote.bid + quote.ask) / 2 : null;
-    if (!currentPrice) return candles;
-    
-    const now = Math.floor(Date.now() / 1000);
-    const currentBucket = Math.floor(now / candleSeconds) * candleSeconds;
-    const lastCandle = candles[candles.length - 1];
-    const lastCandleTime = lastCandle.time;
-    
-    // Calculate gap in candles
-    const gapCandles = Math.floor((currentBucket - lastCandleTime) / candleSeconds);
-    
-    // If gap is small (< 5 candles), don't fill - WebSocket will handle it
-    if (gapCandles <= 5) {
-      // Just update the last candle to current price
-      lastCandle.close = currentPrice;
-      lastCandle.high = Math.max(lastCandle.high, currentPrice);
-      lastCandle.low = Math.min(lastCandle.low, currentPrice);
-      return candles;
-    }
-    
-    // Fill the gap with smooth transition candles
-    console.log(`[MarketDataService] Filling ${gapCandles} candle gap for ${pair}`);
-    
-    const startPrice = lastCandle.close;
-    const priceChange = currentPrice - startPrice;
-    const volatility = pair.includes("JPY") ? 0.02 : 0.0002;
-    
-    const filledCandles = [...candles];
-    let price = startPrice;
-    
-    for (let i = 1; i <= gapCandles; i++) {
-      const time = lastCandleTime + (i * candleSeconds);
-      const progress = i / gapCandles;
-      
-      // Smooth transition using linear interpolation with small random noise
-      const targetPrice = startPrice + (priceChange * progress);
-      const noise = (Math.random() - 0.5) * volatility;
-      const open = price;
-      price = targetPrice + noise;
-      const close = price;
-      
-      const high = Math.max(open, close) + Math.random() * volatility * 0.3;
-      const low = Math.min(open, close) - Math.random() * volatility * 0.3;
-      
-      filledCandles.push({
-        time,
-        open: Math.round(open * 100000) / 100000,
-        high: Math.round(high * 100000) / 100000,
-        low: Math.round(low * 100000) / 100000,
-        close: Math.round(close * 100000) / 100000,
-      });
-    }
-    
-    // Ensure the very last candle matches the current price exactly
-    if (filledCandles.length > 0) {
-      const lastFilled = filledCandles[filledCandles.length - 1];
-      lastFilled.close = Math.round(currentPrice * 100000) / 100000;
-      lastFilled.high = Math.max(lastFilled.high, lastFilled.close);
-      lastFilled.low = Math.min(lastFilled.low, lastFilled.close);
-    }
-    
-    return filledCandles;
-  }
 
   private generateMockCandles(pair: string, timeframe: string, limit: number): Candle[] {
     const cacheKey = `${pair}:${timeframe}:${limit}`;
