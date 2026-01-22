@@ -662,7 +662,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(403).json({ error: "Admin access required" });
         }
 
+        const previousComp = await storage.getCompetition(id);
+        const previousStatus = previousComp?.status;
+
         const comp = await storage.updateCompetitionStatus(id, status);
+
+        if (comp && status !== previousStatus) {
+          const entries = await storage.getCompetitionEntries(id);
+
+          if (status === "running" && previousStatus !== "running") {
+            for (const entry of entries) {
+              if (entry.user?.email) {
+                EmailService.sendChallengeStartedEmail(
+                  entry.userId,
+                  entry.user.email,
+                  comp.name,
+                  comp.endTime,
+                  entries.length,
+                  comp.id
+                ).catch(err => console.error("Failed to send challenge started email:", err));
+              }
+            }
+          }
+
+          if (status === "completed" && previousStatus !== "completed") {
+            const startingBalance = comp.startingBalanceCents;
+            for (let i = 0; i < entries.length; i++) {
+              const entry = entries[i];
+              if (entry.user?.email) {
+                const equity = entry.equityCents;
+                const returnPct = ((equity - startingBalance) / startingBalance) * 100;
+                const rank = i + 1;
+                EmailService.sendChallengeConcludedEmail(
+                  entry.userId,
+                  entry.user.email,
+                  comp.name,
+                  rank,
+                  entries.length,
+                  returnPct,
+                  equity
+                ).catch(err => console.error("Failed to send challenge concluded email:", err));
+              }
+            }
+          }
+        }
+
         res.json(comp);
       } catch (error: any) {
         console.error("Admin update status error:", error);
