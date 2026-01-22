@@ -717,6 +717,7 @@ export default function ArenaScreen() {
       </View>
       <View style={styles.chartContainer}>
         <TradingViewChart
+          key={`${selectedPair}-${selectedTimeframe}`}
           pair={selectedPair}
           height={isDesktop ? Math.max(height - 520, 300) : 280}
           positions={positions.filter((p) => p.pair === selectedPair)}
@@ -1159,6 +1160,7 @@ export default function ArenaScreen() {
           }
           chart={
             <TradingViewChart
+              key={`${selectedPair}-${selectedTimeframe}`}
               pair={selectedPair}
               height={isFullscreen ? height - 120 : height - 520}
               positions={positions.filter((p) => p.pair === selectedPair)}

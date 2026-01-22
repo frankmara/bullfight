@@ -134,7 +134,7 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
         const url = new URL(`/api/market/candles`, getApiUrl());
         url.searchParams.set('pair', pair);
         url.searchParams.set('tf', timeframe);
-        url.searchParams.set('limit', '500');
+        url.searchParams.set('limit', '1000');
         
         const response = await fetch(url.toString());
         if (!response.ok) throw new Error('Failed to fetch candles');

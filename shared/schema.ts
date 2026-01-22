@@ -398,3 +398,20 @@ export type EmailTemplate = typeof emailTemplates.$inferSelect;
 export type InsertEmailTemplate = z.infer<typeof insertEmailTemplateSchema>;
 export type EmailLog = typeof emailLogs.$inferSelect;
 export type InsertEmailLog = z.infer<typeof insertEmailLogSchema>;
+
+export const candleCache = pgTable("candle_cache", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  pair: text("pair").notNull(),
+  timeframe: text("timeframe").notNull(),
+  time: integer("time").notNull(),
+  open: real("open").notNull(),
+  high: real("high").notNull(),
+  low: real("low").notNull(),
+  close: real("close").notNull(),
+  volume: integer("volume"),
+  fetchedAt: timestamp("fetched_at").defaultNow().notNull(),
+});
+
+export type CandleCacheEntry = typeof candleCache.$inferSelect;

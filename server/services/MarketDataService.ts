@@ -1,8 +1,14 @@
 import WebSocket from "ws";
+import { db } from "../db";
+import { candleCache } from "@shared/schema";
+import { eq, and, gte, desc } from "drizzle-orm";
 
 const POLYGON_REST_BASE_URL = process.env.POLYGON_REST_BASE_URL || "https://api.polygon.io";
 const POLYGON_WS_BASE_URL = process.env.POLYGON_WS_BASE_URL || "wss://socket.polygon.io";
 const POLYGON_API_KEY = process.env.POLYGON_API_KEY;
+
+// Cache duration - how long to consider database-cached candles fresh
+const CANDLE_CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hour for historical candles
 
 export interface Quote {
   pair: string;
@@ -438,22 +444,62 @@ class MarketDataService {
       return { candles: [], mock: false };
     }
 
+    // First, check the database cache for this pair/timeframe
+    try {
+      const now = Date.now();
+      const cutoffTime = Math.floor((now - CANDLE_CACHE_DURATION_MS) / 1000);
+      
+      // Check if we have fresh cached candles in the database
+      const cachedCandles = await db
+        .select()
+        .from(candleCache)
+        .where(
+          and(
+            eq(candleCache.pair, pair),
+            eq(candleCache.timeframe, timeframe)
+          )
+        )
+        .orderBy(desc(candleCache.time))
+        .limit(limit);
+      
+      if (cachedCandles.length > 0) {
+        // Check if the most recent candle is fresh enough (within last hour)
+        const mostRecentCachedTime = cachedCandles[0].fetchedAt.getTime();
+        const isFresh = Date.now() - mostRecentCachedTime < CANDLE_CACHE_DURATION_MS;
+        
+        if (isFresh && cachedCandles.length >= Math.min(limit, 100)) {
+          // Reverse to chronological order and return
+          const candles: Candle[] = cachedCandles.reverse().map(c => ({
+            time: c.time,
+            open: c.open,
+            high: c.high,
+            low: c.low,
+            close: c.close,
+            volume: c.volume || undefined,
+          }));
+          console.log(`[MarketDataService] Returning ${candles.length} candles from database cache for ${pair}:${timeframe}`);
+          return { candles, mock: false };
+        }
+      }
+    } catch (dbError) {
+      console.error("[MarketDataService] Database cache check failed:", dbError);
+    }
+
+    // Fetch from Polygon REST API
     const ticker = formatPolygonTicker(pair);
     const now = Date.now();
-    // Request more historical data - go back at least 7 days to ensure we get enough candles
-    // even accounting for weekends when forex markets are closed
-    const daysBack = Math.max(7, Math.ceil((tf.seconds * limit * 3) / 86400));
+    // Request more historical data - go back at least 14 days for more history
+    const daysBack = Math.max(14, Math.ceil((tf.seconds * limit * 3) / 86400));
     const from = new Date(now - daysBack * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
     const to = new Date(now).toISOString().split("T")[0];
 
     // Request more data from Polygon than needed - Polygon's limit can affect aggregation
     // Use sort=desc to get the most recent candles first (in case there are more candles than limit)
-    const polygonLimit = Math.min(5000, Math.max(limit * 10, 500));
+    const polygonLimit = Math.min(5000, Math.max(limit * 10, 1000));
     const url = `${POLYGON_REST_BASE_URL}/v2/aggs/ticker/${ticker}/range/${tf.multiplier}/${tf.timespan}/${from}/${to}?adjusted=true&sort=desc&limit=${polygonLimit}&apiKey=${POLYGON_API_KEY}`;
 
     try {
       console.log(`[MarketDataService] Fetching candles from Polygon REST API: ${ticker} ${from} to ${to}, limit=${limit}`);
-      console.log(`[MarketDataService] URL: ${url.replace(POLYGON_API_KEY!, 'REDACTED')}`);
       const response = await fetch(url);
       const data = await response.json();
       console.log(`[MarketDataService] Polygon REST API response: queryCount=${data.queryCount || 0}, resultsCount=${data.resultsCount || 0}, status=${data.status}`);
@@ -466,12 +512,10 @@ class MarketDataService {
         
         if (realtimeCandles && realtimeCandles.candles.length > 0 && !realtimeCandles.mock) {
           console.log(`[MarketDataService] Using ${realtimeCandles.candles.length} real-time candles for ${pair}`);
-          // Aggregate 1m candles to requested timeframe if needed
           const aggregated = this.aggregateCandles(realtimeCandles.candles, tf.seconds);
           return { candles: aggregated.slice(-limit), mock: false };
         }
         
-        // No real data available - return empty, not mock
         console.warn(`[MarketDataService] No candle data available for ${pair}, returning empty`);
         return { candles: [], mock: false };
       }
@@ -486,11 +530,16 @@ class MarketDataService {
         volume: r.v,
       })).reverse();
 
-      // Return only real candles from Polygon - no fake gap-filling
       // Take the last N candles (most recent) after reversing to chronological order
       const recentCandles = candles.slice(-limit);
       console.log(`[MarketDataService] Retrieved ${candles.length} real candles from Polygon REST API for ${pair}, returning ${recentCandles.length}`);
 
+      // Store candles in database cache (async, don't block)
+      this.storeCandlesInDatabase(pair, timeframe, recentCandles).catch(err => {
+        console.error("[MarketDataService] Failed to store candles in database:", err);
+      });
+
+      // Also update memory cache
       const cacheKey = `${pair}:${timeframe}:${limit}`;
       this.candleCache.set(cacheKey, {
         candles: recentCandles,
@@ -501,7 +550,6 @@ class MarketDataService {
       return { candles: recentCandles, mock: false };
     } catch (e) {
       console.error("[MarketDataService] Failed to fetch Polygon candles:", e);
-      // Check for real-time candles instead of mock
       const realtimeCacheKey = `${pair}:1m`;
       const realtimeCandles = this.candleCache.get(realtimeCacheKey);
       
@@ -512,6 +560,40 @@ class MarketDataService {
       
       return { candles: [], mock: false };
     }
+  }
+
+  private async storeCandlesInDatabase(pair: string, timeframe: string, candles: Candle[]): Promise<void> {
+    if (candles.length === 0) return;
+
+    // Delete old candles for this pair/timeframe and insert new ones
+    await db.delete(candleCache).where(
+      and(
+        eq(candleCache.pair, pair),
+        eq(candleCache.timeframe, timeframe)
+      )
+    );
+
+    // Insert new candles in batches
+    const now = new Date();
+    const candleRows = candles.map(c => ({
+      pair,
+      timeframe,
+      time: c.time,
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close,
+      volume: c.volume || null,
+      fetchedAt: now,
+    }));
+
+    // Insert in batches of 100
+    for (let i = 0; i < candleRows.length; i += 100) {
+      const batch = candleRows.slice(i, i + 100);
+      await db.insert(candleCache).values(batch);
+    }
+
+    console.log(`[MarketDataService] Stored ${candles.length} candles in database for ${pair}:${timeframe}`);
   }
 
   private aggregateCandles(candles: Candle[], targetSeconds: number): Candle[] {
