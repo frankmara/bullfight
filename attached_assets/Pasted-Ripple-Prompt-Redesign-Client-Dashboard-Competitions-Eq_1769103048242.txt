@@ -1,0 +1,233 @@
+Ripple Prompt — Redesign Client Dashboard (Competitions + Equity + Rank + Top-25 Drilldown)
+
+You are redesigning the Bullfight client dashboard UI/UX (React/Next + Tailwind assumed). Keep the existing dark theme + red accent branding and overall aesthetic, but significantly improve layout, hierarchy, and mobile responsiveness.
+
+Primary UX Goals
+
+Show the user their active competitions in a tabular/list row format that works great on desktop and mobile.
+
+Provide a quick equity curve chart so the user can instantly see performance trends.
+
+Show rank as a dropdown selector (rank across competitions OR per selected competition).
+
+Each competition row has a clear “Enter Arena” CTA on the right side (sticky on desktop; prominent on mobile).
+
+Clicking a competition row expands a dropdown panel showing:
+
+competition details
+
+Top 25 competitors table (rank, username, return %, equity, drawdown, win rate, trades count)
+
+user can click any competitor in Top 25 to open a Competitor Detail drawer/modal showing:
+
+competitor equity chart
+
+tabs: Trades / Deals / Orders / Summary
+
+each tab shows an appropriate table
+
+Information Architecture / Layout
+Desktop Layout (primary)
+
+Use a two-column layout:
+
+Left (main, ~65–70%): Active Competitions list/table
+
+Right (sidebar, ~30–35%): “Performance Snapshot” card stack
+
+Right Sidebar (“Performance Snapshot”)
+
+Include:
+
+Card 1: Equity Curve (your account)
+
+time range toggles: 1D / 1W / 1M / All
+
+small KPIs above chart: Balance, Equity, Return %, Drawdown %, Rank (dropdown)
+
+Card 2: Selected Competition Summary (when a competition is selected)
+
+Status badge (OPEN/RUNNING/LIVE)
+
+Your rank, return, equity
+
+“Enter Arena” CTA (also exists in row)
+
+Mobile Layout
+
+Collapse into single column:
+
+Performance Snapshot (equity chart + KPIs)
+
+Active Competitions list
+
+Expanded competition dropdown becomes an accordion.
+
+Competitor details open as a full-screen bottom sheet with tabs.
+
+Active Competitions List (Row + Expand)
+
+Replace the current stacked cards with a responsive table-like list:
+
+Each row shows:
+
+Left: Competition name + type icon + status badge
+
+Middle: Your rank (e.g. #2/254), return %, equity
+
+Right: Enter Arena button (primary)
+
+Row is clickable (except Enter Arena) to expand/collapse dropdown panel.
+
+Row interactions:
+
+Click row → expand dropdown
+
+Expanded dropdown includes:
+
+“Competition Overview” mini section (rules, start/end, prize, participants)
+
+Top 25 competitors table (see below)
+
+Rank Dropdown Behavior
+
+At top of page (or inside sidebar KPI header) add:
+
+“Rank View” dropdown:
+
+“Overall (All Competitions)”
+
+“Selected Competition”
+If selected competition view, show rank within that competition.
+If overall, show your global leaderboard rank (if exists) or “N/A”.
+
+Top 25 Competitors Table (Expanded Panel)
+
+In expanded dropdown:
+
+Table columns (desktop):
+
+Rank | Trader | Return % | Equity | Max DD % | Win Rate | Trades | Actions
+
+On mobile: show condensed rows:
+
+Rank + Trader on first line
+
+Return% + Equity on second line
+
+Chevron for details
+
+Actions:
+
+Clicking a competitor row opens a Competitor Detail drawer (desktop right-side drawer; mobile bottom sheet)
+
+Competitor Detail Drawer / Modal
+
+When a user clicks a Top 25 competitor:
+Show:
+
+Header: Trader name, rank, return, equity, badge
+
+Equity chart (same chart component)
+
+Tabs:
+
+Summary
+
+Trades
+
+Deals
+
+Orders
+
+Tables:
+
+Trades tab: symbol, side, lots, entry, exit, pnl, open time, close time
+
+Deals tab: deal id, symbol, execution price, volume, fee, timestamp
+
+Orders tab: order id, type, status, requested price, filled price, timestamp
+
+Include filter controls:
+
+Symbol filter
+
+Date range filter
+
+PnL sort (desc default)
+
+Visual Design Requirements
+
+Keep Bullfight style:
+
+dark background, subtle gradients, red accents, neon-like badges
+
+rounded cards, soft borders, subtle shadows
+
+Improve typography hierarchy:
+
+clear titles, muted secondary text, consistent spacing
+
+Use badges consistently for status:
+
+OPEN (green), RUNNING (red/orange), LIVE (green pulse)
+
+Make tables feel modern:
+
+sticky headers on desktop
+
+row hover states
+
+zebra/alternate row backgrounds subtle
+
+Ensure accessible contrast and touch targets.
+
+Components to Implement
+
+DashboardPage
+
+PerformanceSnapshot (equity chart + KPIs + rank dropdown)
+
+CompetitionList (table-like list)
+
+CompetitionRow (expandable)
+
+TopCompetitorsTable
+
+CompetitorDrawer (with tabs and chart)
+
+Reusable EquityChart component (sparkline in row optional, full chart in sidebar/drawer)
+
+Data Assumptions / Wiring (use placeholders if needed)
+
+Assume endpoints exist or mock:
+
+GET /api/me/competitions → active competitions + your stats per competition
+
+GET /api/me/equity?range=... → your equity timeseries
+
+GET /api/competitions/:id/top?limit=25 → top 25 leaderboard
+
+GET /api/competitions/:id/competitors/:userId/equity?range=...
+
+GET /api/competitions/:id/competitors/:userId/trades
+
+GET /api/competitions/:id/competitors/:userId/deals
+
+GET /api/competitions/:id/competitors/:userId/orders
+
+If APIs don’t exist, implement a clean mock data layer and structure the code to swap in real endpoints later.
+
+Output
+
+Deliver:
+
+Updated dashboard page UI matching this spec
+
+Fully responsive behavior (desktop + mobile)
+
+Competitor drilldown working with mocked or wired data
+
+Clean components, no placeholder “lorem ipsum”
+
+Keep everything consistent with current brand styling

@@ -468,6 +468,206 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // User equity history for dashboard chart
+  app.get("/api/user/equity", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const range = (req.query.range as string) || "1W";
+      const competitionId = req.query.competitionId as string | undefined;
+
+      // Get user's active competition entries
+      const comps = await storage.getUserCompetitions(userId);
+      const activeComps = comps.filter(
+        (c) => c.status === "open" || c.status === "running"
+      );
+
+      if (activeComps.length === 0) {
+        return res.json({ points: [], balance: 0, equity: 0, returnPct: 0 });
+      }
+
+      // If specific competition requested, filter to it
+      const targetComps = competitionId
+        ? activeComps.filter((c) => c.competitionId === competitionId)
+        : activeComps;
+
+      // Calculate aggregated metrics
+      let totalEquity = 0;
+      let totalStarting = 0;
+
+      for (const comp of targetComps) {
+        totalEquity += comp.equityCents;
+        totalStarting += comp.startingBalanceCents;
+      }
+
+      const returnPct = totalStarting > 0
+        ? ((totalEquity - totalStarting) / totalStarting) * 100
+        : 0;
+
+      // Generate simulated equity curve based on current data
+      // In a real implementation, this would come from historical snapshots
+      const now = Date.now();
+      const rangeMs = {
+        "1D": 24 * 60 * 60 * 1000,
+        "1W": 7 * 24 * 60 * 60 * 1000,
+        "1M": 30 * 24 * 60 * 60 * 1000,
+        "All": 90 * 24 * 60 * 60 * 1000,
+      }[range] || 7 * 24 * 60 * 60 * 1000;
+
+      const points: { time: number; value: number }[] = [];
+      const numPoints = range === "1D" ? 24 : range === "1W" ? 7 : 30;
+      const interval = rangeMs / numPoints;
+
+      for (let i = 0; i <= numPoints; i++) {
+        const time = now - rangeMs + i * interval;
+        // Interpolate from starting balance to current equity
+        const progress = i / numPoints;
+        const value = totalStarting + (totalEquity - totalStarting) * progress;
+        points.push({ time, value: Math.round(value) });
+      }
+
+      res.json({
+        points,
+        balance: totalEquity,
+        equity: totalEquity,
+        returnPct,
+        drawdownPct: 0, // Would need historical data to calculate
+      });
+    } catch (error: any) {
+      console.error("Get user equity error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Top 25 competitors for a competition
+  app.get("/api/competitions/:id/top", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const limit = parseInt(req.query.limit as string) || 25;
+
+      const comp = await storage.getCompetition(id);
+      if (!comp) {
+        return res.status(404).json({ error: "Competition not found" });
+      }
+
+      const leaderboard = await storage.getLeaderboard(id, comp.startingBalanceCents);
+      const topCompetitors = leaderboard.slice(0, limit).map((entry) => ({
+        rank: entry.rank,
+        oderId: entry.userId,
+        username: entry.email?.split("@")[0] || `Trader${entry.rank}`,
+        returnPct: entry.returnPct,
+        equityCents: entry.equityCents,
+        drawdownPct: 0, // Would need historical data
+        winRate: 0, // Would need trade data to calculate
+        tradesCount: 0,
+      }));
+
+      res.json(topCompetitors);
+    } catch (error: any) {
+      console.error("Get top competitors error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Competitor equity for drilldown
+  app.get(
+    "/api/competitions/:id/competitors/:userId/equity",
+    async (req: Request, res: Response) => {
+      try {
+        const { id, userId } = req.params;
+        const range = (req.query.range as string) || "1W";
+
+        const comp = await storage.getCompetition(id);
+        if (!comp) {
+          return res.status(404).json({ error: "Competition not found" });
+        }
+
+        const entry = await storage.getCompetitionEntry(id, userId);
+        if (!entry) {
+          return res.status(404).json({ error: "Competitor not found" });
+        }
+
+        // Generate equity curve (would be from historical snapshots in production)
+        const now = Date.now();
+        const rangeMs = {
+          "1D": 24 * 60 * 60 * 1000,
+          "1W": 7 * 24 * 60 * 60 * 1000,
+          "1M": 30 * 24 * 60 * 60 * 1000,
+          "All": 90 * 24 * 60 * 60 * 1000,
+        }[range] || 7 * 24 * 60 * 60 * 1000;
+
+        const points: { time: number; value: number }[] = [];
+        const numPoints = range === "1D" ? 24 : range === "1W" ? 7 : 30;
+        const interval = rangeMs / numPoints;
+
+        for (let i = 0; i <= numPoints; i++) {
+          const time = now - rangeMs + i * interval;
+          const progress = i / numPoints;
+          const value =
+            comp.startingBalanceCents +
+            (entry.equityCents - comp.startingBalanceCents) * progress;
+          points.push({ time, value: Math.round(value) });
+        }
+
+        res.json({ points });
+      } catch (error: any) {
+        console.error("Get competitor equity error:", error);
+        res.status(500).json({ error: error.message });
+      }
+    }
+  );
+
+  // Competitor trades
+  app.get(
+    "/api/competitions/:id/competitors/:userId/trades",
+    async (req: Request, res: Response) => {
+      try {
+        const { id, oderId } = req.params;
+
+        const trades = await getTrades(id, oderId);
+        res.json(trades);
+      } catch (error: any) {
+        console.error("Get competitor trades error:", error);
+        res.status(500).json({ error: error.message });
+      }
+    }
+  );
+
+  // Competitor deals
+  app.get(
+    "/api/competitions/:id/competitors/:userId/deals",
+    async (req: Request, res: Response) => {
+      try {
+        const { id, oderId } = req.params;
+
+        const deals = await getDeals(id, oderId, 100);
+        res.json(deals);
+      } catch (error: any) {
+        console.error("Get competitor deals error:", error);
+        res.status(500).json({ error: error.message });
+      }
+    }
+  );
+
+  // Competitor orders
+  app.get(
+    "/api/competitions/:id/competitors/:userId/orders",
+    async (req: Request, res: Response) => {
+      try {
+        const { id, oderId } = req.params;
+
+        const orders = await storage.getAllOrders(id, oderId);
+        res.json(orders);
+      } catch (error: any) {
+        console.error("Get competitor orders error:", error);
+        res.status(500).json({ error: error.message });
+      }
+    }
+  );
+
   app.get("/api/arena/:id", async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
