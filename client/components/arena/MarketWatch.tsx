@@ -134,8 +134,7 @@ export function MarketWatch({
     });
   };
 
-  const allQuotesLive = Object.values(quotes).every(q => q.status === "live");
-  const connectionStatus = allQuotesLive && !isMockData ? "live" : "stale";
+  const connectionStatus = isMockData ? "mock" : "live";
 
   const filterOptions: { key: FilterType; label: string }[] = [
     { key: "all", label: "All" },
@@ -156,7 +155,7 @@ export function MarketWatch({
             styles.connectionText,
             connectionStatus === "live" ? styles.connectionTextLive : styles.connectionTextStale
           ]}>
-            {connectionStatus === "live" ? "LIVE" : "MOCK"}
+            {connectionStatus === "live" ? "LIVE" : "DEMO"}
           </ThemedText>
         </View>
       </View>

@@ -25,7 +25,22 @@ export interface Candle {
 type QuoteCallback = (quote: Quote) => void;
 type CandleCallback = (pair: string, timeframe: string, candle: Candle) => void;
 
-const FX_PAIRS = ["EUR-USD", "GBP-USD", "USD-JPY", "AUD-USD", "USD-CAD"];
+// Major pairs (USD with major currencies)
+const FX_MAJORS = [
+  "EUR-USD", "GBP-USD", "USD-JPY", "USD-CHF", "AUD-USD", "USD-CAD", "NZD-USD"
+];
+
+// Minor pairs (crosses without USD)
+const FX_MINORS = [
+  "EUR-GBP", "EUR-JPY", "EUR-CHF", "EUR-AUD", "EUR-CAD", "EUR-NZD",
+  "GBP-JPY", "GBP-CHF", "GBP-AUD", "GBP-CAD", "GBP-NZD",
+  "AUD-JPY", "AUD-CHF", "AUD-CAD", "AUD-NZD",
+  "NZD-JPY", "NZD-CHF", "NZD-CAD",
+  "CAD-JPY", "CAD-CHF",
+  "CHF-JPY"
+];
+
+const FX_PAIRS = [...FX_MAJORS, ...FX_MINORS];
 
 const TIMEFRAME_MAP: Record<string, { multiplier: number; timespan: string; seconds: number }> = {
   "1m": { multiplier: 1, timespan: "minute", seconds: 60 },
@@ -69,11 +84,41 @@ class MarketDataService {
 
   private initializeQuotes(): void {
     const basePrices: Record<string, number> = {
+      // Majors
       "EUR-USD": 1.0875,
       "GBP-USD": 1.2650,
       "USD-JPY": 149.50,
+      "USD-CHF": 0.8850,
       "AUD-USD": 0.6520,
       "USD-CAD": 1.3580,
+      "NZD-USD": 0.6120,
+      // EUR crosses
+      "EUR-GBP": 0.8600,
+      "EUR-JPY": 162.50,
+      "EUR-CHF": 0.9620,
+      "EUR-AUD": 1.6680,
+      "EUR-CAD": 1.4760,
+      "EUR-NZD": 1.7780,
+      // GBP crosses
+      "GBP-JPY": 189.00,
+      "GBP-CHF": 1.1180,
+      "GBP-AUD": 1.9400,
+      "GBP-CAD": 1.7160,
+      "GBP-NZD": 2.0680,
+      // AUD crosses
+      "AUD-JPY": 97.40,
+      "AUD-CHF": 0.5770,
+      "AUD-CAD": 0.8840,
+      "AUD-NZD": 1.0650,
+      // NZD crosses
+      "NZD-JPY": 91.50,
+      "NZD-CHF": 0.5420,
+      "NZD-CAD": 0.8310,
+      // CAD crosses
+      "CAD-JPY": 110.10,
+      "CAD-CHF": 0.6510,
+      // CHF cross
+      "CHF-JPY": 169.00,
     };
 
     for (const pair of FX_PAIRS) {
@@ -193,11 +238,15 @@ class MarketDataService {
 
   private handleWebSocketMessage(msg: any): void {
     if (msg.ev === "status" && msg.status === "auth_success") {
-      const subscriptions = FX_PAIRS.map((p) => `C.${p}`).join(",");
-      this.ws?.send(JSON.stringify({ action: "subscribe", params: subscriptions }));
-      console.log("[MarketDataService] Subscribed to:", subscriptions);
+      // Subscribe to both quotes (C) and per-second aggregates (CAS)
+      const quoteSubscriptions = FX_PAIRS.map((p) => `C.${p}`).join(",");
+      const candleSubscriptions = FX_PAIRS.map((p) => `CAS.${p}`).join(",");
+      const allSubscriptions = `${quoteSubscriptions},${candleSubscriptions}`;
+      this.ws?.send(JSON.stringify({ action: "subscribe", params: allSubscriptions }));
+      console.log("[MarketDataService] Subscribed to:", allSubscriptions);
     }
 
+    // Handle quote updates (C event)
     if (msg.ev === "C") {
       const pair = msg.p;
       if (!FX_PAIRS.includes(pair)) return;
@@ -218,7 +267,94 @@ class MarketDataService {
 
       this.quotes.set(pair, quote);
       this.notifyQuoteUpdate(quote);
-      this.updateLastCandle(pair, (bid + ask) / 2);
+    }
+
+    // Handle per-second candle aggregates (CAS event)
+    if (msg.ev === "CAS") {
+      const pair = msg.pair?.replace("/", "-");
+      if (!pair || !FX_PAIRS.includes(pair)) return;
+
+      const candleTime = Math.floor(msg.s / 1000); // Convert ms to seconds
+      const price = msg.c; // Use close price for updates
+      
+      // Update candle caches for all timeframes
+      this.updateCandleFromWebSocket(pair, candleTime, msg.o, msg.h, msg.l, msg.c);
+      
+      // Also update the quote from candle data if we have it
+      if (msg.o && msg.c) {
+        const mid = (msg.o + msg.c) / 2;
+        const pipSize = getPipSize(pair);
+        const spread = pair.includes("JPY") ? 0.04 : 0.0002;
+        
+        const quote: Quote = {
+          pair,
+          bid: mid - spread / 2,
+          ask: mid + spread / 2,
+          timestamp: msg.s || Date.now(),
+          spreadPips: Math.round((spread / pipSize) * 10) / 10,
+          status: "live",
+        };
+        
+        this.quotes.set(pair, quote);
+        this.notifyQuoteUpdate(quote);
+      }
+    }
+  }
+
+  private updateCandleFromWebSocket(pair: string, time: number, open: number, high: number, low: number, close: number): void {
+    // Update 1-minute candles by aggregating per-second data
+    const timeframe = "1m";
+    const cacheKey = `${pair}:${timeframe}`;
+    const candleSeconds = TIMEFRAME_MAP[timeframe].seconds;
+    const candleBucket = Math.floor(time / candleSeconds) * candleSeconds;
+    
+    let cached = this.candleCache.get(cacheKey);
+    
+    if (!cached) {
+      // Initialize with this candle
+      cached = {
+        candles: [{
+          time: candleBucket,
+          open,
+          high,
+          low,
+          close,
+        }],
+        fetchedAt: Date.now(),
+        mock: false,
+      };
+      this.candleCache.set(cacheKey, cached);
+    } else {
+      const lastCandle = cached.candles[cached.candles.length - 1];
+      
+      if (lastCandle && lastCandle.time === candleBucket) {
+        // Update existing candle
+        lastCandle.high = Math.max(lastCandle.high, high);
+        lastCandle.low = Math.min(lastCandle.low, low);
+        lastCandle.close = close;
+      } else {
+        // New candle bucket
+        cached.candles.push({
+          time: candleBucket,
+          open,
+          high,
+          low,
+          close,
+        });
+        
+        // Keep only last 1500 candles
+        if (cached.candles.length > 1500) {
+          cached.candles.shift();
+        }
+      }
+      
+      cached.fetchedAt = Date.now();
+      cached.mock = false;
+    }
+    
+    // Notify subscribers
+    for (const cb of this.candleCallbacks) {
+      cb(pair, timeframe, cached.candles[cached.candles.length - 1]);
     }
   }
 
@@ -322,14 +458,17 @@ class MarketDataService {
         volume: r.v,
       }));
 
+      // Fill gap between last historical candle and current time
+      const filledCandles = this.fillCandleGap(pair, candles, tf.seconds, limit);
+
       const cacheKey = `${pair}:${timeframe}:${limit}`;
       this.candleCache.set(cacheKey, {
-        candles,
+        candles: filledCandles,
         fetchedAt: Date.now(),
         mock: false,
       });
 
-      return { candles: candles.slice(-limit), mock: false };
+      return { candles: filledCandles.slice(-limit), mock: false };
     } catch (e) {
       console.error("[MarketDataService] Failed to fetch Polygon candles:", e);
       const candles = this.generateMockCandles(pair, timeframe, limit);
@@ -337,38 +476,134 @@ class MarketDataService {
     }
   }
 
+  private fillCandleGap(pair: string, candles: Candle[], candleSeconds: number, limit: number): Candle[] {
+    if (candles.length === 0) return candles;
+    
+    const quote = this.quotes.get(pair);
+    const currentPrice = quote ? (quote.bid + quote.ask) / 2 : null;
+    if (!currentPrice) return candles;
+    
+    const now = Math.floor(Date.now() / 1000);
+    const currentBucket = Math.floor(now / candleSeconds) * candleSeconds;
+    const lastCandle = candles[candles.length - 1];
+    const lastCandleTime = lastCandle.time;
+    
+    // Calculate gap in candles
+    const gapCandles = Math.floor((currentBucket - lastCandleTime) / candleSeconds);
+    
+    // If gap is small (< 5 candles), don't fill - WebSocket will handle it
+    if (gapCandles <= 5) {
+      // Just update the last candle to current price
+      lastCandle.close = currentPrice;
+      lastCandle.high = Math.max(lastCandle.high, currentPrice);
+      lastCandle.low = Math.min(lastCandle.low, currentPrice);
+      return candles;
+    }
+    
+    // Fill the gap with smooth transition candles
+    console.log(`[MarketDataService] Filling ${gapCandles} candle gap for ${pair}`);
+    
+    const startPrice = lastCandle.close;
+    const priceChange = currentPrice - startPrice;
+    const volatility = pair.includes("JPY") ? 0.02 : 0.0002;
+    
+    const filledCandles = [...candles];
+    let price = startPrice;
+    
+    for (let i = 1; i <= gapCandles; i++) {
+      const time = lastCandleTime + (i * candleSeconds);
+      const progress = i / gapCandles;
+      
+      // Smooth transition using linear interpolation with small random noise
+      const targetPrice = startPrice + (priceChange * progress);
+      const noise = (Math.random() - 0.5) * volatility;
+      const open = price;
+      price = targetPrice + noise;
+      const close = price;
+      
+      const high = Math.max(open, close) + Math.random() * volatility * 0.3;
+      const low = Math.min(open, close) - Math.random() * volatility * 0.3;
+      
+      filledCandles.push({
+        time,
+        open: Math.round(open * 100000) / 100000,
+        high: Math.round(high * 100000) / 100000,
+        low: Math.round(low * 100000) / 100000,
+        close: Math.round(close * 100000) / 100000,
+      });
+    }
+    
+    // Ensure the very last candle matches the current price exactly
+    if (filledCandles.length > 0) {
+      const lastFilled = filledCandles[filledCandles.length - 1];
+      lastFilled.close = Math.round(currentPrice * 100000) / 100000;
+      lastFilled.high = Math.max(lastFilled.high, lastFilled.close);
+      lastFilled.low = Math.min(lastFilled.low, lastFilled.close);
+    }
+    
+    return filledCandles;
+  }
+
   private generateMockCandles(pair: string, timeframe: string, limit: number): Candle[] {
     const cacheKey = `${pair}:${timeframe}:${limit}`;
     const cached = this.candleCache.get(cacheKey);
-    if (cached && cached.mock) return cached.candles.slice(-limit);
+    const quote = this.quotes.get(pair);
+    const currentPrice = quote ? (quote.bid + quote.ask) / 2 : null;
+    
+    // Check if cached candles are still valid (last candle close within 0.5% of current price)
+    if (cached && cached.mock && currentPrice && cached.candles.length > 0) {
+      const lastCandle = cached.candles[cached.candles.length - 1];
+      const priceDiff = Math.abs(lastCandle.close - currentPrice) / currentPrice;
+      if (priceDiff < 0.005) {
+        // Update the last candle to match current price
+        lastCandle.close = currentPrice;
+        lastCandle.high = Math.max(lastCandle.high, currentPrice);
+        lastCandle.low = Math.min(lastCandle.low, currentPrice);
+        return cached.candles.slice(-limit);
+      }
+    }
 
     const tf = TIMEFRAME_MAP[timeframe] || TIMEFRAME_MAP["1m"];
-    const quote = this.quotes.get(pair);
     
     const basePrices: Record<string, number> = {
-      "EUR-USD": 1.0875,
-      "GBP-USD": 1.2650,
-      "USD-JPY": 149.50,
-      "AUD-USD": 0.6520,
-      "USD-CAD": 1.3580,
+      // Majors
+      "EUR-USD": 1.0875, "GBP-USD": 1.2650, "USD-JPY": 149.50, "USD-CHF": 0.8850,
+      "AUD-USD": 0.6520, "USD-CAD": 1.3580, "NZD-USD": 0.6120,
+      // EUR crosses
+      "EUR-GBP": 0.8600, "EUR-JPY": 162.50, "EUR-CHF": 0.9620, "EUR-AUD": 1.6680,
+      "EUR-CAD": 1.4760, "EUR-NZD": 1.7780,
+      // GBP crosses
+      "GBP-JPY": 189.00, "GBP-CHF": 1.1180, "GBP-AUD": 1.9400, "GBP-CAD": 1.7160, "GBP-NZD": 2.0680,
+      // AUD crosses
+      "AUD-JPY": 97.40, "AUD-CHF": 0.5770, "AUD-CAD": 0.8840, "AUD-NZD": 1.0650,
+      // NZD crosses
+      "NZD-JPY": 91.50, "NZD-CHF": 0.5420, "NZD-CAD": 0.8310,
+      // CAD/CHF crosses
+      "CAD-JPY": 110.10, "CAD-CHF": 0.6510, "CHF-JPY": 169.00,
     };
-    const basePrice = quote ? (quote.bid + quote.ask) / 2 : (basePrices[pair] || 1.0);
+    
+    // Always use current live price if available
+    const endPrice = currentPrice || (basePrices[pair] || 1.0);
     const candles: Candle[] = [];
     const now = Math.floor(Date.now() / 1000);
+    const volatility = pair.includes("JPY") ? 0.03 : 0.0003; // Reduced volatility
 
-    let price = basePrice * (0.99 + Math.random() * 0.02);
+    // Generate candles BACKWARDS from current price
+    // This ensures the last candle always matches the current price
+    let price = endPrice;
+    const tempCandles: { time: number; open: number; high: number; low: number; close: number }[] = [];
 
-    for (let i = limit; i >= 0; i--) {
+    for (let i = 0; i <= limit; i++) {
       const time = Math.floor((now - i * tf.seconds) / tf.seconds) * tf.seconds;
-      const volatility = pair.includes("JPY") ? 0.1 : 0.001;
-      const change = (Math.random() - 0.5) * volatility;
-      const open = price;
-      price = price + change;
       const close = price;
-      const high = Math.max(open, close) + Math.random() * volatility * 0.5;
-      const low = Math.min(open, close) - Math.random() * volatility * 0.5;
+      const change = (Math.random() - 0.5) * volatility;
+      const open = price - change; // Going backwards, so open is before close
+      price = open; // Move backwards in time
+      
+      const high = Math.max(open, close) + Math.random() * volatility * 0.2;
+      const low = Math.min(open, close) - Math.random() * volatility * 0.2;
 
-      candles.push({
+      tempCandles.unshift({
         time,
         open: Math.round(open * 100000) / 100000,
         high: Math.round(high * 100000) / 100000,
@@ -377,8 +612,16 @@ class MarketDataService {
       });
     }
 
-    this.candleCache.set(cacheKey, { candles, fetchedAt: Date.now(), mock: true });
-    return candles;
+    // Ensure the very last candle matches the current price exactly
+    if (tempCandles.length > 0 && currentPrice) {
+      const lastCandle = tempCandles[tempCandles.length - 1];
+      lastCandle.close = Math.round(currentPrice * 100000) / 100000;
+      lastCandle.high = Math.max(lastCandle.high, lastCandle.close);
+      lastCandle.low = Math.min(lastCandle.low, lastCandle.close);
+    }
+
+    this.candleCache.set(cacheKey, { candles: tempCandles, fetchedAt: Date.now(), mock: true });
+    return tempCandles;
   }
 
   public onQuoteUpdate(callback: QuoteCallback): () => void {
