@@ -56,6 +56,10 @@ interface BlotterProps {
   formatPrice: (price: number, pair: string) => string;
   formatCurrency: (cents: number) => string;
   unitsToLots: (units: number) => number;
+  balance?: number;
+  equity?: number;
+  pnl?: number;
+  onCloseAll?: () => void;
 }
 
 type BlotterTab = "positions" | "pending" | "closed" | "trades" | "deals" | "orders";
@@ -398,15 +402,24 @@ export function Blotter({
   formatPrice,
   formatCurrency,
   unitsToLots,
+  balance = 0,
+  equity = 0,
+  pnl = 0,
+  onCloseAll,
 }: BlotterProps) {
   const [activeTab, setActiveTab] = useState<BlotterTab>("positions");
   const [partialCloseModal, setPartialCloseModal] = useState<Position | null>(null);
   const [editSLTPModal, setEditSLTPModal] = useState<Position | null>(null);
   const [editOrderModal, setEditOrderModal] = useState<PendingOrder | null>(null);
+  const [hoveredRow, setHoveredRow] = useState<string | null>(null);
+
+  const totalPositions = positions.length;
+  const totalPending = pendingOrders.length;
+  const totalClosed = closedTrades.length;
   
   const renderEmptyState = (message: string) => (
     <View style={styles.emptyState}>
-      <Feather name="inbox" size={24} color={TerminalColors.textMuted} />
+      <Feather name="inbox" size={20} color={TerminalColors.textMuted} />
       <ThemedText style={styles.emptyStateText}>{message}</ThemedText>
     </View>
   );
@@ -632,43 +645,84 @@ export function Blotter({
     }
   };
 
+  const formatAmount = (cents: number) => {
+    const amount = cents / 100;
+    return amount >= 0 
+      ? `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : `-$${Math.abs(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
   return (
     <View style={styles.container}>
-      <View style={styles.tabBar}>
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabList}
-        >
-          {TABS.map((tab) => {
-            const count = tab.key === "positions" 
-              ? positions.length 
-              : tab.key === "pending" 
-                ? pendingOrders.length 
-                : tab.key === "closed" 
-                  ? closedTrades.length 
-                  : 0;
-                  
-            return (
-              <Pressable
-                key={tab.key}
-                style={[styles.tab, activeTab === tab.key && styles.tabActive]}
-                onPress={() => setActiveTab(tab.key)}
-              >
-                <ThemedText style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
-                  {tab.label}
-                </ThemedText>
-                {count > 0 ? (
-                  <View style={[styles.tabBadge, activeTab === tab.key && styles.tabBadgeActive]}>
-                    <ThemedText style={[styles.tabBadgeText, activeTab === tab.key && styles.tabBadgeTextActive]}>
-                      {count}
-                    </ThemedText>
-                  </View>
-                ) : null}
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+      <View style={styles.blotterHeader}>
+        <View style={styles.tabBar}>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tabList}
+          >
+            {TABS.map((tab) => {
+              const count = tab.key === "positions" 
+                ? totalPositions 
+                : tab.key === "pending" 
+                  ? totalPending 
+                  : tab.key === "closed" 
+                    ? totalClosed 
+                    : 0;
+                    
+              return (
+                <Pressable
+                  key={tab.key}
+                  style={[styles.tab, activeTab === tab.key && styles.tabActive]}
+                  onPress={() => setActiveTab(tab.key)}
+                >
+                  <ThemedText style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
+                    {tab.label}
+                  </ThemedText>
+                  {count > 0 ? (
+                    <View style={[styles.tabBadge, activeTab === tab.key && styles.tabBadgeActive]}>
+                      <ThemedText style={[styles.tabBadgeText, activeTab === tab.key && styles.tabBadgeTextActive]}>
+                        {count}
+                      </ThemedText>
+                    </View>
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+        
+        <View style={styles.metricsRow}>
+          <View style={styles.metricItem}>
+            <ThemedText style={styles.metricLabel}>BALANCE</ThemedText>
+            <ThemedText style={styles.metricValue}>{formatAmount(balance)}</ThemedText>
+          </View>
+          <View style={styles.metricDivider} />
+          <View style={styles.metricItem}>
+            <ThemedText style={styles.metricLabel}>P&L</ThemedText>
+            <ThemedText style={[styles.metricValue, pnl >= 0 ? styles.metricPositive : styles.metricNegative]}>
+              {pnl >= 0 ? "+" : ""}{formatAmount(pnl)}
+            </ThemedText>
+          </View>
+          <View style={styles.metricDivider} />
+          <View style={styles.metricItem}>
+            <ThemedText style={styles.metricLabel}>EQUITY</ThemedText>
+            <ThemedText style={styles.metricValue}>{formatAmount(equity)}</ThemedText>
+          </View>
+          
+          <View style={styles.headerActions}>
+            <Pressable 
+              style={[styles.closeAllBtn, totalPositions === 0 && styles.closeAllBtnDisabled]}
+              onPress={onCloseAll}
+              disabled={totalPositions === 0}
+            >
+              <Feather name="x-circle" size={12} color={totalPositions > 0 ? TerminalColors.negative : TerminalColors.textMuted} />
+              <ThemedText style={[styles.closeAllText, totalPositions === 0 && styles.closeAllTextDisabled]}>
+                Close All
+              </ThemedText>
+            </Pressable>
+          </View>
+        </View>
       </View>
       {renderTabContent()}
       
@@ -852,21 +906,25 @@ const styles = StyleSheet.create({
     backgroundColor: TerminalColors.bgPanel,
   },
   
-  tabBar: {
+  blotterHeader: {
     borderBottomWidth: 1,
     borderBottomColor: TerminalColors.border,
   },
   
+  tabBar: {
+    flexDirection: "row",
+  },
+  
   tabList: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
   },
   
   tab: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     borderBottomWidth: 2,
     borderBottomColor: "transparent",
   },
@@ -876,7 +934,7 @@ const styles = StyleSheet.create({
   },
   
   tabText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "600",
     color: TerminalColors.textMuted,
   },
@@ -890,6 +948,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     paddingVertical: 1,
     borderRadius: 8,
+    minWidth: 16,
+    alignItems: "center",
   },
   
   tabBadgeActive: {
@@ -897,13 +957,89 @@ const styles = StyleSheet.create({
   },
   
   tabBadgeText: {
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: "700",
     color: TerminalColors.textMuted,
   },
   
   tabBadgeTextActive: {
     color: TerminalColors.textPrimary,
+  },
+  
+  metricsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: TerminalColors.bgBase,
+    borderTopWidth: 1,
+    borderTopColor: TerminalColors.border,
+  },
+  
+  metricItem: {
+    paddingHorizontal: 12,
+  },
+  
+  metricLabel: {
+    fontSize: 8,
+    fontWeight: "600",
+    color: TerminalColors.textMuted,
+    letterSpacing: 0.5,
+    marginBottom: 1,
+  },
+  
+  metricValue: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: TerminalColors.textPrimary,
+    fontVariant: ["tabular-nums"],
+  },
+  
+  metricPositive: {
+    color: TerminalColors.positive,
+  },
+  
+  metricNegative: {
+    color: TerminalColors.negative,
+  },
+  
+  metricDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: TerminalColors.border,
+  },
+  
+  headerActions: {
+    marginLeft: "auto",
+    flexDirection: "row",
+    gap: 8,
+  },
+  
+  closeAllBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: "rgba(209, 75, 58, 0.1)",
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: TerminalColors.negative,
+  },
+  
+  closeAllBtnDisabled: {
+    backgroundColor: TerminalColors.bgElevated,
+    borderColor: TerminalColors.border,
+  },
+  
+  closeAllText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: TerminalColors.negative,
+  },
+  
+  closeAllTextDisabled: {
+    color: TerminalColors.textMuted,
   },
   
   tableContainer: {
@@ -913,19 +1049,20 @@ const styles = StyleSheet.create({
   tableHeader: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     backgroundColor: TerminalColors.bgBase,
     borderBottomWidth: 1,
     borderBottomColor: TerminalColors.border,
-    gap: 8,
+    gap: 6,
   },
   
   headerCell: {
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: "600",
     color: TerminalColors.textMuted,
-    letterSpacing: 0.3,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
   },
   
   tableBody: {
@@ -935,21 +1072,27 @@ const styles = StyleSheet.create({
   tableRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderBottomWidth: 1,
     borderBottomColor: TerminalColors.border,
-    gap: 8,
+    gap: 6,
+  },
+  
+  tableRowHovered: {
+    backgroundColor: "rgba(255,255,255,0.03)",
   },
   
   cellText: {
-    fontSize: 11,
+    fontSize: 10,
     color: TerminalColors.textPrimary,
   },
   
   cellTextMono: {
     ...TerminalTypography.tableCell,
+    fontSize: 10,
     color: TerminalColors.textSecondary,
+    fontVariant: ["tabular-nums"],
   },
   
   sideBadge: {

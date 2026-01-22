@@ -1120,6 +1120,12 @@ export default function ArenaScreen() {
               formatPrice={formatPrice}
               formatCurrency={formatCurrency}
               unitsToLots={unitsToLots}
+              balance={competition.startingBalanceCents}
+              equity={entry.equityCents}
+              pnl={unrealizedPnl}
+              onCloseAll={() => {
+                positions.forEach(pos => closePositionMutation.mutate(pos.id));
+              }}
             />
           }
           overlays={
