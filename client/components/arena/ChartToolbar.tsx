@@ -87,67 +87,56 @@ export function ChartToolbar({
     setShowTimeframeMenu(false);
   };
 
-  const renderTimeframeMenu = () => {
-    if (!showTimeframeMenu || Platform.OS !== 'web') return null;
-    
-    return React.createElement('div', {
-      style: {
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 9999,
-      },
-      onClick: () => setShowTimeframeMenu(false),
-    }, 
-      React.createElement('div', {
+  const renderTimeframeSelector = () => {
+    if (Platform.OS === 'web') {
+      return React.createElement('select', {
+        value: timeframe,
+        onChange: (e: any) => onTimeframeChange(e.target.value),
         style: {
-          position: 'absolute',
-          top: 140,
-          left: 60,
-          backgroundColor: TerminalColors.bgPanel,
-          borderRadius: 4,
+          backgroundColor: TerminalColors.bgElevated,
+          color: TerminalColors.textPrimary,
           border: `1px solid ${TerminalColors.border}`,
-          minWidth: 80,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+          borderRadius: 4,
+          padding: '6px 10px',
+          fontSize: 12,
+          fontWeight: 600,
+          cursor: 'pointer',
+          outline: 'none',
+          appearance: 'none',
+          WebkitAppearance: 'none',
+          paddingRight: 24,
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+          backgroundRepeat: 'no-repeat',
+          backgroundPosition: 'right 6px center',
         },
-        onClick: (e: any) => e.stopPropagation(),
-      },
-        TIMEFRAMES.map((tf) => 
-          React.createElement('div', {
-            key: tf.value,
-            style: {
-              padding: '8px 12px',
-              cursor: 'pointer',
-              backgroundColor: timeframe === tf.value ? TerminalColors.bgElevated : 'transparent',
-              color: timeframe === tf.value ? TerminalColors.accent : TerminalColors.textSecondary,
-              fontSize: 12,
-              fontWeight: timeframe === tf.value ? 600 : 400,
-            },
-            onClick: () => handleTimeframeSelect(tf.value),
-            onMouseEnter: (e: any) => { e.currentTarget.style.backgroundColor = TerminalColors.bgElevated; },
-            onMouseLeave: (e: any) => { 
-              e.currentTarget.style.backgroundColor = timeframe === tf.value ? TerminalColors.bgElevated : 'transparent';
-            },
-          }, tf.label)
-        )
-      )
+      }, TIMEFRAMES.map((tf) => 
+        React.createElement('option', {
+          key: tf.value,
+          value: tf.value,
+          style: {
+            backgroundColor: TerminalColors.bgPanel,
+            color: TerminalColors.textPrimary,
+          },
+        }, tf.label)
+      ));
+    }
+    
+    return (
+      <Pressable 
+        style={styles.timeframeBtn}
+        onPress={() => setShowTimeframeMenu(!showTimeframeMenu)}
+      >
+        <ThemedText style={styles.timeframeBtnText}>{currentTfLabel}</ThemedText>
+        <Feather name="chevron-down" size={12} color={TerminalColors.textMuted} />
+      </Pressable>
     );
   };
 
   return (
     <View style={styles.container}>
-      {Platform.OS === 'web' && renderTimeframeMenu()}
       <View style={styles.leftSection}>
         <View style={styles.timeframeDropdown}>
-          <Pressable 
-            style={styles.timeframeBtn}
-            onPress={() => setShowTimeframeMenu(!showTimeframeMenu)}
-          >
-            <ThemedText style={styles.timeframeBtnText}>{currentTfLabel}</ThemedText>
-            <Feather name="chevron-down" size={12} color={TerminalColors.textMuted} />
-          </Pressable>
+          {renderTimeframeSelector()}
         </View>
 
         <View style={styles.separator} />
