@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { View, StyleSheet, Pressable, TextInput, Platform, Modal } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
@@ -22,6 +22,7 @@ interface OrderTicketProps {
   oneClickTrading: boolean;
   isTradeDisabled: boolean;
   isPending: boolean;
+  competitionStatus?: string;
   onOrderSideChange: (side: "buy" | "sell") => void;
   onOrderTypeChange: (type: "market" | "limit" | "stop") => void;
   onLotSizeChange: (size: string) => void;
@@ -32,15 +33,29 @@ interface OrderTicketProps {
   onOneClickTradingChange: (enabled: boolean) => void;
   onPlaceOrder: () => void;
   formatPrice: (price: number) => string;
+  onPairChange?: (pair: string) => void;
+  availablePairs?: string[];
 }
 
 const UNITS_PER_LOT = 100000;
+const MIN_LOTS = 0.01;
+const MAX_LOTS = 100.0;
+const LOT_STEP = 0.01;
+
+const QUICK_LOTS = [0.01, 0.05, 0.10, 0.50, 1.00];
 
 function formatUnits(lots: number): string {
   const units = lots * UNITS_PER_LOT;
   if (units >= 1000000) return `${(units / 1000000).toFixed(1)}M`;
   if (units >= 1000) return `${(units / 1000).toFixed(0)}K`;
   return units.toFixed(0);
+}
+
+function calculateSpread(bid: number, ask: number, pair: string): string {
+  const isJpy = pair.includes("JPY");
+  const pipMultiplier = isJpy ? 100 : 10000;
+  const spread = (ask - bid) * pipMultiplier;
+  return spread.toFixed(1);
 }
 
 export function OrderTicket({
@@ -56,6 +71,7 @@ export function OrderTicket({
   oneClickTrading,
   isTradeDisabled,
   isPending,
+  competitionStatus,
   onOrderSideChange,
   onOrderTypeChange,
   onLotSizeChange,
@@ -66,94 +82,230 @@ export function OrderTicket({
   onOneClickTradingChange,
   onPlaceOrder,
   formatPrice,
+  onPairChange,
+  availablePairs,
 }: OrderTicketProps) {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingSide, setPendingSide] = useState<"buy" | "sell">("buy");
+  const [slEnabled, setSlEnabled] = useState(false);
+  const [tpEnabled, setTpEnabled] = useState(false);
+  const [tsEnabled, setTsEnabled] = useState(false);
+  const [showPairDropdown, setShowPairDropdown] = useState(false);
 
   const lots = parseFloat(lotSize) || 0.01;
+  const units = lots * UNITS_PER_LOT;
 
-  const handleTrade = (side: "buy" | "sell") => {
+  const isQuoteStale = !currentQuote;
+  const canTrade = !isTradeDisabled && !isPending && !isQuoteStale && competitionStatus === "running";
+  const disabledReason = isQuoteStale 
+    ? "Quote stale" 
+    : competitionStatus !== "running" 
+      ? "Competition not running" 
+      : "";
+
+  const handleTrade = useCallback((side: "buy" | "sell") => {
+    if (!canTrade) return;
+    
     onOrderSideChange(side);
-    if (oneClickTrading && !isTradeDisabled) {
+    if (oneClickTrading) {
       onPlaceOrder();
-    } else if (!isTradeDisabled) {
+    } else {
       setPendingSide(side);
       setShowConfirmModal(true);
     }
-  };
+  }, [canTrade, oneClickTrading, onOrderSideChange, onPlaceOrder]);
 
-  const confirmOrder = () => {
+  const confirmOrder = useCallback(() => {
     setShowConfirmModal(false);
     onPlaceOrder();
-  };
+  }, [onPlaceOrder]);
 
-  const adjustLotSize = (delta: number) => {
-    const current = parseFloat(lotSize) || 0.01;
-    const step = delta > 0 ? 0.01 : -0.01;
-    const newValue = Math.max(0.01, Math.round((current + step) * 100) / 100);
+  const adjustLotSize = useCallback((delta: number) => {
+    const current = parseFloat(lotSize) || MIN_LOTS;
+    const newValue = Math.min(MAX_LOTS, Math.max(MIN_LOTS, Math.round((current + delta * LOT_STEP) * 100) / 100));
     onLotSizeChange(newValue.toFixed(2));
-  };
+  }, [lotSize, onLotSizeChange]);
+
+  const setQuickLot = useCallback((value: number) => {
+    onLotSizeChange(value.toFixed(2));
+  }, [onLotSizeChange]);
+
+  const handleLotInputChange = useCallback((text: string) => {
+    const cleaned = text.replace(/[^0-9.]/g, '');
+    const parts = cleaned.split('.');
+    if (parts.length > 2) return;
+    if (parts[1] && parts[1].length > 2) return;
+    onLotSizeChange(cleaned);
+  }, [onLotSizeChange]);
+
+  const handleLotInputBlur = useCallback(() => {
+    const parsed = parseFloat(lotSize) || MIN_LOTS;
+    const clamped = Math.min(MAX_LOTS, Math.max(MIN_LOTS, parsed));
+    onLotSizeChange(clamped.toFixed(2));
+  }, [lotSize, onLotSizeChange]);
 
   const fillPrice = currentQuote 
     ? (pendingSide === "buy" ? currentQuote.ask : currentQuote.bid) 
     : 0;
 
+  const spread = currentQuote ? calculateSpread(currentQuote.bid, currentQuote.ask, selectedPair) : "--";
+
   return (
     <View style={styles.container}>
-      <View style={styles.row}>
-        {currentQuote ? (
-          <Pressable
-            style={[styles.tradeBtn, styles.sellBtn, (isPending || isTradeDisabled) && styles.tradeBtnDisabled]}
-            onPress={() => handleTrade("sell")}
-            disabled={isTradeDisabled || isPending}
-          >
-            <ThemedText style={styles.tradeBtnPrice}>{formatPrice(currentQuote.bid)}</ThemedText>
-            <ThemedText style={styles.tradeBtnLabel}>SELL</ThemedText>
-          </Pressable>
-        ) : (
-          <View style={[styles.tradeBtn, styles.sellBtn, styles.tradeBtnDisabled]}>
-            <ThemedText style={styles.tradeBtnPrice}>--</ThemedText>
-            <ThemedText style={styles.tradeBtnLabel}>SELL</ThemedText>
+      {/* Header Row */}
+      <View style={styles.headerRow}>
+        <Pressable 
+          style={styles.symbolDropdown}
+          onPress={() => setShowPairDropdown(!showPairDropdown)}
+        >
+          <View style={styles.symbolIcon}>
+            <Feather name="activity" size={12} color={TerminalColors.accent} />
           </View>
-        )}
+          <ThemedText style={styles.symbolText}>
+            {selectedPair.replace("-", "")}
+          </ThemedText>
+          <Feather name="chevron-down" size={12} color={TerminalColors.textMuted} />
+        </Pressable>
 
-        <View style={styles.centerSection}>
-          <Pressable style={styles.sizeAdjustBtn} onPress={() => adjustLotSize(-1)}>
-            <Feather name="minus" size={16} color={TerminalColors.textSecondary} />
+        <View style={styles.orderTypePill}>
+          <ThemedText style={styles.orderTypeText}>MARKET</ThemedText>
+        </View>
+
+        <View style={styles.toggleChips}>
+          <Pressable 
+            style={[styles.toggleChip, slEnabled && styles.toggleChipActive]}
+            onPress={() => setSlEnabled(!slEnabled)}
+          >
+            <ThemedText style={[styles.toggleChipText, slEnabled && styles.toggleChipTextActive]}>SL</ThemedText>
+          </Pressable>
+          <Pressable 
+            style={[styles.toggleChip, tpEnabled && styles.toggleChipActive]}
+            onPress={() => setTpEnabled(!tpEnabled)}
+          >
+            <ThemedText style={[styles.toggleChipText, tpEnabled && styles.toggleChipTextActive]}>TP</ThemedText>
+          </Pressable>
+          <Pressable 
+            style={[styles.toggleChip, tsEnabled && styles.toggleChipActive]}
+            onPress={() => setTsEnabled(!tsEnabled)}
+          >
+            <ThemedText style={[styles.toggleChipText, tsEnabled && styles.toggleChipTextActive]}>TS</ThemedText>
+          </Pressable>
+        </View>
+
+        <Pressable 
+          style={[styles.oneClickToggle, oneClickTrading && styles.oneClickToggleActive]}
+          onPress={() => onOneClickTradingChange(!oneClickTrading)}
+        >
+          <Feather 
+            name="zap" 
+            size={12} 
+            color={oneClickTrading ? "#fff" : TerminalColors.textMuted} 
+          />
+        </Pressable>
+      </View>
+
+      {/* Info Row */}
+      <View style={styles.infoRow}>
+        <ThemedText style={styles.infoText}>
+          Spread: {spread} pips
+        </ThemedText>
+        <ThemedText style={styles.infoText}>
+          Competition Mode
+        </ThemedText>
+        <ThemedText style={styles.infoText}>
+          {lots.toFixed(2)} lots
+        </ThemedText>
+      </View>
+
+      {/* Execution Row */}
+      <View style={styles.executionRow}>
+        <Pressable
+          style={[
+            styles.tradeBtn, 
+            styles.sellBtn, 
+            !canTrade && styles.tradeBtnDisabled
+          ]}
+          onPress={() => handleTrade("sell")}
+          disabled={!canTrade}
+        >
+          <ThemedText style={styles.tradeBtnPrice}>
+            {currentQuote ? formatPrice(currentQuote.bid) : "--"}
+          </ThemedText>
+          <ThemedText style={styles.tradeBtnLabel}>SELL</ThemedText>
+          {!canTrade && disabledReason ? (
+            <View style={styles.disabledBadge}>
+              <ThemedText style={styles.disabledBadgeText}>
+                {isQuoteStale ? "STALE" : ""}
+              </ThemedText>
+            </View>
+          ) : null}
+        </Pressable>
+
+        <View style={styles.lotControls}>
+          <Pressable 
+            style={styles.stepperBtn} 
+            onPress={() => adjustLotSize(-1)}
+          >
+            <Feather name="minus" size={18} color={TerminalColors.textSecondary} />
           </Pressable>
           
-          <View style={styles.sizeInputWrapper}>
+          <View style={styles.lotInputWrapper}>
             <TextInput
-              style={styles.sizeInput}
+              style={styles.lotInput}
               value={lotSize}
-              onChangeText={onLotSizeChange}
+              onChangeText={handleLotInputChange}
+              onBlur={handleLotInputBlur}
               keyboardType="decimal-pad"
+              selectTextOnFocus
               placeholderTextColor={TerminalColors.textMuted}
             />
           </View>
           
-          <Pressable style={styles.sizeAdjustBtn} onPress={() => adjustLotSize(1)}>
-            <Feather name="plus" size={16} color={TerminalColors.textSecondary} />
+          <Pressable 
+            style={styles.stepperBtn} 
+            onPress={() => adjustLotSize(1)}
+          >
+            <Feather name="plus" size={18} color={TerminalColors.textSecondary} />
           </Pressable>
         </View>
 
-        {currentQuote ? (
-          <Pressable
-            style={[styles.tradeBtn, styles.buyBtn, (isPending || isTradeDisabled) && styles.tradeBtnDisabled]}
-            onPress={() => handleTrade("buy")}
-            disabled={isTradeDisabled || isPending}
-          >
-            <ThemedText style={styles.tradeBtnPrice}>{formatPrice(currentQuote.ask)}</ThemedText>
-            <ThemedText style={styles.tradeBtnLabel}>BUY</ThemedText>
-          </Pressable>
-        ) : (
-          <View style={[styles.tradeBtn, styles.buyBtn, styles.tradeBtnDisabled]}>
-            <ThemedText style={styles.tradeBtnPrice}>--</ThemedText>
-            <ThemedText style={styles.tradeBtnLabel}>BUY</ThemedText>
-          </View>
-        )}
+        <Pressable
+          style={[
+            styles.tradeBtn, 
+            styles.buyBtn, 
+            !canTrade && styles.tradeBtnDisabled
+          ]}
+          onPress={() => handleTrade("buy")}
+          disabled={!canTrade}
+        >
+          <ThemedText style={styles.tradeBtnPrice}>
+            {currentQuote ? formatPrice(currentQuote.ask) : "--"}
+          </ThemedText>
+          <ThemedText style={styles.tradeBtnLabel}>BUY</ThemedText>
+        </Pressable>
       </View>
 
+      {/* Lot Helper + Quick Presets */}
+      <View style={styles.helperRow}>
+        <ThemedText style={styles.helperText}>
+          {lots.toFixed(2)} lots = {formatUnits(lots)} units
+        </ThemedText>
+        <View style={styles.quickLots}>
+          {QUICK_LOTS.map((q) => (
+            <Pressable 
+              key={q} 
+              style={[styles.quickLotBtn, lots === q && styles.quickLotBtnActive]}
+              onPress={() => setQuickLot(q)}
+            >
+              <ThemedText style={[styles.quickLotText, lots === q && styles.quickLotTextActive]}>
+                {q.toFixed(2)}
+              </ThemedText>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+
+      {/* Confirm Modal */}
       <Modal
         visible={showConfirmModal}
         transparent
@@ -161,7 +313,7 @@ export function OrderTicket({
         onRequestClose={() => setShowConfirmModal(false)}
       >
         <Pressable style={styles.modalOverlay} onPress={() => setShowConfirmModal(false)}>
-          <View style={styles.modalContent}>
+          <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
             <View style={styles.modalHeader}>
               <ThemedText style={styles.modalTitle}>Confirm Order</ThemedText>
               <Pressable onPress={() => setShowConfirmModal(false)}>
@@ -185,7 +337,11 @@ export function OrderTicket({
               </View>
               <View style={styles.confirmRow}>
                 <ThemedText style={styles.confirmLabel}>Size</ThemedText>
-                <ThemedText style={styles.confirmValue}>{lots.toFixed(2)} lots</ThemedText>
+                <ThemedText style={styles.confirmValue}>{lots.toFixed(2)} lots ({formatUnits(lots)} units)</ThemedText>
+              </View>
+              <View style={styles.confirmRow}>
+                <ThemedText style={styles.confirmLabel}>Spread</ThemedText>
+                <ThemedText style={styles.confirmValue}>{spread} pips</ThemedText>
               </View>
               <View style={styles.confirmRow}>
                 <ThemedText style={styles.confirmLabel}>Est. Fill</ThemedText>
@@ -205,7 +361,7 @@ export function OrderTicket({
                 onPress={confirmOrder}
               >
                 <ThemedText style={styles.confirmBtnText}>
-                  {pendingSide.toUpperCase()}
+                  Confirm {pendingSide.toUpperCase()}
                 </ThemedText>
               </Pressable>
             </View>
@@ -218,37 +374,137 @@ export function OrderTicket({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: TerminalColors.bgPanel,
+    backgroundColor: "#0E141C",
     padding: 12,
     borderTopWidth: 1,
-    borderTopColor: TerminalColors.border,
+    borderTopColor: "#1C2533",
   },
   
-  row: {
+  // Header Row
+  headerRow: {
     flexDirection: "row",
     alignItems: "center",
+    height: 32,
     gap: 8,
+    marginBottom: 8,
   },
-
-  tradeBtn: {
-    flex: 1,
-    paddingVertical: 12,
+  symbolDropdown: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#101924",
     paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#1C2533",
+    gap: 6,
+  },
+  symbolIcon: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "rgba(209, 75, 58, 0.2)",
     alignItems: "center",
     justifyContent: "center",
+  },
+  symbolText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  orderTypePill: {
+    backgroundColor: "#1C2533",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 4,
+  },
+  orderTypeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: TerminalColors.textSecondary,
+    letterSpacing: 0.5,
+  },
+  toggleChips: {
+    flexDirection: "row",
+    gap: 4,
+    marginLeft: "auto",
+  },
+  toggleChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    backgroundColor: "#101924",
+    borderWidth: 1,
+    borderColor: "#1C2533",
+  },
+  toggleChipActive: {
+    backgroundColor: "rgba(209, 75, 58, 0.2)",
+    borderColor: TerminalColors.accent,
+  },
+  toggleChipText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: TerminalColors.textMuted,
+  },
+  toggleChipTextActive: {
+    color: TerminalColors.accent,
+  },
+  oneClickToggle: {
+    width: 28,
+    height: 28,
+    borderRadius: 4,
+    backgroundColor: "#101924",
+    borderWidth: 1,
+    borderColor: "#1C2533",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  oneClickToggleActive: {
+    backgroundColor: TerminalColors.accent,
+    borderColor: TerminalColors.accent,
+  },
+
+  // Info Row
+  infoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    height: 22,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  infoText: {
+    fontSize: 11,
+    color: TerminalColors.textMuted,
+  },
+
+  // Execution Row
+  executionRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    height: 56,
+    gap: 8,
+  },
+  tradeBtn: {
+    flex: 1,
+    minWidth: 120,
+    maxWidth: 160,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+    position: "relative",
   },
   tradeBtnDisabled: {
     opacity: 0.5,
   },
   sellBtn: {
-    backgroundColor: "#B71C1C",
+    backgroundColor: "#D14B3A",
   },
   buyBtn: {
-    backgroundColor: "#1B5E20",
+    backgroundColor: "#16C784",
   },
   tradeBtnPrice: {
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: "700",
     color: "#fff",
     fontVariant: ["tabular-nums"],
@@ -256,45 +512,97 @@ const styles = StyleSheet.create({
   tradeBtnLabel: {
     fontSize: 10,
     fontWeight: "600",
-    color: "rgba(255,255,255,0.7)",
-    letterSpacing: 0.5,
+    color: "rgba(255,255,255,0.8)",
+    letterSpacing: 1,
     marginTop: 2,
+    textTransform: "uppercase",
+  },
+  disabledBadge: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+  },
+  disabledBadgeText: {
+    fontSize: 8,
+    fontWeight: "700",
+    color: "#FFB74D",
   },
 
-  centerSection: {
+  lotControls: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    flex: 1,
+    justifyContent: "center",
   },
-  sizeAdjustBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 4,
-    backgroundColor: TerminalColors.bgElevated,
+  stepperBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 6,
+    backgroundColor: "#101924",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: TerminalColors.border,
+    borderColor: "#1C2533",
   },
-  sizeInputWrapper: {
-    backgroundColor: TerminalColors.bgBase,
-    borderRadius: 4,
+  lotInputWrapper: {
+    backgroundColor: "#0A0F14",
+    borderRadius: 6,
     borderWidth: 1,
-    borderColor: TerminalColors.border,
-    paddingHorizontal: 8,
-    minWidth: 70,
-    height: 32,
+    borderColor: "#1C2533",
+    width: 84,
+    height: 44,
     justifyContent: "center",
   },
-  sizeInput: {
+  lotInput: {
     fontSize: 16,
     fontWeight: "700",
-    color: TerminalColors.textPrimary,
+    color: "#fff",
     textAlign: "center",
     fontVariant: ["tabular-nums"],
     ...(Platform.OS === "web" ? { outlineStyle: "none" as any } : {}),
   },
 
+  // Helper Row
+  helperRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 10,
+    paddingHorizontal: 4,
+  },
+  helperText: {
+    fontSize: 10,
+    color: TerminalColors.textMuted,
+    fontVariant: ["tabular-nums"],
+  },
+  quickLots: {
+    flexDirection: "row",
+    gap: 4,
+  },
+  quickLotBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    backgroundColor: "#101924",
+    borderWidth: 1,
+    borderColor: "#1C2533",
+  },
+  quickLotBtnActive: {
+    backgroundColor: "rgba(209, 75, 58, 0.2)",
+    borderColor: TerminalColors.accent,
+  },
+  quickLotText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: TerminalColors.textMuted,
+    fontVariant: ["tabular-nums"],
+  },
+  quickLotTextActive: {
+    color: TerminalColors.accent,
+  },
+
+  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.7)",
@@ -302,83 +610,84 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   modalContent: {
-    width: 280,
-    backgroundColor: TerminalColors.bgPanel,
-    borderRadius: 8,
+    width: 320,
+    backgroundColor: "#0E141C",
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: TerminalColors.border,
+    borderColor: "#1C2533",
   },
   modalHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: TerminalColors.border,
+    borderBottomColor: "#1C2533",
   },
   modalTitle: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "700",
-    color: TerminalColors.textPrimary,
+    color: "#fff",
   },
   modalBody: {
-    padding: 12,
+    padding: 16,
   },
   confirmRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 4,
+    paddingVertical: 6,
   },
   confirmLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: TerminalColors.textMuted,
   },
   confirmValue: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
-    color: TerminalColors.textPrimary,
+    color: "#fff",
+    fontVariant: ["tabular-nums"],
   },
   confirmBuy: {
-    color: TerminalColors.positive,
+    color: "#16C784",
   },
   confirmSell: {
-    color: TerminalColors.negative,
+    color: "#D14B3A",
   },
   modalActions: {
     flexDirection: "row",
-    padding: 12,
-    gap: 8,
+    padding: 16,
+    gap: 12,
     borderTopWidth: 1,
-    borderTopColor: TerminalColors.border,
+    borderTopColor: "#1C2533",
   },
   cancelBtn: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 12,
     alignItems: "center",
-    backgroundColor: TerminalColors.bgElevated,
-    borderRadius: 4,
+    backgroundColor: "#1C2533",
+    borderRadius: 8,
   },
   cancelBtnText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "600",
     color: TerminalColors.textSecondary,
   },
   confirmBtn: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 12,
     alignItems: "center",
-    borderRadius: 4,
+    borderRadius: 8,
   },
   confirmBtnBuy: {
-    backgroundColor: "#1B5E20",
+    backgroundColor: "#16C784",
   },
   confirmBtnSell: {
-    backgroundColor: "#B71C1C",
+    backgroundColor: "#D14B3A",
   },
   confirmBtnText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "700",
     color: "#fff",
   },

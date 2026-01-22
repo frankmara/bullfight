@@ -1158,11 +1158,11 @@ export default function ArenaScreen() {
               onToggleFullscreen={() => setIsFullscreen(!isFullscreen)}
             />
           }
-          chart={(isBlotterCollapsed: boolean) => (
+          chart={
             <TradingViewChart
-              key={`${selectedPair}-${selectedTimeframe}-${isBlotterCollapsed}`}
+              key={`${selectedPair}-${selectedTimeframe}`}
               pair={selectedPair}
-              height={isFullscreen ? height - 120 : height - (isBlotterCollapsed ? 272 : 520)}
+              height="100%"
               positions={positions.filter((p) => p.pair === selectedPair)}
               orders={pendingOrders.filter((o) => o.pair === selectedPair)}
               timeframe={selectedTimeframe}
@@ -1172,7 +1172,7 @@ export default function ArenaScreen() {
               onChartClick={handleChartClick}
               onSLTPDrag={handleSLTPDrag}
             />
-          )}
+          }
           marketWatch={
             <MarketWatch
               pairs={pairs}
@@ -1198,6 +1198,7 @@ export default function ArenaScreen() {
               oneClickTrading={oneClickTrading}
               isTradeDisabled={isTradeDisabled}
               isPending={placeOrderMutation.isPending}
+              competitionStatus={competition.status}
               onOrderSideChange={setOrderSide}
               onOrderTypeChange={setOrderType}
               onLotSizeChange={setLotSize}

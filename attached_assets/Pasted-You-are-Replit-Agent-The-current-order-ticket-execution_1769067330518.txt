@@ -1,0 +1,158 @@
+You are Replit Agent. The current order ticket / execution UI is broken and looks trash. You must rebuild ONLY the order ticket area to match the reference design (second screenshot) exactly.
+
+IMPORTANT RULES:
+- Do NOT redesign the whole app. Only touch the order ticket component(s) and their CSS.
+- Do NOT change trading engine logic except where needed to bind the UI correctly.
+- Do NOT introduce placeholder prices or fake data. Bid/Ask must come from live quotes.
+- Do NOT “approximate” the layout. Match the reference proportions and alignment.
+
+SCOPE (only touch these):
+- The order ticket component and its subcomponents
+- Tailwind/CSS used by the ticket
+- Any state hooks / props needed to bind bid/ask, lots, symbol, order type
+- If needed: the quote selector hook that feeds the ticket
+
+FILES:
+First, identify the exact component file(s) currently rendering the ticket. List them in your response.
+Then implement in-place changes, do not create a parallel new ticket that isn't used.
+
+========================
+TARGET UI (must match reference)
+========================
+We want the ticket to look like the second screenshot:
+- Header row: Symbol dropdown + order type pill "MARKET" + toggles (SL, TP, TS) disabled/enabled chips + optional expand icon.
+- Middle row: small informational row:
+  - left: approx fee/value (like "$899.57" or your equivalent)
+  - center: “Init. Margin: ~ $X (Y%)” (even if margin is fake for now, keep the structure; can show “Competition Mode” or “No margin”)
+  - right: “0.01 lots” text (shows current lot step / min lot)
+- Main execution row:
+  [SELL big red price button] [ - ] [ lot input ] [ + ] [BUY big green price button]
+- Buttons are horizontally aligned and share the same height.
+- The lot input is centered, shows value like "0.01" or "0.10", with step increments.
+- No huge empty spaces. No massive input box taking whole area. Dense terminal style.
+
+Color & style:
+- Dark ticket panel background (#0E141C / #101924)
+- Hairline borders (#1C2533)
+- BUY green: #16C784 (or current green)
+- SELL red: Bullfight burnt red #D14B3A OR the red used across app (but it must be consistent)
+- Price text is large (18–20px), label text is small (10–12px)
+- Use tabular numbers for prices
+
+========================
+FUNCTIONAL REQUIREMENTS
+========================
+
+A) Data binding
+- Symbol dropdown controls which pair is being traded.
+- Bid/Ask shown in SELL/BUY buttons must use live quote:
+  SELL button shows BID
+  BUY button shows ASK
+- Spread display (if present) must be derived from bid/ask and pip rules.
+
+B) Lot sizing (fix units vs lots confusion)
+- The ticket input is LOTS (not units).
+- Use step = 0.01 lots by default.
+- Convert lots → units internally:
+  units = lots * 100,000
+- The payload sent to the engine must still use units, but UI displays lots.
+- Show a small helper line under the lot input:
+  "0.10 lots = 10,000 units"
+- Clamp lots:
+  minLots = 0.01
+  maxLots = 100.00 (configurable)
+- Add quick preset chips (optional) under sizing: 0.01, 0.05, 0.10, 0.50, 1.00
+
+C) Order type
+- The order type selection exists as a pill button: MARKET (active)
+- LIMIT/STOP may be present but disabled if not implemented.
+- If LIMIT/STOP exists, it must not break the layout.
+
+D) 1-click / confirm behavior
+- Add a toggle "1-Click" in the ticket header.
+- If 1-Click is OFF:
+  clicking BUY/SELL opens confirm modal:
+    symbol, side, lots, units, estimated fill price, spread, competition status
+    confirm executes; cancel closes
+- If 1-Click is ON:
+  BUY/SELL executes immediately.
+- Must show toast after submit: "Order sent" and after fill: "Filled @ price"
+
+E) Disabled states
+- If competition is not RUNNING:
+  BUY/SELL buttons are disabled with tooltip "Competition not running"
+  still show prices, but no execution
+- If quote is stale:
+  show "STALE" badge and disable execution until live
+
+========================
+LAYOUT SPEC (exact)
+========================
+Ticket panel layout (within right column):
+- ticket padding: 12px
+- header row height: ~32px
+- info row height: ~22px
+- execution row height: 56px (must match reference)
+- All controls aligned to an 8px grid
+
+Execution row specifics:
+- SELL button: width 140–160px, height 56px, rounded 10px
+  - price big
+  - label "SELL" small below
+- BUY button: same dimensions
+- stepper buttons: 44px square, border, subtle background
+- lot input: 84–100px wide, centered, border, dark background
+- spacing between elements: 8px
+
+Typography:
+- Prices: font-semibold, 18–20px, tabular-nums
+- Labels: 10–11px, uppercase, tracking wide, opacity 80%
+- Info row: 11px muted
+
+========================
+IMPLEMENTATION DETAILS (to avoid failure)
+========================
+1) Refactor ticket into these components:
+- TicketHeader (symbol dropdown, MARKET pill, SL/TP/TS chips, 1-click toggle)
+- TicketInfoRow (left/center/right small text)
+- TicketExecutionRow (SELL button, stepper, input, BUY button)
+- TicketHelpers (lots↔units line + optional preset chips)
+
+2) State management:
+- selectedPair (string)
+- lots (number)
+- oneClick (boolean in localStorage)
+- orderType ("market" for now)
+- slEnabled/tpEnabled/tsEnabled (booleans; can be present but disabled)
+- derived units (number)
+
+3) Input correctness:
+- lots input must accept decimals, parse safely
+- stepper buttons must increment/decrement by 0.01
+- ensure formatting (2 decimals) for lots
+
+4) Add a visual QA page or story:
+- Add a dev-only route /dev/ticket that renders the ticket in isolation with mock quotes so we can verify layout quickly.
+- Also render it in the real Arena.
+
+========================
+ACCEPTANCE TESTS (must pass)
+========================
+1) Ticket looks like the reference screenshot:
+   - header row present
+   - info row present
+   - execution row with SELL / stepper / lot input / stepper / BUY present
+   - no giant empty blocks
+2) Bid/Ask update live and are shown in SELL/BUY.
+3) Lots input works:
+   - type 0.10, plus increments to 0.11, minus decrements to 0.09
+   - helper line shows correct units
+4) With competition RUNNING:
+   - 1-click OFF → confirm modal appears → confirm executes
+   - 1-click ON → executes immediately
+5) With competition NOT RUNNING or stale quotes:
+   - buttons disabled and tooltips shown
+
+DELIVERABLE:
+- Commit the UI refactor and ensure Arena still loads.
+- Provide a short summary of what was changed and which files were edited.

@@ -74,7 +74,7 @@ interface DragInfo {
 
 interface TradingViewChartProps {
   pair: string;
-  height?: number;
+  height?: number | '100%';
   positions?: Position[];
   orders?: PendingOrder[];
   timeframe?: string;
@@ -200,6 +200,7 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
         setIsLoading(true);
 
         try {
+          const containerHeight = height === '100%' ? containerRef.current.clientHeight : height;
           const chart = createChart(containerRef.current, {
             layout: {
               background: { color: TerminalColors.bgBase },
@@ -208,7 +209,7 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
               fontSize: 11,
             },
             width: containerRef.current.clientWidth,
-            height,
+            height: containerHeight || 400,
             timeScale: {
               timeVisible: true,
               secondsVisible: false,
@@ -335,17 +336,30 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
           });
 
           const handleResize = () => {
-            if (containerRef.current && chart) {
-              chart.applyOptions({
-                width: containerRef.current.clientWidth,
-              });
+            if (containerRef.current && chartRef.current && isMounted) {
+              try {
+                chartRef.current.applyOptions({
+                  width: containerRef.current.clientWidth,
+                  height: containerRef.current.clientHeight,
+                });
+              } catch (e) {
+                // Chart may be disposed, ignore resize errors
+              }
             }
           };
 
           window.addEventListener('resize', handleResize);
 
+          const resizeObserver = new ResizeObserver(() => {
+            handleResize();
+          });
+          if (containerRef.current) {
+            resizeObserver.observe(containerRef.current);
+          }
+
           return () => {
             window.removeEventListener('resize', handleResize);
+            resizeObserver.disconnect();
           };
         } catch (error) {
           console.error('Error initializing TradingView chart:', error);
