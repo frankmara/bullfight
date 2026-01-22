@@ -113,8 +113,6 @@ export function CompetitionRow({
         <View style={styles.rightSection}>
           {isActive ? (
             <Button
-              variant="primary"
-              size="small"
               onPress={() => onEnterArena(competition.competitionId)}
               style={styles.enterButton}
             >

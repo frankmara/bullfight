@@ -87,7 +87,7 @@ export function TopCompetitorsTable({
         >
           {isDesktop ? (
             <>
-              <View style={[styles.cell, styles.rankCell]}>
+              <View style={styles.rankCell}>
                 <View
                   style={[
                     styles.rankBadge,
