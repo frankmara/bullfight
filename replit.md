@@ -169,3 +169,33 @@ Key entities defined in the schema:
 #### Audit Logging
 - All PvP actions logged to `auditLog` table
 - Events: pvp_challenge_created, pvp_terms_proposed, pvp_terms_accepted, pvp_payment_made, pvp_challenge_cancelled
+
+### Email Notification System
+- **EmailService** (`/server/services/EmailService.ts`) handles all email functionality
+- **Resend Integration**: Uses Resend API for reliable email delivery
+- Admin-configurable HTML templates with variable substitution
+
+#### Email Types
+1. **Welcome** - Sent on user registration
+2. **Challenge Entry Confirmed** - Sent when user joins a competition
+3. **Challenge Started** - Sent to all participants when competition status changes to "running"
+4. **Challenge Concluded** - Sent to all participants with final rankings when competition ends
+5. **PvP Invitation** - Sent when user creates a PvP challenge
+6. **Daily Standings** - Sent daily to participants in running competitions with leaderboard updates
+
+#### Email Admin Portal
+- AdminEmailScreen: View/toggle templates, view email logs
+- AdminEmailEditorScreen: Edit HTML templates with variable insertion UI
+- Template variables: {{userName}}, {{competitionName}}, {{buyInAmount}}, {{prizePool}}, etc.
+
+#### Email API Endpoints
+- GET `/api/admin/email/templates` - List all templates
+- PUT `/api/admin/email/templates/:type` - Update template
+- GET `/api/admin/email/logs` - View email send history
+- POST `/api/admin/email/test` - Send test email
+- POST `/api/admin/email/trigger-standings` - Manually trigger daily standings emails
+
+#### Scheduled Jobs
+- **ScheduledJobs** (`/server/services/ScheduledJobs.ts`) manages automated tasks
+- Daily standings emails run every 24 hours automatically
+- Admin can manually trigger via endpoint
