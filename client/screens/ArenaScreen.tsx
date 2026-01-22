@@ -33,7 +33,7 @@ import { apiRequest } from "@/lib/query-client";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/types/navigation";
 import { TerminalColors, TerminalTypography, TerminalSpacing, TerminalRadius } from "@/components/terminal";
-import { ArenaLayout, ToolDock, ChartToolbar, MarketWatch, OrderTicket, Blotter, LAYOUT_CONSTANTS } from "@/components/arena";
+import { ArenaLayout, ToolDock, ChartToolbar, MarketWatch, OrderTicket, Blotter, LAYOUT_CONSTANTS, CompetitionSwitcher } from "@/components/arena";
 import type { DrawingTool, DrawnLine } from "@/components/arena/ToolDock";
 
 type QuoteStatus = "live" | "delayed" | "stale" | "disconnected";
@@ -1263,6 +1263,16 @@ export default function ArenaScreen() {
               {renderLeaderboardPanel()}
               {renderToast()}
               {renderSLTPDragModal()}
+              <View style={styles.competitionSwitcherContainer}>
+                <CompetitionSwitcher
+                  currentCompetitionId={competition.id}
+                  currentCompetitionTitle={competition.title}
+                  currentRank={entry.rank}
+                  onSwitchCompetition={(newId) => {
+                    navigation.navigate('Arena', { id: newId });
+                  }}
+                />
+              </View>
             </>
           }
           isFullscreen={isFullscreen}
@@ -2172,5 +2182,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: THEME.textPrimary,
+  },
+
+  competitionSwitcherContainer: {
+    position: "absolute",
+    bottom: 16,
+    left: 16,
+    zIndex: 100,
   },
 });

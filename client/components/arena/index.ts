@@ -4,3 +4,4 @@ export { ChartToolbar } from "./ChartToolbar";
 export { MarketWatch } from "./MarketWatch";
 export { OrderTicket } from "./OrderTicket";
 export { Blotter } from "./Blotter";
+export { CompetitionSwitcher, getLastCompetitionId, setLastCompetitionId } from "./CompetitionSwitcher";
