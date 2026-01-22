@@ -169,6 +169,11 @@ export default function ArenaScreen() {
     refetchInterval: 5000,
   });
 
+  const { data: marketStatus } = useQuery<{ isUsingMock: boolean }>({
+    queryKey: ["/api/market/status"],
+    refetchInterval: 30000,
+  });
+
   useEffect(() => {
     const pairs = arenaData?.competition.allowedPairsJson || ["EUR-USD"];
     const interval = setInterval(() => {
@@ -439,6 +444,12 @@ export default function ArenaScreen() {
                 <ThemedText style={styles.timerText}>{timeRemaining}</ThemedText>
               </View>
             ) : null}
+            <View style={[styles.dataStatusBadge, marketStatus?.isUsingMock ? styles.dataStatusMock : styles.dataStatusLive]}>
+              <View style={[styles.dataStatusDot, marketStatus?.isUsingMock ? styles.dataDotMock : styles.dataDotLive]} />
+              <ThemedText style={styles.dataStatusText}>
+                {marketStatus?.isUsingMock ? "MOCK" : "LIVE"}
+              </ThemedText>
+            </View>
           </View>
         </View>
       </View>
@@ -1108,6 +1119,39 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     color: Colors.dark.textSecondary,
+  },
+  dataStatusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+  },
+  dataStatusMock: {
+    backgroundColor: "rgba(255, 171, 0, 0.15)",
+    borderColor: "rgba(255, 171, 0, 0.4)",
+  },
+  dataStatusLive: {
+    backgroundColor: "rgba(76, 175, 80, 0.15)",
+    borderColor: "rgba(76, 175, 80, 0.4)",
+  },
+  dataStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  dataDotMock: {
+    backgroundColor: "#FFAB00",
+  },
+  dataDotLive: {
+    backgroundColor: "#4CAF50",
+  },
+  dataStatusText: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.5,
   },
   symbolDisplay: {
     flexDirection: "row",
