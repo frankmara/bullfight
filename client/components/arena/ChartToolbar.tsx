@@ -87,8 +87,58 @@ export function ChartToolbar({
     setShowTimeframeMenu(false);
   };
 
+  const renderTimeframeMenu = () => {
+    if (!showTimeframeMenu || Platform.OS !== 'web') return null;
+    
+    return React.createElement('div', {
+      style: {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 9999,
+      },
+      onClick: () => setShowTimeframeMenu(false),
+    }, 
+      React.createElement('div', {
+        style: {
+          position: 'absolute',
+          top: 140,
+          left: 60,
+          backgroundColor: TerminalColors.bgPanel,
+          borderRadius: 4,
+          border: `1px solid ${TerminalColors.border}`,
+          minWidth: 80,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+        },
+        onClick: (e: any) => e.stopPropagation(),
+      },
+        TIMEFRAMES.map((tf) => 
+          React.createElement('div', {
+            key: tf.value,
+            style: {
+              padding: '8px 12px',
+              cursor: 'pointer',
+              backgroundColor: timeframe === tf.value ? TerminalColors.bgElevated : 'transparent',
+              color: timeframe === tf.value ? TerminalColors.accent : TerminalColors.textSecondary,
+              fontSize: 12,
+              fontWeight: timeframe === tf.value ? 600 : 400,
+            },
+            onClick: () => handleTimeframeSelect(tf.value),
+            onMouseEnter: (e: any) => { e.currentTarget.style.backgroundColor = TerminalColors.bgElevated; },
+            onMouseLeave: (e: any) => { 
+              e.currentTarget.style.backgroundColor = timeframe === tf.value ? TerminalColors.bgElevated : 'transparent';
+            },
+          }, tf.label)
+        )
+      )
+    );
+  };
+
   return (
     <View style={styles.container}>
+      {Platform.OS === 'web' && renderTimeframeMenu()}
       <View style={styles.leftSection}>
         <View style={styles.timeframeDropdown}>
           <Pressable 
@@ -98,22 +148,6 @@ export function ChartToolbar({
             <ThemedText style={styles.timeframeBtnText}>{currentTfLabel}</ThemedText>
             <Feather name="chevron-down" size={12} color={TerminalColors.textMuted} />
           </Pressable>
-          
-          {showTimeframeMenu && (
-            <View style={styles.timeframeMenu}>
-              {TIMEFRAMES.map((tf) => (
-                <Pressable
-                  key={tf.value}
-                  style={[styles.timeframeMenuItem, timeframe === tf.value && styles.timeframeMenuItemActive]}
-                  onPress={() => handleTimeframeSelect(tf.value)}
-                >
-                  <ThemedText style={[styles.timeframeMenuItemText, timeframe === tf.value && styles.timeframeMenuItemTextActive]}>
-                    {tf.label}
-                  </ThemedText>
-                </Pressable>
-              ))}
-            </View>
-          )}
         </View>
 
         <View style={styles.separator} />
@@ -171,16 +205,43 @@ export function ChartToolbar({
           <Feather name="camera" size={14} color={TerminalColors.textMuted} />
         </Pressable>
         
-        <Pressable 
-          style={[styles.toolBtn, isFullscreen && styles.toolBtnActive]}
-          onPress={onToggleFullscreen}
-        >
-          <Feather 
-            name={isFullscreen ? "minimize-2" : "maximize-2"} 
-            size={14} 
-            color={isFullscreen ? TerminalColors.accent : TerminalColors.textMuted} 
-          />
-        </Pressable>
+        {Platform.OS === 'web' ? (
+          React.createElement('button', {
+            onClick: () => {
+              console.log('[ChartToolbar] Fullscreen button clicked');
+              if (onToggleFullscreen) onToggleFullscreen();
+            },
+            style: {
+              width: 30,
+              height: 30,
+              borderRadius: 4,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: isFullscreen ? TerminalColors.bgElevated : 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 0,
+            },
+            'data-testid': 'button-fullscreen-toggle',
+            'aria-label': isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen',
+          }, React.createElement(Feather, {
+            name: isFullscreen ? 'minimize-2' : 'maximize-2',
+            size: 14,
+            color: isFullscreen ? TerminalColors.accent : TerminalColors.textMuted,
+          }))
+        ) : (
+          <Pressable 
+            style={[styles.toolBtn, isFullscreen && styles.toolBtnActive]}
+            onPress={onToggleFullscreen}
+          >
+            <Feather 
+              name={isFullscreen ? "minimize-2" : "maximize-2"} 
+              size={14} 
+              color={isFullscreen ? TerminalColors.accent : TerminalColors.textMuted} 
+            />
+          </Pressable>
+        )}
       </View>
     </View>
   );
