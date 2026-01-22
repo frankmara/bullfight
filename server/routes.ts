@@ -929,8 +929,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Challenge not found" });
       }
 
-      if (challenge.challengerId !== userId && challenge.inviteeId !== userId) {
+      const user = await storage.getUser(userId);
+      const isChallenger = challenge.challengerId === userId;
+      const isInviteeById = challenge.inviteeId === userId;
+      const isInviteeByEmail = user?.email && challenge.inviteeEmail === user.email;
+
+      if (!isChallenger && !isInviteeById && !isInviteeByEmail) {
         return res.status(403).json({ error: "Not authorized to view this challenge" });
+      }
+
+      if (isInviteeByEmail && !challenge.inviteeId) {
+        await storage.updatePvpChallenge(id, { inviteeId: userId });
+        challenge.inviteeId = userId;
       }
 
       res.json(challenge);
@@ -1025,8 +1035,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Challenge not found" });
       }
 
-      if (challenge.challengerId !== userId && challenge.inviteeId !== userId) {
+      const user = await storage.getUser(userId);
+      const isChallenger = challenge.challengerId === userId;
+      const isInviteeById = challenge.inviteeId === userId;
+      const isInviteeByEmail = user?.email && challenge.inviteeEmail === user.email;
+
+      if (!isChallenger && !isInviteeById && !isInviteeByEmail) {
         return res.status(403).json({ error: "Not authorized" });
+      }
+
+      if (isInviteeByEmail && !challenge.inviteeId) {
+        await storage.updatePvpChallenge(id, { inviteeId: userId });
+        challenge.inviteeId = userId;
       }
 
       if (challenge.status !== "pending" && challenge.status !== "negotiating") {
@@ -1056,8 +1076,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         minOrderIntervalMs,
         maxDrawdownPct,
       };
-
-      const isChallenger = challenge.challengerId === userId;
 
       const updated = await storage.updatePvpChallenge(id, {
         proposedTermsJson: proposedTerms,
@@ -1090,15 +1108,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Challenge not found" });
       }
 
-      if (challenge.challengerId !== userId && challenge.inviteeId !== userId) {
+      const user = await storage.getUser(userId);
+      const isChallenger = challenge.challengerId === userId;
+      const isInviteeById = challenge.inviteeId === userId;
+      const isInviteeByEmail = user?.email && challenge.inviteeEmail === user.email;
+
+      if (!isChallenger && !isInviteeById && !isInviteeByEmail) {
         return res.status(403).json({ error: "Not authorized" });
+      }
+
+      if (isInviteeByEmail && !challenge.inviteeId) {
+        await storage.updatePvpChallenge(id, { inviteeId: userId });
+        challenge.inviteeId = userId;
       }
 
       if (challenge.status !== "pending" && challenge.status !== "negotiating") {
         return res.status(400).json({ error: "Challenge cannot be accepted in current state" });
       }
-
-      const isChallenger = challenge.challengerId === userId;
 
       if (challenge.proposedTermsJson && challenge.proposedBy !== userId) {
         const terms = challenge.proposedTermsJson as any;
@@ -1156,15 +1182,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Challenge not found" });
       }
 
-      if (challenge.challengerId !== userId && challenge.inviteeId !== userId) {
+      const user = await storage.getUser(userId);
+      const isChallenger = challenge.challengerId === userId;
+      const isInviteeById = challenge.inviteeId === userId;
+      const isInviteeByEmail = user?.email && challenge.inviteeEmail === user.email;
+
+      if (!isChallenger && !isInviteeById && !isInviteeByEmail) {
         return res.status(403).json({ error: "Not authorized" });
+      }
+
+      if (isInviteeByEmail && !challenge.inviteeId) {
+        await storage.updatePvpChallenge(id, { inviteeId: userId });
+        challenge.inviteeId = userId;
       }
 
       if (challenge.status !== "accepted" && challenge.status !== "payment_pending") {
         return res.status(400).json({ error: "Challenge not ready for payment" });
       }
-
-      const isChallenger = challenge.challengerId === userId;
 
       const challengerPaid = isChallenger ? true : challenge.challengerPaid;
       const inviteePaid = !isChallenger ? true : challenge.inviteePaid;
@@ -1254,8 +1288,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Challenge not found" });
       }
 
-      if (challenge.challengerId !== userId && challenge.inviteeId !== userId) {
+      const user = await storage.getUser(userId);
+      const isChallenger = challenge.challengerId === userId;
+      const isInviteeById = challenge.inviteeId === userId;
+      const isInviteeByEmail = user?.email && challenge.inviteeEmail === user.email;
+
+      if (!isChallenger && !isInviteeById && !isInviteeByEmail) {
         return res.status(403).json({ error: "Not authorized" });
+      }
+
+      if (isInviteeByEmail && !challenge.inviteeId) {
+        await storage.updatePvpChallenge(id, { inviteeId: userId });
+        challenge.inviteeId = userId;
       }
 
       if (challenge.status === "active" || challenge.status === "completed") {
