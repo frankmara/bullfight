@@ -22,7 +22,7 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { useAuthContext } from "@/context/AuthContext";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/types/navigation";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/query-client";
 
 const DESKTOP_BREAKPOINT = 768;
 const AVAILABLE_PAIRS = ["EUR-USD", "GBP-USD", "USD-JPY", "AUD-USD", "USD-CAD"];

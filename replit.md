@@ -123,3 +123,35 @@ Key entities defined in the schema:
 ### Admin
 - fjmara@outlook.com has admin role
 - Admin can set competition status via database updates
+
+### PvP Challenges System
+- One-on-one trading competitions between users
+- Challenger sets initial terms (stake, balance, duration, trading pairs)
+- Invitee can accept or propose counter-terms (negotiation)
+- Both parties must accept final terms before payment
+- Both parties pay stake; when both paid, competition auto-creates and starts
+- Winner determined by highest % return when competition ends
+- 3% rake (300 bps) taken from prize pool, configurable via `rakeBps` field
+
+#### PvP Database Schema
+- `pvpChallenges` table tracks challenge lifecycle
+- Status flow: draft → pending → negotiating → accepted → payment_pending → active → completed/cancelled
+- Links to auto-created `competitions` table entry with `type="pvp"` and `entryCap=2`
+
+#### PvP API Endpoints
+- GET `/api/pvp/challenges` - List user's challenges
+- GET `/api/pvp/challenges/:id` - Get challenge details
+- POST `/api/pvp/challenges` - Create new challenge
+- PUT `/api/pvp/challenges/:id` - Propose new terms
+- POST `/api/pvp/challenges/:id/accept` - Accept current terms
+- POST `/api/pvp/challenges/:id/pay` - Submit payment
+- POST `/api/pvp/challenges/:id/cancel` - Cancel challenge
+
+#### PvP Frontend Screens
+- `PvPListScreen` - View all user's challenges with status badges
+- `PvPNewScreen` - Create new challenge form
+- `PvPDetailScreen` - View/negotiate challenge, accept terms, pay, enter arena
+
+#### Audit Logging
+- All PvP actions logged to `auditLog` table
+- Events: pvp_challenge_created, pvp_terms_proposed, pvp_terms_accepted, pvp_payment_made, pvp_challenge_cancelled
