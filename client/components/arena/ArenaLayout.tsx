@@ -87,6 +87,11 @@ export function ArenaLayout({
                 color={TerminalColors.textMuted} 
               />
             </Pressable>
+            {!isBlotterCollapsed && blotterDockButton && (
+              <View style={styles.dockButtonWrapper}>
+                {blotterDockButton}
+              </View>
+            )}
           </View>
           <View style={styles.blotterContent}>
             {isBlotterCollapsed ? null : blotter}
@@ -177,8 +182,8 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
     borderRightColor: TerminalColors.border,
     alignItems: "center",
-    justifyContent: "flex-start",
-    paddingTop: 6,
+    justifyContent: "space-between",
+    paddingVertical: 6,
   },
   
   collapseBtn: {
@@ -187,6 +192,11 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: TerminalColors.bgElevated,
     alignItems: "center",
+    justifyContent: "center",
+  },
+  
+  dockButtonWrapper: {
+    flex: 1,
     justifyContent: "center",
   },
   
