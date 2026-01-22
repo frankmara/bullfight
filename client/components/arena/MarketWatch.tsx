@@ -8,6 +8,8 @@ interface Quote {
   pair: string;
   bid: number;
   ask: number;
+  spreadPips: number;
+  status: "live" | "delayed" | "stale" | "disconnected";
   prevBid?: number;
   prevAsk?: number;
 }
@@ -92,7 +94,7 @@ export function MarketWatch({
           const askTick = quote && quote.prevAsk
             ? (quote.ask > quote.prevAsk ? "up" : quote.ask < quote.prevAsk ? "down" : null)
             : null;
-          const spread = quote ? ((quote.ask - quote.bid) * 10000).toFixed(1) : "-";
+          const spread = quote ? quote.spreadPips.toFixed(1) : "-";
           
           return (
             <Pressable

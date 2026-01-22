@@ -34,13 +34,32 @@ import { RootStackParamList } from "@/types/navigation";
 import { TerminalColors, TerminalTypography, TerminalSpacing, TerminalRadius } from "@/components/terminal";
 import { ArenaLayout, ToolDock, ChartToolbar, MarketWatch, OrderTicket, Blotter, LAYOUT_CONSTANTS } from "@/components/arena";
 
+type QuoteStatus = "live" | "delayed" | "stale" | "disconnected";
+
 interface Quote {
   pair: string;
   bid: number;
   ask: number;
   timestamp: number;
+  spreadPips: number;
+  status: QuoteStatus;
   prevBid?: number;
   prevAsk?: number;
+}
+
+interface MarketQuotesResponse {
+  isUsingMock: boolean;
+  isConnected: boolean;
+  serverTime: number;
+  quotes: Array<{
+    pair: string;
+    bid: number;
+    ask: number;
+    spreadPips: number;
+    timestamp: number;
+    ageMs: number;
+    status: QuoteStatus;
+  }>;
 }
 
 interface Position {
@@ -182,29 +201,32 @@ export default function ArenaScreen() {
     refetchInterval: 30000,
   });
 
+  const { data: marketQuotes } = useQuery<MarketQuotesResponse>({
+    queryKey: ["/api/market/quotes"],
+    refetchInterval: 1000,
+  });
+
   useEffect(() => {
-    const pairs = arenaData?.competition.allowedPairsJson || ["EUR-USD"];
-    const interval = setInterval(() => {
-      setQuotes((prevQuotes) => {
-        const newQuotes: Record<string, Quote> = {};
-        pairs.forEach((pair) => {
-          const basePrice = getBasePrice(pair);
-          const spread = 0.0002;
-          const prevQuote = prevQuotes[pair];
-          newQuotes[pair] = {
-            pair,
-            bid: basePrice - spread / 2 + (Math.random() - 0.5) * 0.0005,
-            ask: basePrice + spread / 2 + (Math.random() - 0.5) * 0.0005,
-            timestamp: Date.now(),
-            prevBid: prevQuote?.bid,
-            prevAsk: prevQuote?.ask,
-          };
-        });
-        return newQuotes;
+    if (!marketQuotes?.quotes) return;
+    
+    setQuotes((prevQuotes) => {
+      const newQuotes: Record<string, Quote> = {};
+      marketQuotes.quotes.forEach((q) => {
+        const prevQuote = prevQuotes[q.pair];
+        newQuotes[q.pair] = {
+          pair: q.pair,
+          bid: q.bid,
+          ask: q.ask,
+          timestamp: q.timestamp,
+          spreadPips: q.spreadPips,
+          status: q.status,
+          prevBid: prevQuote?.bid,
+          prevAsk: prevQuote?.ask,
+        };
       });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [arenaData?.competition.allowedPairsJson]);
+      return newQuotes;
+    });
+  }, [marketQuotes]);
 
   useEffect(() => {
     if (!arenaData?.competition.endAt) return;
@@ -899,7 +921,13 @@ export default function ArenaScreen() {
           chartToolbar={
             <ChartToolbar
               symbol={selectedPair}
-              currentPrice={currentQuote?.ask}
+              currentQuote={currentQuote ? {
+                bid: currentQuote.bid,
+                ask: currentQuote.ask,
+                spreadPips: currentQuote.spreadPips,
+                timestamp: currentQuote.timestamp,
+                status: currentQuote.status,
+              } : undefined}
               timeframe={selectedTimeframe}
               onTimeframeChange={setSelectedTimeframe}
               formatPrice={(price) => formatPrice(price, selectedPair)}
