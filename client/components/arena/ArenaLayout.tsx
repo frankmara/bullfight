@@ -1,5 +1,6 @@
-import React from "react";
-import { View, StyleSheet, Platform } from "react-native";
+import React, { useState } from "react";
+import { View, StyleSheet, Platform, Pressable } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import { TerminalColors } from "@/components/terminal";
 
 interface ArenaLayoutProps {
@@ -18,6 +19,7 @@ interface ArenaLayoutProps {
 const TOOL_DOCK_WIDTH = 48;
 const RIGHT_PANEL_WIDTH = 400;
 const BLOTTER_HEIGHT = 280;
+const BLOTTER_COLLAPSED_HEIGHT = 32;
 const TOOLBAR_HEIGHT = 44;
 
 export function ArenaLayout({
@@ -32,9 +34,15 @@ export function ArenaLayout({
   overlays,
   isFullscreen = false,
 }: ArenaLayoutProps) {
+  const [isBlotterCollapsed, setIsBlotterCollapsed] = useState(false);
+
   if (Platform.OS !== "web") {
     return null;
   }
+
+  const toggleBlotter = () => {
+    setIsBlotterCollapsed(!isBlotterCollapsed);
+  };
 
   return (
     <View style={styles.container}>
@@ -67,12 +75,21 @@ export function ArenaLayout({
       </View>
       
       {!isFullscreen && (
-        <View style={styles.blotterRow}>
+        <View style={[
+          styles.blotterRow,
+          isBlotterCollapsed && styles.blotterRowCollapsed
+        ]}>
           <View style={styles.blotterDockSpacer}>
-            {blotterDockButton}
+            <Pressable style={styles.collapseBtn} onPress={toggleBlotter}>
+              <Feather 
+                name={isBlotterCollapsed ? "chevron-up" : "chevron-down"} 
+                size={16} 
+                color={TerminalColors.textMuted} 
+              />
+            </Pressable>
           </View>
           <View style={styles.blotterContent}>
-            {blotter}
+            {isBlotterCollapsed ? null : blotter}
           </View>
         </View>
       )}
@@ -139,7 +156,6 @@ const styles = StyleSheet.create({
   },
   
   orderTicketSection: {
-    height: 180,
     flexShrink: 0,
   },
   
@@ -151,11 +167,25 @@ const styles = StyleSheet.create({
     backgroundColor: TerminalColors.bgPanel,
   },
   
+  blotterRowCollapsed: {
+    height: BLOTTER_COLLAPSED_HEIGHT,
+  },
+  
   blotterDockSpacer: {
     width: TOOL_DOCK_WIDTH,
     backgroundColor: TerminalColors.bgPanel,
     borderRightWidth: 1,
     borderRightColor: TerminalColors.border,
+    alignItems: "center",
+    justifyContent: "flex-start",
+    paddingTop: 6,
+  },
+  
+  collapseBtn: {
+    width: 28,
+    height: 20,
+    borderRadius: 4,
+    backgroundColor: TerminalColors.bgElevated,
     alignItems: "center",
     justifyContent: "center",
   },
