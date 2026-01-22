@@ -6,8 +6,14 @@ const AUTH_STORAGE_KEY = "@bullfight_auth";
 export function getApiUrl(): string {
   let host = process.env.EXPO_PUBLIC_DOMAIN;
 
+  // In production static build, EXPO_PUBLIC_DOMAIN may not be set
+  // Use current origin (API is on the same domain)
   if (!host) {
-    throw new Error("EXPO_PUBLIC_DOMAIN is not set");
+    if (typeof window !== 'undefined' && window.location) {
+      return window.location.origin;
+    }
+    // Fallback for SSR or unexpected cases
+    return '';
   }
 
   let url = new URL(`https://${host}`);

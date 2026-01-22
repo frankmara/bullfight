@@ -15,12 +15,28 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/context/AuthContext";
 import { RootStackParamList } from "@/types/navigation";
 
-const linking: LinkingOptions<RootStackParamList> = {
-  prefixes: [
+function getLinkingPrefixes(): string[] {
+  const prefixes = [
     Linking.createURL("/"),
     "https://bullfight.replit.app",
-    `https://${process.env.EXPO_PUBLIC_DOMAIN || ""}`.replace(":5000", ""),
-  ],
+    "https://bull-battle.com",
+  ];
+  
+  // Add development domain if available
+  if (process.env.EXPO_PUBLIC_DOMAIN) {
+    prefixes.push(`https://${process.env.EXPO_PUBLIC_DOMAIN}`.replace(":5000", ""));
+  }
+  
+  // Add current origin in production
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    prefixes.push(window.location.origin);
+  }
+  
+  return prefixes;
+}
+
+const linking: LinkingOptions<RootStackParamList> = {
+  prefixes: getLinkingPrefixes(),
   config: {
     screens: {
       Main: "",
