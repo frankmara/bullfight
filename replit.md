@@ -108,13 +108,35 @@ Key entities defined in the schema:
 - Screens use safe header/tab bar height detection for proper spacing
 
 ### Professional Trading Terminal (Arena)
-- 3-column desktop layout: watchlist (left), chart (center), order ticket (right)
+
+#### Layout Structure (Desktop)
+- **ArenaLayout wrapper** (`/client/components/arena/ArenaLayout.tsx`): CSS Grid layout orchestrator
+- **ToolDock** (48px left): Vertical tool bar with 8 drawing tool icons (cursor, crosshair, trend, horizontal, fib, rectangle, text, measure)
+- **ChartToolbar** (44px top): Symbol info, price display, timeframe selector (M1-D1)
+- **Center Chart**: TradingView candlestick chart with position/order overlays
+- **Right Panel** (400px): Split 62% MarketWatch / 38% OrderTicket
+- **Bottom Blotter** (280px): 6 tabs - Positions, Pending, Closed Positions, Trades, Deal History, Order History
+
+#### Arena Components
+- `/client/components/arena/ArenaLayout.tsx` - Grid layout wrapper
+- `/client/components/arena/ToolDock.tsx` - Drawing tools sidebar
+- `/client/components/arena/ChartToolbar.tsx` - Symbol and timeframe controls
+- `/client/components/arena/MarketWatch.tsx` - Currency pair table with search and favorites
+- `/client/components/arena/OrderTicket.tsx` - Order entry form with one-click trading
+- `/client/components/arena/Blotter.tsx` - Tabbed positions/orders/history panel
+- `/client/components/arena/index.ts` - Barrel export
+
+#### Terminal Theme System
+- `/client/components/terminal/theme.ts` - Premium dark theme (bgBase #070A0F, bgPanel #0B0F14, accent #D14B3A)
+- Tabular-nums font variant for price alignment
+- Reusable primitives: TerminalColors, TerminalTypography, TerminalSpacing, TerminalRadius
+
+#### Features
 - Top header with comprehensive metrics: Balance, Equity, P&L, Return%, Rank, Drawdown
 - Data status indicator shows MOCK (amber) or LIVE (green) next to competition status
 - Enhanced watchlist: search input, favorite symbols with stars, tick indicators (up/down arrows), spread display
 - Order ticket: one-click trading toggle, BUY/SELL buttons with live prices, quick lot size buttons (0.01-1.0), SL/TP inputs
 - Lots-based sizing: 1 lot = 100,000 units (standard FX contract), quick sizes: 0.01, 0.05, 0.1, 0.5, 1.0
-- Tabbed bottom blotter: Positions, Orders, History tabs with LOTS column (displays 0.10 format, not raw units)
 - Chart overlays: position entry lines showing lots (e.g., "BUY 0.10 lots"), pending order lines, SL/TP price lines
 - Collapsible leaderboard panel slides in from right side
 - Order confirmation: uses window.confirm() on web, Alert.alert on mobile
