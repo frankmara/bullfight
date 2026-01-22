@@ -212,14 +212,14 @@ export default function PvPListScreen() {
   return (
     <View style={[styles.container, { paddingTop: headerHeight }]}>
       <View style={[styles.contentWrapper, isDesktop && { maxWidth: containerWidth }]}>
-        <View style={styles.header}>
-          <View>
+        <View style={[styles.header, !isDesktop && styles.headerMobile]}>
+          <View style={styles.headerText}>
             <ThemedText style={styles.pageTitle}>PvP Challenges</ThemedText>
             <ThemedText style={styles.pageSubtitle}>
               One-on-one trading competitions
             </ThemedText>
           </View>
-          <Button onPress={handleCreateChallenge} style={styles.createButton}>
+          <Button onPress={handleCreateChallenge} style={[styles.createButton, !isDesktop && styles.createButtonMobile]}>
             <Feather name="plus" size={16} color={Colors.dark.buttonText} />
             <ThemedText style={styles.createButtonText}>New Challenge</ThemedText>
           </Button>
@@ -284,6 +284,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.dark.border,
   },
+  headerMobile: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    gap: Spacing.md,
+  },
+  headerText: {
+    flex: 1,
+  },
   pageTitle: {
     fontSize: 28,
     fontWeight: "700",
@@ -297,9 +305,13 @@ const styles = StyleSheet.create({
   createButton: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 8,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
+  },
+  createButtonMobile: {
+    alignSelf: "stretch",
   },
   createButtonText: {
     color: Colors.dark.buttonText,
