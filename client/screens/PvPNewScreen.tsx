@@ -61,9 +61,9 @@ export default function PvPNewScreen() {
       const res = await apiRequest("POST", "/api/pvp/challenges", data);
       return res.json();
     },
-    onSuccess: (data: any) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/pvp/challenges"] });
-      navigation.navigate("PvPDetail" as any, { id: data.id });
+      navigation.navigate("PvP" as any);
     },
     onError: (err: any) => {
       setError(err.message || "Failed to create challenge");
@@ -139,9 +139,6 @@ export default function PvPNewScreen() {
     >
       <View style={[styles.contentWrapper, { maxWidth: containerWidth }]}>
         <View style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
-            <Feather name="arrow-left" size={20} color={Colors.dark.text} />
-          </Pressable>
           <View>
             <ThemedText style={styles.pageTitle}>Create PvP Challenge</ThemedText>
             <ThemedText style={styles.pageSubtitle}>
@@ -313,18 +310,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
     paddingVertical: Spacing.xl,
-    gap: Spacing.md,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.dark.backgroundSecondary,
-    alignItems: "center",
-    justifyContent: "center",
   },
   pageTitle: {
     fontSize: 24,

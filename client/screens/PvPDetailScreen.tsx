@@ -249,16 +249,11 @@ export default function PvPDetailScreen() {
     >
       <View style={[styles.contentWrapper, { maxWidth: containerWidth }]}>
         <View style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
-            <Feather name="arrow-left" size={20} color={Colors.dark.text} />
-          </Pressable>
-          <View style={styles.headerContent}>
-            <ThemedText style={styles.pageTitle}>PvP Challenge</ThemedText>
-            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(challenge.status) + "20" }]}>
-              <ThemedText style={[styles.statusText, { color: getStatusColor(challenge.status) }]}>
-                {challenge.status.replace("_", " ").toUpperCase()}
-              </ThemedText>
-            </View>
+          <ThemedText style={styles.pageTitle}>PvP Challenge</ThemedText>
+          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(challenge.status) + "20" }]}>
+            <ThemedText style={[styles.statusText, { color: getStatusColor(challenge.status) }]}>
+              {challenge.status.replace("_", " ").toUpperCase()}
+            </ThemedText>
           </View>
         </View>
 
@@ -548,22 +543,9 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     paddingVertical: Spacing.xl,
     gap: Spacing.md,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.dark.backgroundSecondary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerContent: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
   },
   pageTitle: {
     fontSize: 24,
