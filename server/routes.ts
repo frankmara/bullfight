@@ -14,13 +14,23 @@ import {
   unitsToLots,
 } from "./services/ExecutionService";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
+import { usernameSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/register", async (req: Request, res: Response) => {
     try {
-      const { email, password } = req.body;
+      const { email, password, username } = req.body;
       if (!email || !password) {
         return res.status(400).json({ error: "Email and password required" });
+      }
+
+      if (!username) {
+        return res.status(400).json({ error: "Username is required" });
+      }
+
+      const usernameValidation = usernameSchema.safeParse(username);
+      if (!usernameValidation.success) {
+        return res.status(400).json({ error: usernameValidation.error.errors[0]?.message || "Invalid username" });
       }
 
       const existing = await storage.getUserByEmail(email);
@@ -28,14 +38,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Email already registered" });
       }
 
-      const user = await storage.createUser(email, password);
+      const existingUsername = await storage.getUserByUsername(username);
+      if (existingUsername) {
+        return res.status(400).json({ error: "Username already taken" });
+      }
+
+      const user = await storage.createUser(email, password, username);
       
       EmailService.sendWelcomeEmail(user.id, user.email).catch(err => {
         console.error("Failed to send welcome email:", err);
       });
 
       res.json({
-        user: { id: user.id, email: user.email, role: user.role },
+        user: { id: user.id, email: user.email, username: user.username, role: user.role },
       });
     } catch (error: any) {
       console.error("Register error:", error);
@@ -61,7 +76,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.json({
-        user: { id: user.id, email: user.email, role: user.role },
+        user: { id: user.id, email: user.email, username: user.username, role: user.role, needsUsername: !user.username },
       });
     } catch (error: any) {
       console.error("Login error:", error);
@@ -133,11 +148,131 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.json({
-        user: { id: user.id, email: user.email, role: user.role },
+        user: { id: user.id, email: user.email, username: user.username, role: user.role, needsUsername: !user.username },
       });
     } catch (error: any) {
       console.error("Get me error:", error);
       res.status(500).json({ error: error.message || "Failed to get user" });
+    }
+  });
+
+  app.post("/api/auth/set-username", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { username } = req.body;
+      if (!username) {
+        return res.status(400).json({ error: "Username is required" });
+      }
+
+      const usernameValidation = usernameSchema.safeParse(username);
+      if (!usernameValidation.success) {
+        return res.status(400).json({ error: usernameValidation.error.errors[0]?.message || "Invalid username" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      if (user.usernameChangedAt) {
+        const daysSinceChange = (Date.now() - new Date(user.usernameChangedAt).getTime()) / (1000 * 60 * 60 * 24);
+        if (daysSinceChange < 7) {
+          const daysRemaining = Math.ceil(7 - daysSinceChange);
+          return res.status(400).json({ error: `Username can only be changed once every 7 days. Please wait ${daysRemaining} more day(s).` });
+        }
+      }
+
+      const existingUsername = await storage.getUserByUsername(username);
+      if (existingUsername && existingUsername.id !== userId) {
+        return res.status(400).json({ error: "Username already taken" });
+      }
+
+      const updatedUser = await storage.updateUsername(userId, username);
+      if (!updatedUser) {
+        return res.status(500).json({ error: "Failed to update username" });
+      }
+
+      res.json({
+        user: { id: updatedUser.id, email: updatedUser.email, username: updatedUser.username, role: updatedUser.role },
+      });
+    } catch (error: any) {
+      console.error("Set username error:", error);
+      res.status(500).json({ error: error.message || "Failed to set username" });
+    }
+  });
+
+  app.get("/api/me/dashboard", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const userCompetitions = await storage.getUserCompetitions(userId);
+      const userStats = await storage.getUserStats(userId);
+
+      const activeCompetitions = [];
+      let totalEquityCents = 0;
+      let totalStartingBalanceCents = 0;
+      let totalWins = 0;
+      let totalTrades = 0;
+
+      for (const comp of userCompetitions) {
+        if (comp.status === "open" || comp.status === "running") {
+          const trades = await getTrades(comp.competitionId, userId);
+          const closedTrades = trades.filter(t => t.status === "closed");
+          const wins = closedTrades.filter(t => t.realizedPnlCents > 0).length;
+          
+          activeCompetitions.push({
+            ...comp,
+            tradesCount: trades.length,
+            closedTradesCount: closedTrades.length,
+            winRate: closedTrades.length > 0 ? (wins / closedTrades.length) * 100 : 0,
+          });
+
+          totalEquityCents += comp.equityCents;
+          totalStartingBalanceCents += comp.startingBalanceCents;
+          totalWins += wins;
+          totalTrades += closedTrades.length;
+        }
+      }
+
+      const overallReturnPct = totalStartingBalanceCents > 0 
+        ? ((totalEquityCents - totalStartingBalanceCents) / totalStartingBalanceCents) * 100 
+        : 0;
+
+      const overallWinRate = totalTrades > 0 ? (totalWins / totalTrades) * 100 : 0;
+
+      res.json({
+        user: {
+          id: user.id,
+          email: user.email,
+          username: user.username,
+          needsUsername: !user.username,
+        },
+        stats: {
+          totalEquityCents,
+          totalStartingBalanceCents,
+          returnPct: overallReturnPct,
+          winRate: overallWinRate,
+          tradesCount: totalTrades,
+          ...userStats,
+        },
+        activeCompetitions,
+        allCompetitions: userCompetitions,
+      });
+    } catch (error: any) {
+      console.error("Get dashboard error:", error);
+      res.status(500).json({ error: error.message || "Failed to get dashboard data" });
     }
   });
 
@@ -556,8 +691,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const leaderboard = await storage.getLeaderboard(id, comp.startingBalanceCents);
       const topCompetitors = leaderboard.slice(0, limit).map((entry) => ({
         rank: entry.rank,
-        oderId: entry.userId,
-        username: entry.email?.split("@")[0] || `Trader${entry.rank}`,
+        userId: entry.userId,
+        username: entry.username,
         returnPct: entry.returnPct,
         equityCents: entry.equityCents,
         drawdownPct: 0, // Would need historical data
@@ -643,7 +778,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const { id, userId } = req.params;
 
-        const deals = await getDeals(id, userId, 100);
+        const deals = await getDeals(id, userId);
         res.json(deals);
       } catch (error: any) {
         console.error("Get competitor deals error:", error);
