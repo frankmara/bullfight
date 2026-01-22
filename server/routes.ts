@@ -625,9 +625,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/competitions/:id/competitors/:userId/trades",
     async (req: Request, res: Response) => {
       try {
-        const { id, oderId } = req.params;
+        const { id, userId } = req.params;
 
-        const trades = await getTrades(id, oderId);
+        const trades = await getTrades(id, userId);
         res.json(trades);
       } catch (error: any) {
         console.error("Get competitor trades error:", error);
@@ -641,9 +641,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/competitions/:id/competitors/:userId/deals",
     async (req: Request, res: Response) => {
       try {
-        const { id, oderId } = req.params;
+        const { id, userId } = req.params;
 
-        const deals = await getDeals(id, oderId, 100);
+        const deals = await getDeals(id, userId, 100);
         res.json(deals);
       } catch (error: any) {
         console.error("Get competitor deals error:", error);
@@ -657,9 +657,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/competitions/:id/competitors/:userId/orders",
     async (req: Request, res: Response) => {
       try {
-        const { id, oderId } = req.params;
+        const { id, userId } = req.params;
 
-        const orders = await storage.getAllOrders(id, oderId);
+        const orders = await storage.getOrders(id, userId);
         res.json(orders);
       } catch (error: any) {
         console.error("Get competitor orders error:", error);
