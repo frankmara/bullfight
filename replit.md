@@ -67,7 +67,8 @@ Key entities include `users`, `competitions`, `competitionEntries`, `orders`, `f
 ### Payments
 - Stripe integration for competition buy-ins and PvP stakes using `StripeClient`.
 - Webhooks handle payment completion events.
-- Falls back to simulated payments if `STRIPE_SECRET_KEY` is not provided.
+- **TEMPORARY**: Currently using Stripe sandbox mode in production (see `server/stripeClient.ts` line 21-23). Change `targetEnvironment` to use production credentials when ready for live payments.
+- Falls back to simulated payments if Stripe connector is not configured.
 
 ### Mobile Development
 - Expo managed workflow with EAS build.

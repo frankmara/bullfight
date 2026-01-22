@@ -15,8 +15,9 @@ async function getCredentials() {
   }
 
   const connectorName = 'stripe';
-  const isProduction = process.env.REPLIT_DEPLOYMENT === '1';
-  const targetEnvironment = isProduction ? 'production' : 'development';
+  // TEMPORARY: Use sandbox/development credentials in all environments
+  // Change this to use production credentials when ready for live payments
+  const targetEnvironment = 'development';
 
   const url = new URL(`https://${hostname}/api/v2/connection`);
   url.searchParams.set('include_secrets', 'true');
