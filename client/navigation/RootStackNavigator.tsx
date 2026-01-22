@@ -55,7 +55,7 @@ export default function RootStackNavigator() {
         name="Arena"
         component={ArenaScreen}
         options={{
-          headerTitle: "Trading Arena",
+          headerShown: false,
         }}
       />
       <Stack.Screen
