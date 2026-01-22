@@ -509,12 +509,12 @@ class DatabaseStorage implements IStorage {
     await db.delete(positions).where(eq(positions.id, id));
   }
 
-  async getPvpChallenges(userId: string): Promise<PvpChallenge[]> {
+  async getPvpChallenges(userId: string, userEmail?: string): Promise<PvpChallenge[]> {
     const results = await db
       .select()
       .from(pvpChallenges)
       .where(
-        sql`${pvpChallenges.challengerId} = ${userId} OR ${pvpChallenges.inviteeId} = ${userId}`
+        sql`${pvpChallenges.challengerId} = ${userId} OR ${pvpChallenges.inviteeId} = ${userId} OR ${pvpChallenges.inviteeEmail} = ${userEmail || ''}`
       )
       .orderBy(desc(pvpChallenges.createdAt));
     return results;

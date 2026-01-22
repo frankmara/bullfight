@@ -906,7 +906,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Authentication required" });
       }
 
-      const challenges = await storage.getPvpChallenges(userId);
+      const user = await storage.getUser(userId);
+      const challenges = await storage.getPvpChallenges(userId, user?.email);
       res.json(challenges);
     } catch (error: any) {
       console.error("Get PvP challenges error:", error);
