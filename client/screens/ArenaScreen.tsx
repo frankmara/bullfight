@@ -578,6 +578,8 @@ export default function ArenaScreen() {
           height={isDesktop ? Math.max(height - 520, 300) : 280}
           positions={positions.filter((p) => p.pair === selectedPair)}
           orders={pendingOrders.filter((o) => o.pair === selectedPair)}
+          timeframe={selectedTimeframe}
+          currentQuote={currentQuote ? { bid: currentQuote.bid, ask: currentQuote.ask } : undefined}
         />
       </View>
     </View>
@@ -939,6 +941,8 @@ export default function ArenaScreen() {
               height={height - 520}
               positions={positions.filter((p) => p.pair === selectedPair)}
               orders={pendingOrders.filter((o) => o.pair === selectedPair)}
+              timeframe={selectedTimeframe}
+              currentQuote={currentQuote ? { bid: currentQuote.bid, ask: currentQuote.ask } : undefined}
             />
           }
           marketWatch={
