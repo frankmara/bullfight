@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "node:http";
 import { storage } from "./storage";
 import { marketDataService } from "./services/MarketDataService";
+import { EmailService } from "./services/EmailService";
 import {
   executeMarketOrder,
   partialClosePosition,
@@ -26,6 +27,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const user = await storage.createUser(email, password);
+      
+      EmailService.sendWelcomeEmail(user.id, user.email).catch(err => {
+        console.error("Failed to send welcome email:", err);
+      });
+
       res.json({
         user: { id: user.id, email: user.email, role: user.role },
       });
@@ -811,6 +817,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         stakeCents: challenge.stakeCents,
       });
 
+      const challenger = await storage.getUser(userId);
+      const durationHours = challenge.startAt && challenge.endAt 
+        ? Math.round((new Date(challenge.endAt).getTime() - new Date(challenge.startAt).getTime()) / (1000 * 60 * 60))
+        : 24;
+
+      EmailService.sendPvPInvitationEmail(
+        inviteeEmail,
+        challenger?.email?.split('@')[0] || 'A trader',
+        challenge.stakeCents,
+        durationHours,
+        challenge.startingBalanceCents,
+        challenge.id
+      ).catch(err => {
+        console.error("Failed to send PvP invitation email:", err);
+      });
+
       res.json(challenge);
     } catch (error: any) {
       console.error("Create PvP challenge error:", error);
@@ -1078,6 +1100,164 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updated);
     } catch (error: any) {
       console.error("Cancel PvP challenge error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  await EmailService.ensureDefaultTemplates();
+
+  app.get("/api/admin/email-templates", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      const templates = await EmailService.getAllTemplates();
+      res.json(templates);
+    } catch (error: any) {
+      console.error("Get email templates error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/admin/email-templates/:type", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      const { type } = req.params;
+      const template = await EmailService.getTemplate(type as any);
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+
+      res.json(template);
+    } catch (error: any) {
+      console.error("Get email template error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.put("/api/admin/email-templates/:type", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      const { type } = req.params;
+      const { subject, htmlBody, enabled } = req.body;
+
+      await EmailService.updateTemplate(type, { subject, htmlBody, enabled });
+      
+      await storage.createAuditLog(userId, "email_template_updated", "email_template", type, { subject, enabled });
+
+      const updated = await EmailService.getTemplate(type as any);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Update email template error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/admin/email-logs", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      const limit = parseInt(req.query.limit as string) || 50;
+      const offset = parseInt(req.query.offset as string) || 0;
+
+      const logs = await EmailService.getEmailLogs(limit, offset);
+      res.json(logs);
+    } catch (error: any) {
+      console.error("Get email logs error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/email-templates/:type/test", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      const { type } = req.params;
+      const { testEmail } = req.body;
+
+      if (!testEmail) {
+        return res.status(400).json({ error: "Test email address required" });
+      }
+
+      const testVariables: Record<string, string> = {
+        userName: "Test User",
+        userEmail: testEmail,
+        appUrl: `https://${process.env.EXPO_PUBLIC_DOMAIN || 'bullfight.app'}`,
+        competitionName: "Test Competition",
+        buyInAmount: "$100.00",
+        prizePool: "$10,000.00",
+        startDate: new Date().toLocaleDateString(),
+        startingBalance: "$100,000",
+        arenaUrl: `https://${process.env.EXPO_PUBLIC_DOMAIN || 'bullfight.app'}/arena/test`,
+        duration: "24 hours",
+        endDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString(),
+        participantCount: "50",
+        finalRank: "3",
+        totalParticipants: "50",
+        finalReturn: "+15.25%",
+        returnColor: "#00C853",
+        finalEquity: "$115,250",
+        winnings: "$1,000.00",
+        challengerName: "Test Challenger",
+        stakeAmount: "$50.00",
+        challengeUrl: `https://${process.env.EXPO_PUBLIC_DOMAIN || 'bullfight.app'}/pvp/test`,
+        currentRank: "5",
+        currentReturn: "+8.50%",
+        currentEquity: "$108,500",
+        timeRemaining: "12h 30m",
+        leaderboardHtml: "<div style='color: #B0B0B0;'>Sample leaderboard...</div>",
+      };
+
+      const result = await EmailService.sendEmail(type as any, testEmail, testVariables);
+
+      if (result.success) {
+        res.json({ success: true, messageId: result.messageId });
+      } else {
+        res.status(500).json({ success: false, error: result.error });
+      }
+    } catch (error: any) {
+      console.error("Test email error:", error);
       res.status(500).json({ error: error.message });
     }
   });
