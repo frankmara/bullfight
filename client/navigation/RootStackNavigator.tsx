@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import MainTabNavigator from "@/navigation/MainTabNavigator";
 import LoginScreen from "@/screens/LoginScreen";
 import RegisterScreen from "@/screens/RegisterScreen";
+import ForgotPasswordScreen from "@/screens/ForgotPasswordScreen";
 import CompetitionDetailScreen from "@/screens/CompetitionDetailScreen";
 import ArenaScreen from "@/screens/ArenaScreen";
 import AdminScreen from "@/screens/AdminScreen";
@@ -42,6 +43,14 @@ export default function RootStackNavigator() {
         options={{
           presentation: "modal",
           headerTitle: "Create Account",
+        }}
+      />
+      <Stack.Screen
+        name="ForgotPassword"
+        component={ForgotPasswordScreen}
+        options={{
+          presentation: "modal",
+          headerTitle: "Reset Password",
         }}
       />
       <Stack.Screen

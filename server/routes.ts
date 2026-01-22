@@ -68,6 +68,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/auth/forgot-password", async (req: Request, res: Response) => {
+    try {
+      const { email } = req.body;
+      if (!email) {
+        return res.status(400).json({ error: "Email is required" });
+      }
+
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.json({ message: "If an account exists, a reset email has been sent" });
+      }
+
+      const resetToken = crypto.randomUUID();
+      const resetTokenExpiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+      await storage.setResetToken(user.id, resetToken, resetTokenExpiresAt);
+      await EmailService.sendPasswordResetEmail(email, resetToken);
+
+      res.json({ message: "If an account exists, a reset email has been sent" });
+    } catch (error: any) {
+      console.error("Forgot password error:", error);
+      res.status(500).json({ error: error.message || "Failed to process request" });
+    }
+  });
+
+  app.post("/api/auth/reset-password", async (req: Request, res: Response) => {
+    try {
+      const { token, password } = req.body;
+      if (!token || !password) {
+        return res.status(400).json({ error: "Token and password are required" });
+      }
+
+      if (password.length < 6) {
+        return res.status(400).json({ error: "Password must be at least 6 characters" });
+      }
+
+      const user = await storage.getUserByResetToken(token);
+      if (!user) {
+        return res.status(400).json({ error: "Invalid or expired reset token" });
+      }
+
+      await storage.updatePassword(user.id, password);
+      await storage.clearResetToken(user.id);
+
+      res.json({ message: "Password has been reset successfully" });
+    } catch (error: any) {
+      console.error("Reset password error:", error);
+      res.status(500).json({ error: error.message || "Failed to reset password" });
+    }
+  });
+
   app.get("/api/auth/me", async (req: Request, res: Response) => {
     try {
       const userId = req.headers["x-user-id"] as string;

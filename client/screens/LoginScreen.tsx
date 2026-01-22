@@ -108,6 +108,10 @@ export default function LoginScreen() {
               />
             </View>
 
+            <Pressable onPress={() => navigation.navigate("ForgotPassword" as any)} style={styles.forgotPasswordLink}>
+              <ThemedText style={styles.forgotPasswordText}>Forgot Password?</ThemedText>
+            </Pressable>
+
             <Button onPress={handleLogin} disabled={isLoading} style={styles.button}>
               {isLoading ? "Signing in..." : "Sign In"}
             </Button>
@@ -220,6 +224,15 @@ const styles = StyleSheet.create({
     color: Colors.dark.danger,
     fontSize: 14,
     textAlign: "center",
+  },
+  forgotPasswordLink: {
+    alignSelf: "flex-end",
+    marginBottom: Spacing.lg,
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    color: Colors.dark.accent,
+    fontWeight: "500",
   },
   button: {
     marginTop: Spacing.md,

@@ -43,6 +43,7 @@ async function getResendClient() {
 
 export type EmailType = 
   | 'welcome'
+  | 'password_reset'
   | 'challenge_entry_confirmed'
   | 'challenge_started'
   | 'challenge_concluded'
@@ -75,6 +76,29 @@ const DEFAULT_TEMPLATES: Record<EmailType, { name: string; subject: string; html
 </html>
     `,
     variables: ['userName', 'userEmail', 'appUrl']
+  },
+  password_reset: {
+    name: 'Password Reset',
+    subject: 'Reset Your Bullfight Password',
+    htmlBody: `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0A0A0A; color: #FFFFFF; padding: 40px;">
+  <div style="max-width: 600px; margin: 0 auto; background-color: #121212; border-radius: 8px; padding: 32px; border: 1px solid #252525;">
+    <h1 style="color: #FF3B3B; margin-bottom: 24px;">Reset Your Password</h1>
+    <p style="color: #B0B0B0; font-size: 16px; line-height: 1.6;">Hi {{userName}},</p>
+    <p style="color: #B0B0B0; font-size: 16px; line-height: 1.6;">We received a request to reset your password. Click the button below to create a new password:</p>
+    <div style="margin: 32px 0; text-align: center;">
+      <a href="{{resetUrl}}" style="display: inline-block; background-color: #FF3B3B; color: #FFFFFF; text-decoration: none; padding: 12px 32px; border-radius: 6px; font-weight: bold;">Reset Password</a>
+    </div>
+    <p style="color: #B0B0B0; font-size: 14px; line-height: 1.6;">This link will expire in 1 hour.</p>
+    <p style="color: #B0B0B0; font-size: 14px; line-height: 1.6;">If you didn't request a password reset, you can safely ignore this email.</p>
+  </div>
+</body>
+</html>
+    `,
+    variables: ['userName', 'resetUrl']
   },
   challenge_entry_confirmed: {
     name: 'Challenge Entry Confirmed',
@@ -341,6 +365,19 @@ export class EmailService {
       userEmail: email,
       appUrl,
     }, userId);
+  }
+
+  static async sendPasswordResetEmail(email: string, resetToken: string): Promise<void> {
+    const appUrl = process.env.REPLIT_DEV_DOMAIN 
+      ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+      : 'https://bullfight.app';
+
+    const resetUrl = `${appUrl}/reset-password?token=${resetToken}`;
+
+    await this.sendEmail('password_reset', email, {
+      userName: email.split('@')[0],
+      resetUrl,
+    });
   }
 
   static async sendChallengeEntryConfirmedEmail(

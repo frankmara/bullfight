@@ -1,4 +1,4 @@
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc, gt } from "drizzle-orm";
 import { db } from "./db";
 import {
   users,
@@ -29,8 +29,12 @@ import bcrypt from "bcryptjs";
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByResetToken(token: string): Promise<User | undefined>;
   createUser(email: string, password: string, role?: string): Promise<User>;
   verifyPassword(user: User, password: string): Promise<boolean>;
+  setResetToken(userId: string, token: string, expiresAt: Date): Promise<void>;
+  clearResetToken(userId: string): Promise<void>;
+  updatePassword(userId: string, password: string): Promise<void>;
 
   getCompetitions(): Promise<CompetitionWithStats[]>;
   getCompetition(id: string): Promise<CompetitionWithStats | undefined>;
@@ -143,6 +147,39 @@ class DatabaseStorage implements IStorage {
 
   async verifyPassword(user: User, password: string): Promise<boolean> {
     return bcrypt.compare(password, user.passwordHash);
+  }
+
+  async getUserByResetToken(token: string): Promise<User | undefined> {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(and(
+        eq(users.resetToken, token),
+        gt(users.resetTokenExpiresAt, new Date())
+      ));
+    return user;
+  }
+
+  async setResetToken(userId: string, token: string, expiresAt: Date): Promise<void> {
+    await db
+      .update(users)
+      .set({ resetToken: token, resetTokenExpiresAt: expiresAt })
+      .where(eq(users.id, userId));
+  }
+
+  async clearResetToken(userId: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ resetToken: null, resetTokenExpiresAt: null })
+      .where(eq(users.id, userId));
+  }
+
+  async updatePassword(userId: string, password: string): Promise<void> {
+    const passwordHash = await bcrypt.hash(password, 10);
+    await db
+      .update(users)
+      .set({ passwordHash })
+      .where(eq(users.id, userId));
   }
 
   async getCompetitions(): Promise<CompetitionWithStats[]> {

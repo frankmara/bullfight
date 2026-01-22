@@ -2,6 +2,8 @@ export type RootStackParamList = {
   Main: undefined;
   Login: undefined;
   Register: undefined;
+  ForgotPassword: undefined;
+  ResetPassword: { token: string };
   CompetitionDetail: { id: string };
   Arena: { id: string };
   Admin: undefined;
