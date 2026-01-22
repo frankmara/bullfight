@@ -112,6 +112,35 @@ interface Trade {
   closedAt?: string;
 }
 
+interface Deal {
+  id: string;
+  tradeId: string;
+  orderId?: string;
+  pair: string;
+  side: string;
+  units: number;
+  lots: number;
+  price: number;
+  kind: string;
+  realizedPnlCents: number;
+  createdAt: string;
+}
+
+interface OrderHistoryItem {
+  id: string;
+  pair: string;
+  side: string;
+  type: string;
+  quantityUnits: number;
+  limitPrice?: number;
+  stopPrice?: number;
+  takeProfitPrice?: number;
+  stopLossPrice?: number;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface ArenaData {
   competition: {
     id: string;
@@ -222,6 +251,16 @@ export default function ArenaScreen() {
 
   const { data: closedTrades } = useQuery<Trade[]>({
     queryKey: ["/api/arena", id, "trades"],
+    refetchInterval: 5000,
+  });
+
+  const { data: deals } = useQuery<Deal[]>({
+    queryKey: ["/api/arena", id, "deals"],
+    refetchInterval: 5000,
+  });
+
+  const { data: orderHistory } = useQuery<OrderHistoryItem[]>({
+    queryKey: ["/api/arena", id, "order-history"],
     refetchInterval: 5000,
   });
 
@@ -1111,6 +1150,9 @@ export default function ArenaScreen() {
               positions={positions}
               pendingOrders={pendingOrders}
               closedTrades={(closedTrades || []).filter(t => t.status === 'closed')}
+              allTrades={closedTrades || []}
+              deals={deals || []}
+              orderHistory={orderHistory || []}
               quotes={quotes}
               onClosePosition={(positionId) => closePositionMutation.mutate(positionId)}
               onPartialClose={(positionId, lots, percentage) => partialCloseMutation.mutate({ positionId, lots, percentage })}
