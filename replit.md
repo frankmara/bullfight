@@ -153,7 +153,7 @@ Key entities defined in the schema:
 - Lots-based sizing: 1 lot = 100,000 units (standard FX contract), quick sizes: 0.01, 0.05, 0.1, 0.5, 1.0
 - Chart overlays: position entry lines showing lots (e.g., "BUY 0.10 lots"), pending order lines, SL/TP price lines
 - Collapsible leaderboard panel slides in from right side
-- Order confirmation: uses window.confirm() on web, Alert.alert on mobile
+- Order confirmation: OrderTicket component shows a custom React Native Modal for confirmation when oneClickTrading is OFF
 
 ### Keyboard Shortcuts
 - B = Buy at market

@@ -368,37 +368,42 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
       positions.forEach((pos) => {
         try {
           const lots = pos.quantityUnits / 100000;
-          const lotsDisplay = lots >= 0.01 ? lots.toFixed(2) : (lots * 100).toFixed(0) + 'K';
+          const lotsDisplay = lots.toFixed(2);
+          const priceDisplay = formatPrice(pos.avgEntryPrice, pos.pair);
+          const isLong = pos.side === 'buy';
+          
           const entryLine = candlestickSeriesRef.current.createPriceLine({
             price: pos.avgEntryPrice,
-            color: pos.side === 'buy' ? TerminalColors.positive : TerminalColors.negative,
-            lineWidth: 2,
-            lineStyle: 0,
+            color: isLong ? '#16C784' : '#EA3943',
+            lineWidth: 1,
+            lineStyle: 2,
             axisLabelVisible: true,
-            title: `${pos.side.toUpperCase()} ${lotsDisplay} lots`,
+            title: `${pos.side.toUpperCase()} ${lotsDisplay} @ ${priceDisplay}`,
           });
           priceLinesRef.current.push(entryLine);
 
           if (pos.stopLossPrice) {
+            const slPriceDisplay = formatPrice(pos.stopLossPrice, pos.pair);
             const slLine = candlestickSeriesRef.current.createPriceLine({
               price: pos.stopLossPrice,
-              color: '#FF6B6B',
+              color: '#EA3943',
               lineWidth: 1,
-              lineStyle: 2,
+              lineStyle: 1,
               axisLabelVisible: true,
-              title: 'SL',
+              title: `SL ${slPriceDisplay}`,
             });
             priceLinesRef.current.push(slLine);
           }
 
           if (pos.takeProfitPrice) {
+            const tpPriceDisplay = formatPrice(pos.takeProfitPrice, pos.pair);
             const tpLine = candlestickSeriesRef.current.createPriceLine({
               price: pos.takeProfitPrice,
-              color: '#4ECDC4',
+              color: '#16C784',
               lineWidth: 1,
-              lineStyle: 2,
+              lineStyle: 1,
               axisLabelVisible: true,
-              title: 'TP',
+              title: `TP ${tpPriceDisplay}`,
             });
             priceLinesRef.current.push(tpLine);
           }
@@ -412,36 +417,45 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
           const orderPrice = order.limitPrice || order.stopPrice;
           if (!orderPrice) return;
 
+          const lots = order.quantityUnits / 100000;
+          const lotsDisplay = lots.toFixed(2);
+          const priceDisplay = formatPrice(orderPrice, order.pair);
+          const orderTypeLabel = order.type.toUpperCase();
+          const sideLabel = order.side.toUpperCase();
+          const isLong = order.side === 'buy';
+
           const orderLine = candlestickSeriesRef.current.createPriceLine({
             price: orderPrice,
-            color: TerminalColors.accent,
+            color: '#FFA726',
             lineWidth: 1,
             lineStyle: 1,
             axisLabelVisible: true,
-            title: `${order.type.toUpperCase()} ${order.side.toUpperCase()}`,
+            title: `${orderTypeLabel} ${sideLabel} ${lotsDisplay} @ ${priceDisplay}`,
           });
           priceLinesRef.current.push(orderLine);
 
           if (order.stopLossPrice) {
+            const slPriceDisplay = formatPrice(order.stopLossPrice, order.pair);
             const slLine = candlestickSeriesRef.current.createPriceLine({
               price: order.stopLossPrice,
-              color: '#FF6B6B',
+              color: '#EA3943',
               lineWidth: 1,
-              lineStyle: 3,
-              axisLabelVisible: false,
-              title: '',
+              lineStyle: 1,
+              axisLabelVisible: true,
+              title: `SL ${slPriceDisplay}`,
             });
             priceLinesRef.current.push(slLine);
           }
 
           if (order.takeProfitPrice) {
+            const tpPriceDisplay = formatPrice(order.takeProfitPrice, order.pair);
             const tpLine = candlestickSeriesRef.current.createPriceLine({
               price: order.takeProfitPrice,
-              color: '#4ECDC4',
+              color: '#16C784',
               lineWidth: 1,
-              lineStyle: 3,
-              axisLabelVisible: false,
-              title: '',
+              lineStyle: 1,
+              axisLabelVisible: true,
+              title: `TP ${tpPriceDisplay}`,
             });
             priceLinesRef.current.push(tpLine);
           }
@@ -449,7 +463,7 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
           console.error('Error creating order price line:', e);
         }
       });
-    }, [positions, orders]);
+    }, [positions, orders, pair]);
 
     useEffect(() => {
       if (!candlestickSeriesRef.current || Platform.OS !== 'web') {
