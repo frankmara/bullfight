@@ -65,6 +65,13 @@ interface DrawnLine {
   color: string;
 }
 
+interface DragInfo {
+  positionId: string;
+  type: 'sl' | 'tp';
+  originalPrice: number;
+  newPrice: number;
+}
+
 interface TradingViewChartProps {
   pair: string;
   height?: number;
@@ -75,6 +82,7 @@ interface TradingViewChartProps {
   selectedTool?: string;
   drawnLines?: DrawnLine[];
   onChartClick?: (price: number, time: number) => void;
+  onSLTPDrag?: (dragInfo: DragInfo) => void;
 }
 
 const TIMEFRAME_SECONDS: Record<string, number> = {
@@ -92,19 +100,30 @@ function formatPrice(price: number, pair: string): string {
   return price.toFixed(decimals);
 }
 
+interface DraggableLine {
+  positionId: string;
+  type: 'sl' | 'tp';
+  price: number;
+  lineRef: any;
+}
+
 export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
-  ({ pair, height = 400, positions = [], orders = [], timeframe = '15m', currentQuote, selectedTool = 'cursor', drawnLines = [], onChartClick }, ref) => {
+  ({ pair, height = 400, positions = [], orders = [], timeframe = '15m', currentQuote, selectedTool = 'cursor', drawnLines = [], onChartClick, onSLTPDrag }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<any>(null);
     const candlestickSeriesRef = useRef<any>(null);
     const priceLinesRef = useRef<any[]>([]);
     const drawnLinesRef = useRef<any[]>([]);
+    const draggableLinesRef = useRef<DraggableLine[]>([]);
     const lastDataRef = useRef<CandleData | null>(null);
     const candlesRef = useRef<CandleData[]>([]);
     const [isClient, setIsClient] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [isMockData, setIsMockData] = useState(false);
     const [ohlcData, setOhlcData] = useState<CandleData | null>(null);
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragTarget, setDragTarget] = useState<DraggableLine | null>(null);
+    const [dragPrice, setDragPrice] = useState<number | null>(null);
 
     useEffect(() => {
       setIsClient(true);
@@ -364,6 +383,7 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
         } catch (e) {}
       });
       priceLinesRef.current = [];
+      draggableLinesRef.current = [];
 
       positions.forEach((pos) => {
         try {
@@ -387,12 +407,18 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
             const slLine = candlestickSeriesRef.current.createPriceLine({
               price: pos.stopLossPrice,
               color: '#EA3943',
-              lineWidth: 1,
+              lineWidth: 2,
               lineStyle: 1,
               axisLabelVisible: true,
-              title: `SL ${slPriceDisplay}`,
+              title: `⬍ SL ${slPriceDisplay}`,
             });
             priceLinesRef.current.push(slLine);
+            draggableLinesRef.current.push({
+              positionId: pos.id,
+              type: 'sl',
+              price: pos.stopLossPrice,
+              lineRef: slLine,
+            });
           }
 
           if (pos.takeProfitPrice) {
@@ -400,12 +426,18 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
             const tpLine = candlestickSeriesRef.current.createPriceLine({
               price: pos.takeProfitPrice,
               color: '#16C784',
-              lineWidth: 1,
+              lineWidth: 2,
               lineStyle: 1,
               axisLabelVisible: true,
-              title: `TP ${tpPriceDisplay}`,
+              title: `⬍ TP ${tpPriceDisplay}`,
             });
             priceLinesRef.current.push(tpLine);
+            draggableLinesRef.current.push({
+              positionId: pos.id,
+              type: 'tp',
+              price: pos.takeProfitPrice,
+              lineRef: tpLine,
+            });
           }
         } catch (e) {
           console.error('Error creating position price line:', e);
@@ -464,6 +496,109 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
         }
       });
     }, [positions, orders, pair]);
+
+    useEffect(() => {
+      if (!containerRef.current || !candlestickSeriesRef.current || Platform.OS !== 'web') {
+        return;
+      }
+
+      const container = containerRef.current;
+      const DRAG_THRESHOLD = 8;
+
+      const findNearestDraggableLine = (y: number): DraggableLine | null => {
+        if (!candlestickSeriesRef.current) return null;
+        
+        let closestLine: DraggableLine | null = null;
+        let minDist = Infinity;
+
+        for (const dragLine of draggableLinesRef.current) {
+          try {
+            const lineY = candlestickSeriesRef.current.priceToCoordinate(dragLine.price);
+            if (lineY !== null) {
+              const dist = Math.abs(y - lineY);
+              if (dist < minDist && dist < DRAG_THRESHOLD) {
+                minDist = dist;
+                closestLine = dragLine;
+              }
+            }
+          } catch (e) {}
+        }
+        return closestLine;
+      };
+
+      const handleMouseDown = (e: MouseEvent) => {
+        const rect = container.getBoundingClientRect();
+        const y = e.clientY - rect.top;
+        const line = findNearestDraggableLine(y);
+        
+        if (line) {
+          e.preventDefault();
+          e.stopPropagation();
+          setDragTarget(line);
+          setDragPrice(line.price);
+          setIsDragging(true);
+          container.style.cursor = 'ns-resize';
+        }
+      };
+
+      const handleMouseMove = (e: MouseEvent) => {
+        if (!isDragging || !dragTarget || !candlestickSeriesRef.current) {
+          const rect = container.getBoundingClientRect();
+          const y = e.clientY - rect.top;
+          const line = findNearestDraggableLine(y);
+          container.style.cursor = line ? 'ns-resize' : 'crosshair';
+          return;
+        }
+
+        const rect = container.getBoundingClientRect();
+        const y = e.clientY - rect.top;
+        
+        try {
+          const newPrice = candlestickSeriesRef.current.coordinateToPrice(y);
+          if (newPrice !== null && newPrice > 0) {
+            setDragPrice(newPrice);
+            dragTarget.lineRef.applyOptions({
+              price: newPrice,
+              title: `⬍ ${dragTarget.type.toUpperCase()} ${formatPrice(newPrice, pair)} (dragging)`,
+            });
+          }
+        } catch (e) {}
+      };
+
+      const handleMouseUp = () => {
+        if (isDragging && dragTarget && dragPrice !== null && dragPrice !== dragTarget.price) {
+          if (onSLTPDrag) {
+            onSLTPDrag({
+              positionId: dragTarget.positionId,
+              type: dragTarget.type,
+              originalPrice: dragTarget.price,
+              newPrice: dragPrice,
+            });
+          }
+        } else if (isDragging && dragTarget) {
+          dragTarget.lineRef.applyOptions({
+            price: dragTarget.price,
+            title: `⬍ ${dragTarget.type.toUpperCase()} ${formatPrice(dragTarget.price, pair)}`,
+          });
+        }
+        setIsDragging(false);
+        setDragTarget(null);
+        setDragPrice(null);
+        container.style.cursor = 'crosshair';
+      };
+
+      container.addEventListener('mousedown', handleMouseDown, { capture: true });
+      container.addEventListener('mousemove', handleMouseMove);
+      container.addEventListener('mouseup', handleMouseUp);
+      container.addEventListener('mouseleave', handleMouseUp);
+
+      return () => {
+        container.removeEventListener('mousedown', handleMouseDown, { capture: true });
+        container.removeEventListener('mousemove', handleMouseMove);
+        container.removeEventListener('mouseup', handleMouseUp);
+        container.removeEventListener('mouseleave', handleMouseUp);
+      };
+    }, [isDragging, dragTarget, dragPrice, pair, onSLTPDrag]);
 
     useEffect(() => {
       if (!candlestickSeriesRef.current || Platform.OS !== 'web') {
