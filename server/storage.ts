@@ -93,6 +93,7 @@ export interface UserCompetitionInfo {
   rank?: number;
   totalEntrants?: number;
   prizeWonCents?: number;
+  endAt?: string;
 }
 
 export interface UserStats {
@@ -320,6 +321,7 @@ class DatabaseStorage implements IStorage {
           rank: userRank,
           totalEntrants: leaderboard.length,
           prizeWonCents: payout?.amountCents,
+          endAt: comp.endAt?.toISOString(),
         });
       }
     }

@@ -6,18 +6,17 @@ import { ThemedText } from '@/components/ThemedText';
 import { TerminalColors, TerminalTypography } from '@/components/terminal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-interface Competition {
+interface UserCompetitionInfo {
   id: string;
+  competitionId: string;
   title: string;
   status: string;
-  endAt: string;
-  type: string;
-}
-
-interface Entry {
-  competitionId: string;
   equityCents: number;
+  startingBalanceCents: number;
   rank?: number;
+  totalEntrants?: number;
+  prizeWonCents?: number;
+  endAt?: string;
 }
 
 interface CompetitionSwitcherProps {
@@ -76,8 +75,8 @@ export function CompetitionSwitcher({
 }: CompetitionSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  const { data: userCompetitions } = useQuery<{ competition: Competition; entry: Entry }[]>({
-    queryKey: ['/api/competitions/me'],
+  const { data: userCompetitions } = useQuery<UserCompetitionInfo[]>({
+    queryKey: ['/api/user/competitions'],
     refetchInterval: 30000,
   });
 
@@ -94,7 +93,7 @@ export function CompetitionSwitcher({
   };
 
   const activeCompetitions = userCompetitions?.filter(
-    uc => uc.competition.status === 'running' || uc.competition.status === 'open'
+    uc => uc.status === 'running' || uc.status === 'open'
   ) || [];
 
   return (
@@ -131,50 +130,53 @@ export function CompetitionSwitcher({
 
             <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
               {activeCompetitions.length > 0 ? (
-                activeCompetitions.map(({ competition, entry }) => (
+                activeCompetitions.map((comp) => (
                   <Pressable
-                    key={competition.id}
+                    key={comp.competitionId}
                     style={[
                       styles.item,
-                      competition.id === currentCompetitionId && styles.itemActive,
+                      comp.competitionId === currentCompetitionId && styles.itemActive,
                     ]}
-                    onPress={() => handleSwitch(competition.id)}
+                    onPress={() => handleSwitch(comp.competitionId)}
                   >
                     <View style={styles.itemMain}>
                       <View style={styles.itemHeader}>
                         <ThemedText style={styles.itemTitle} numberOfLines={1}>
-                          {competition.title}
+                          {comp.title}
                         </ThemedText>
-                        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(competition.status) + '20' }]}>
-                          <View style={[styles.statusDot, { backgroundColor: getStatusColor(competition.status) }]} />
-                          <ThemedText style={[styles.statusText, { color: getStatusColor(competition.status) }]}>
-                            {competition.status.toUpperCase()}
+                        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(comp.status) + '20' }]}>
+                          <View style={[styles.statusDot, { backgroundColor: getStatusColor(comp.status) }]} />
+                          <ThemedText style={[styles.statusText, { color: getStatusColor(comp.status) }]}>
+                            {comp.status.toUpperCase()}
                           </ThemedText>
                         </View>
                       </View>
 
                       <View style={styles.itemMeta}>
-                        <View style={styles.metaItem}>
-                          <Feather name="clock" size={11} color={TerminalColors.textMuted} />
-                          <ThemedText style={styles.metaText}>
-                            {getTimeRemaining(competition.endAt)}
-                          </ThemedText>
-                        </View>
-                        {entry.rank ? (
+                        {comp.endAt ? (
                           <View style={styles.metaItem}>
-                            <Feather name="award" size={11} color={TerminalColors.warning} />
-                            <ThemedText style={styles.metaText}>#{entry.rank}</ThemedText>
+                            <Feather name="clock" size={11} color={TerminalColors.textMuted} />
+                            <ThemedText style={styles.metaText}>
+                              {getTimeRemaining(comp.endAt)}
+                            </ThemedText>
                           </View>
                         ) : null}
-                        <View style={styles.metaItem}>
-                          <ThemedText style={styles.metaLabel}>
-                            {competition.type === 'pvp' ? 'PvP' : 'Public'}
-                          </ThemedText>
-                        </View>
+                        {comp.rank ? (
+                          <View style={styles.metaItem}>
+                            <Feather name="award" size={11} color={TerminalColors.warning} />
+                            <ThemedText style={styles.metaText}>#{comp.rank}</ThemedText>
+                          </View>
+                        ) : null}
+                        {comp.totalEntrants ? (
+                          <View style={styles.metaItem}>
+                            <Feather name="users" size={11} color={TerminalColors.textMuted} />
+                            <ThemedText style={styles.metaText}>{comp.totalEntrants}</ThemedText>
+                          </View>
+                        ) : null}
                       </View>
                     </View>
 
-                    {competition.id === currentCompetitionId ? (
+                    {comp.competitionId === currentCompetitionId ? (
                       <Feather name="check" size={16} color={TerminalColors.accent} />
                     ) : (
                       <Feather name="chevron-right" size={16} color={TerminalColors.textMuted} />
