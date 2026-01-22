@@ -831,6 +831,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/arena/:id/order-history", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const userId = req.headers["x-user-id"] as string;
+
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const orderHistory = await storage.getOrders(id, userId);
+      res.json(orderHistory);
+    } catch (error: any) {
+      console.error("Get order history error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get("/api/pvp/challenges", async (req: Request, res: Response) => {
     try {
       const userId = req.headers["x-user-id"] as string;
