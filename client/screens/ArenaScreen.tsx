@@ -363,14 +363,22 @@ export default function ArenaScreen() {
     } else {
       const quote = quotes[selectedPair];
       const fillPrice = orderSide === "buy" ? quote?.ask : quote?.bid;
-      Alert.alert(
-        "Confirm Order",
-        `${orderSide.toUpperCase()} ${lots.toFixed(2)} lots ${selectedPair}\nEstimated fill: ${fillPrice?.toFixed(5) || "N/A"}`,
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Confirm", onPress: () => placeOrderMutation.mutate(orderData) },
-        ]
-      );
+      const confirmMessage = `${orderSide.toUpperCase()} ${lots.toFixed(2)} lots ${selectedPair}\nEstimated fill: ${fillPrice?.toFixed(5) || "N/A"}`;
+      
+      if (Platform.OS === "web") {
+        if (window.confirm(`Confirm Order\n\n${confirmMessage}`)) {
+          placeOrderMutation.mutate(orderData);
+        }
+      } else {
+        Alert.alert(
+          "Confirm Order",
+          confirmMessage,
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Confirm", onPress: () => placeOrderMutation.mutate(orderData) },
+          ]
+        );
+      }
     }
   }, [selectedPair, orderSide, orderType, lotSize, limitPrice, stopPrice, stopLoss, takeProfit, oneClickTrading, quotes, placeOrderMutation]);
 
