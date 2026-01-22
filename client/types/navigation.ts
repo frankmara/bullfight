@@ -15,6 +15,8 @@ export type RootStackParamList = {
   PvPList: undefined;
   PvPNew: undefined;
   PvPDetail: { id: string };
+  PaymentSuccess: { type?: string; id?: string; session_id?: string };
+  PaymentCancel: { type?: string; id?: string };
 };
 
 export type MainTabParamList = {

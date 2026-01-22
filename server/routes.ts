@@ -244,14 +244,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const baseUrl = `https://${process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DOMAINS?.split(',')[0]}`;
 
       const session = await stripe.checkout.sessions.create({
-        payment_method_types: ['card'],
         line_items: [{
           price_data: {
             currency: 'usd',
             unit_amount: comp.buyInCents,
             product_data: {
-              name: `Competition Entry: ${comp.name}`,
-              description: `Buy-in for ${comp.name} trading competition`,
+              name: `Competition Entry: ${comp.title}`,
+              description: `Buy-in for ${comp.title} trading competition`,
             },
           },
           quantity: 1,
@@ -263,7 +262,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         metadata: {
           type: 'competition_entry',
           competitionId: id,
-          userId: userId,
+          userId: userId as string,
         },
       });
 
@@ -349,7 +348,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         EmailService.sendChallengeEntryConfirmedEmail(
           user.id,
           user.email,
-          comp.name,
+          comp.title,
           comp.buyInCents,
           prizePool,
           comp.startAt || new Date(),
@@ -421,7 +420,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         EmailService.sendChallengeEntryConfirmedEmail(
           user.id,
           user.email,
-          comp.name,
+          comp.title,
           0,
           0,
           comp.startAt || new Date(),
@@ -907,7 +906,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 EmailService.sendChallengeStartedEmail(
                   entry.userId,
                   entry.user.email,
-                  comp.name,
+                  comp.title,
                   comp.endTime,
                   entries.length,
                   comp.id
@@ -927,7 +926,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 EmailService.sendChallengeConcludedEmail(
                   entry.userId,
                   entry.user.email,
-                  comp.name,
+                  comp.title,
                   rank,
                   entries.length,
                   returnPct,
@@ -1390,7 +1389,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const baseUrl = `https://${process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DOMAINS?.split(',')[0]}`;
 
       const session = await stripe.checkout.sessions.create({
-        payment_method_types: ['card'],
         line_items: [{
           price_data: {
             currency: 'usd',
@@ -1409,7 +1407,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         metadata: {
           type: 'pvp_challenge_stake',
           challengeId: id,
-          userId: userId,
+          userId: userId as string,
           isChallenger: isChallenger ? 'true' : 'false',
         },
       });

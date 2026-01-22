@@ -14,6 +14,8 @@ import CreateCompetitionScreen from "@/screens/CreateCompetitionScreen";
 import PvPListScreen from "@/screens/PvPListScreen";
 import PvPNewScreen from "@/screens/PvPNewScreen";
 import PvPDetailScreen from "@/screens/PvPDetailScreen";
+import PaymentSuccessScreen from "@/screens/PaymentSuccessScreen";
+import PaymentCancelScreen from "@/screens/PaymentCancelScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { RootStackParamList } from "@/types/navigation";
 
@@ -128,6 +130,22 @@ export default function RootStackNavigator() {
         component={PvPDetailScreen}
         options={{
           headerTitle: "Challenge",
+        }}
+      />
+      <Stack.Screen
+        name="PaymentSuccess"
+        component={PaymentSuccessScreen}
+        options={{
+          headerTitle: "Payment Complete",
+          headerBackVisible: false,
+        }}
+      />
+      <Stack.Screen
+        name="PaymentCancel"
+        component={PaymentCancelScreen}
+        options={{
+          headerTitle: "Payment Cancelled",
+          headerBackVisible: false,
         }}
       />
     </Stack.Navigator>

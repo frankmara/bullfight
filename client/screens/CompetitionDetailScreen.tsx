@@ -6,6 +6,7 @@ import {
   Alert,
   Platform,
   Dimensions,
+  Linking,
 } from "react-native";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -13,6 +14,7 @@ import { useRoute, useNavigation, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as WebBrowser from "expo-web-browser";
 
 import { ThemedText } from "@/components/ThemedText";
 import { Button } from "@/components/Button";
@@ -105,6 +107,26 @@ export default function CompetitionDetailScreen() {
     enabled: !!competition,
   });
 
+  const checkoutMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/competitions/${id}/checkout`, {});
+      return res.json();
+    },
+    onSuccess: async (data: { url: string; sessionId: string }) => {
+      if (data.url) {
+        if (Platform.OS === "web") {
+          window.location.href = data.url;
+        } else {
+          await WebBrowser.openBrowserAsync(data.url);
+        }
+      }
+    },
+    onError: (error: any) => {
+      Alert.alert("Error", error.message || "Failed to start checkout");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    },
+  });
+
   const joinMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", `/api/competitions/${id}/join`, {});
@@ -117,8 +139,12 @@ export default function CompetitionDetailScreen() {
       navigation.navigate("Arena", { id });
     },
     onError: (error: any) => {
-      Alert.alert("Error", error.message || "Failed to join competition");
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      if (error.requiresPayment) {
+        checkoutMutation.mutate();
+      } else {
+        Alert.alert("Error", error.message || "Failed to join competition");
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
     },
   });
 
@@ -129,7 +155,11 @@ export default function CompetitionDetailScreen() {
     }
     setIsJoining(true);
     try {
-      await joinMutation.mutateAsync();
+      if (competition && competition.buyInCents > 0) {
+        await checkoutMutation.mutateAsync();
+      } else {
+        await joinMutation.mutateAsync();
+      }
     } finally {
       setIsJoining(false);
     }

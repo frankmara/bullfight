@@ -16,6 +16,7 @@ import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
+import * as WebBrowser from "expo-web-browser";
 
 import { ThemedText } from "@/components/ThemedText";
 import { Button } from "@/components/Button";
@@ -114,13 +115,24 @@ export default function PvPDetailScreen() {
 
   const payMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/pvp/challenges/${id}/pay`, {});
+      const res = await apiRequest("POST", `/api/pvp/challenges/${id}/checkout`, {});
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to start checkout");
+      }
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/pvp/challenges/${id}`] });
-      queryClient.invalidateQueries({ queryKey: ["/api/pvp/challenges"] });
-      refetch();
+    onSuccess: async (data: { url: string; sessionId: string }) => {
+      if (data.url) {
+        if (Platform.OS === "web") {
+          window.location.href = data.url;
+        } else {
+          await WebBrowser.openBrowserAsync(data.url);
+        }
+      }
+    },
+    onError: (error: any) => {
+      Alert.alert("Error", error.message || "Failed to start checkout");
     },
   });
 
