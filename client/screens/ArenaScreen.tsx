@@ -1077,6 +1077,7 @@ export default function ArenaScreen() {
               onSelectPair={setSelectedPair}
               formatPrice={formatPrice}
               searchRef={searchInputRef}
+              isMockData={marketStatus?.isUsingMock ?? true}
             />
           }
           orderTicket={
