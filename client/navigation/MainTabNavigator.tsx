@@ -4,12 +4,15 @@ import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { Platform, StyleSheet, View, Text, Pressable, Dimensions } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import HomeStackNavigator from "@/navigation/HomeStackNavigator";
 import DashboardStackNavigator from "@/navigation/DashboardStackNavigator";
 import ProfileStackNavigator from "@/navigation/ProfileStackNavigator";
+import PvPStackNavigator from "@/navigation/PvPStackNavigator";
 import LandingScreen from "@/screens/LandingScreen";
 import DashboardScreen from "@/screens/DashboardScreen";
 import ProfileScreen from "@/screens/ProfileScreen";
+import PvPListScreen from "@/screens/PvPListScreen";
 import { Colors, Spacing } from "@/constants/theme";
 import { MainTabParamList } from "@/types/navigation";
 import { useAuth } from "@/hooks/useAuth";
@@ -169,12 +172,9 @@ function DesktopLayout() {
   );
 }
 
-export default function MainTabNavigator() {
-  const isDesktop = useIsDesktop();
-
-  if (isDesktop) {
-    return <DesktopLayout />;
-  }
+function MobileTabNavigator() {
+  const insets = useSafeAreaInsets();
+  const tabBarHeight = 56 + Math.max(insets.bottom, 8);
 
   return (
     <Tab.Navigator
@@ -186,14 +186,14 @@ export default function MainTabNavigator() {
           position: "absolute",
           backgroundColor: Platform.select({
             ios: "transparent",
-            android: Colors.dark.backgroundRoot,
-            web: Colors.dark.backgroundRoot,
+            android: Colors.dark.backgroundSecondary,
+            web: Colors.dark.backgroundSecondary,
           }),
           borderTopWidth: 1,
           borderTopColor: Colors.dark.border,
           elevation: 0,
-          height: 60,
-          paddingBottom: 8,
+          height: tabBarHeight,
+          paddingBottom: Math.max(insets.bottom, 8),
           paddingTop: 8,
         },
         tabBarBackground: () =>
@@ -228,6 +228,16 @@ export default function MainTabNavigator() {
         }}
       />
       <Tab.Screen
+        name="PvPTab"
+        component={PvPStackNavigator}
+        options={{
+          title: "PvP",
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="users" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
         name="ProfileTab"
         component={ProfileStackNavigator}
         options={{
@@ -239,6 +249,16 @@ export default function MainTabNavigator() {
       />
     </Tab.Navigator>
   );
+}
+
+export default function MainTabNavigator() {
+  const isDesktop = useIsDesktop();
+
+  if (isDesktop) {
+    return <DesktopLayout />;
+  }
+
+  return <MobileTabNavigator />;
 }
 
 const styles = StyleSheet.create({

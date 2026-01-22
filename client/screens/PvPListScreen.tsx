@@ -16,6 +16,7 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { ThemedText } from "@/components/ThemedText";
 import { StatusBadge } from "@/components/StatusBadge";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
@@ -23,6 +24,14 @@ import { Button } from "@/components/Button";
 import { useAuthContext } from "@/context/AuthContext";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/types/navigation";
+
+function useSafeTabBarHeight() {
+  try {
+    return useBottomTabBarHeight();
+  } catch {
+    return 0;
+  }
+}
 
 interface PvpChallenge {
   id: string;
@@ -38,6 +47,7 @@ interface PvpChallenge {
 }
 
 const DESKTOP_BREAKPOINT = 768;
+const DESKTOP_NAV_HEIGHT = 64;
 
 function useSafeHeaderHeight() {
   try {
@@ -50,11 +60,13 @@ function useSafeHeaderHeight() {
 export default function PvPListScreen() {
   const insets = useSafeAreaInsets();
   const rawHeaderHeight = useSafeHeaderHeight();
+  const tabBarHeight = useSafeTabBarHeight();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const isDesktop = Platform.OS === "web" && Dimensions.get("window").width >= DESKTOP_BREAKPOINT;
-  const headerHeight = isDesktop ? 0 : rawHeaderHeight;
-  const { user, isAuthenticated } = useAuthContext();
   const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === "web" && width >= DESKTOP_BREAKPOINT;
+  const headerHeight = isDesktop ? DESKTOP_NAV_HEIGHT : Math.max(rawHeaderHeight, insets.top);
+  const bottomPadding = isDesktop ? Spacing.xl : tabBarHeight + Spacing.lg;
+  const { user, isAuthenticated } = useAuthContext();
 
   const isWeb = Platform.OS === "web";
   const maxWidth = 1000;
@@ -217,7 +229,7 @@ export default function PvPListScreen() {
           data={challenges}
           keyExtractor={(item) => item.id}
           renderItem={renderChallengeItem}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: bottomPadding }]}
           refreshControl={
             <RefreshControl
               refreshing={isRefetching}

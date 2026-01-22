@@ -16,6 +16,7 @@ export type RootStackParamList = {
 export type MainTabParamList = {
   HomeTab: undefined;
   DashboardTab: undefined;
+  PvPTab: undefined;
   ProfileTab: undefined;
 };
 
