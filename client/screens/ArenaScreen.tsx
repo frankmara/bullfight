@@ -31,6 +31,7 @@ import { useAuthContext } from "@/context/AuthContext";
 import { apiRequest } from "@/lib/query-client";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/types/navigation";
+import { TerminalColors, TerminalTypography, TerminalSpacing, TerminalRadius } from "@/components/terminal";
 
 interface Quote {
   pair: string;
@@ -112,21 +113,21 @@ const UNITS_PER_LOT = 100000;
 const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1d"];
 
 const THEME = {
-  bg: "#0A0A0A",
-  bgCard: "#121212",
-  bgElevated: "#1A1A1A",
-  bgInput: "#0D0D0D",
-  border: "#252525",
-  borderLight: "#333333",
-  accent: "#FF3B3B",
-  accentGlow: "rgba(255, 59, 59, 0.3)",
-  success: "#00C853",
-  successGlow: "rgba(0, 200, 83, 0.2)",
-  danger: "#FF3B3B",
-  dangerGlow: "rgba(255, 59, 59, 0.2)",
-  textPrimary: "#FFFFFF",
-  textSecondary: "#B0B0B0",
-  textMuted: "#666666",
+  bg: TerminalColors.bgBase,
+  bgCard: TerminalColors.bgPanel,
+  bgElevated: TerminalColors.bgElevated,
+  bgInput: TerminalColors.bgInput,
+  border: TerminalColors.border,
+  borderLight: TerminalColors.borderLight,
+  accent: TerminalColors.accent,
+  accentGlow: TerminalColors.accentGlow,
+  success: TerminalColors.positive,
+  successGlow: TerminalColors.positiveGlow,
+  danger: TerminalColors.negative,
+  dangerGlow: TerminalColors.negativeGlow,
+  textPrimary: TerminalColors.textPrimary,
+  textSecondary: TerminalColors.textSecondary,
+  textMuted: TerminalColors.textMuted,
 };
 
 function unitsToLots(units: number): number {
@@ -1064,17 +1065,12 @@ const styles = StyleSheet.create({
     borderColor: THEME.border,
   },
   summaryLabel: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: THEME.textMuted,
-    letterSpacing: 0.5,
+    ...TerminalTypography.label,
     marginBottom: 4,
   },
   summaryValueLarge: {
+    ...TerminalTypography.priceLarge,
     fontSize: 16,
-    fontWeight: "700",
-    color: THEME.textPrimary,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
   rankText: {
     color: THEME.accent,
@@ -1117,21 +1113,17 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   instrumentBid: {
-    fontSize: 12,
-    fontWeight: "600",
+    ...TerminalTypography.price,
     color: THEME.danger,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
   instrumentSpread: {
+    ...TerminalTypography.tableCell,
     fontSize: 10,
     color: THEME.textMuted,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
   instrumentAsk: {
-    fontSize: 12,
-    fontWeight: "600",
+    ...TerminalTypography.price,
     color: THEME.success,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
   priceUp: {
     color: THEME.success,
@@ -1165,9 +1157,7 @@ const styles = StyleSheet.create({
     color: THEME.textPrimary,
   },
   chartPrice: {
-    fontSize: 14,
-    fontWeight: "600",
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    ...TerminalTypography.priceLarge,
   },
   timeframeButtons: {
     flexDirection: "row",
@@ -1275,10 +1265,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   inputLabel: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: THEME.textMuted,
-    letterSpacing: 0.5,
+    ...TerminalTypography.label,
     marginBottom: 8,
   },
   lotSizeInputRow: {
@@ -1288,14 +1275,12 @@ const styles = StyleSheet.create({
   lotSizeInput: {
     flex: 1,
     backgroundColor: THEME.bgInput,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    borderRadius: TerminalRadius.sm,
+    paddingHorizontal: TerminalSpacing.lg,
+    paddingVertical: TerminalSpacing.lg,
+    ...TerminalTypography.priceLarge,
     fontSize: 18,
-    fontWeight: "700",
-    color: THEME.textPrimary,
     textAlign: "center",
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     borderWidth: 1,
     borderColor: THEME.border,
   },
@@ -1331,12 +1316,11 @@ const styles = StyleSheet.create({
   },
   priceInputField: {
     backgroundColor: THEME.bgInput,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    borderRadius: TerminalRadius.sm,
+    paddingHorizontal: TerminalSpacing.lg,
+    paddingVertical: TerminalSpacing.lg,
+    ...TerminalTypography.price,
     fontSize: 14,
-    color: THEME.textPrimary,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     borderWidth: 1,
     borderColor: THEME.border,
   },
@@ -1350,19 +1334,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   slTpLabel: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: THEME.textMuted,
+    ...TerminalTypography.label,
     marginBottom: 6,
   },
   slTpInput: {
     backgroundColor: THEME.bgInput,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderRadius: TerminalRadius.sm,
+    paddingHorizontal: TerminalSpacing.lg,
+    paddingVertical: TerminalSpacing.md,
+    ...TerminalTypography.price,
     fontSize: 13,
-    color: THEME.textPrimary,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     borderWidth: 1,
     borderColor: THEME.border,
     textAlign: "center",
@@ -1393,10 +1374,8 @@ const styles = StyleSheet.create({
     borderColor: THEME.success,
   },
   tradeBtnPrice: {
+    ...TerminalTypography.priceLarge,
     fontSize: 16,
-    fontWeight: "700",
-    color: THEME.textPrimary,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     marginBottom: 2,
   },
   tradeBtnLabel: {
@@ -1411,10 +1390,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   spreadValue: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: THEME.textPrimary,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    ...TerminalTypography.priceLarge,
   },
   spreadLabel: {
     fontSize: 8,
@@ -1588,14 +1564,12 @@ const styles = StyleSheet.create({
     color: THEME.textMuted,
   },
   positionValue: {
-    fontSize: 11,
+    ...TerminalTypography.tableCell,
     color: THEME.textSecondary,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
   positionPnl: {
-    fontSize: 12,
+    ...TerminalTypography.price,
     fontWeight: "700",
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
   closeBtn: {
     width: 32,
@@ -1628,16 +1602,14 @@ const styles = StyleSheet.create({
     color: THEME.textPrimary,
   },
   historyLots: {
-    fontSize: 11,
+    ...TerminalTypography.tableCell,
     color: THEME.textSecondary,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     flex: 1,
     textAlign: "center",
   },
   historyPnl: {
-    fontSize: 12,
+    ...TerminalTypography.price,
     fontWeight: "700",
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
 
   emptyState: {
