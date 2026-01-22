@@ -13,6 +13,7 @@ import {
   lotsToUnits,
   unitsToLots,
 } from "./services/ExecutionService";
+import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/register", async (req: Request, res: Response) => {
@@ -195,7 +196,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  app.post("/api/competitions/:id/join", async (req: Request, res: Response) => {
+  // Stripe config endpoint for frontend
+  app.get("/api/stripe/config", async (_req: Request, res: Response) => {
+    try {
+      const publishableKey = await getStripePublishableKey();
+      res.json({ publishableKey });
+    } catch (error: any) {
+      console.error("Stripe config error:", error);
+      res.status(500).json({ error: "Failed to get Stripe config" });
+    }
+  });
+
+  // Create Stripe checkout session for competition buy-in
+  app.post("/api/competitions/:id/checkout", async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const userId = req.headers["x-user-id"] as string;
@@ -218,20 +231,114 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const existing = await storage.getCompetitionEntry(id, userId);
-      if (existing) {
+      if (existing && existing.paymentStatus === "succeeded") {
         return res.status(400).json({ error: "Already joined this competition" });
       }
 
-      const entry = await storage.createCompetitionEntry({
-        competitionId: id,
-        userId,
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const stripe = await getUncachableStripeClient();
+      const baseUrl = `https://${process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [{
+          price_data: {
+            currency: 'usd',
+            unit_amount: comp.buyInCents,
+            product_data: {
+              name: `Competition Entry: ${comp.name}`,
+              description: `Buy-in for ${comp.name} trading competition`,
+            },
+          },
+          quantity: 1,
+        }],
+        mode: 'payment',
+        success_url: `${baseUrl}/payment/success?type=competition&id=${id}&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${baseUrl}/payment/cancel?type=competition&id=${id}`,
+        customer_email: user.email,
+        metadata: {
+          type: 'competition_entry',
+          competitionId: id,
+          userId: userId,
+        },
+      });
+
+      // Create pending entry
+      if (!existing) {
+        await storage.createCompetitionEntry({
+          competitionId: id,
+          userId,
+          paidCents: 0,
+          paymentStatus: "pending",
+          cashCents: 0,
+          equityCents: 0,
+          maxEquityCents: 0,
+          maxDrawdownPct: 0,
+          dq: false,
+          stripeSessionId: session.id,
+        });
+      } else {
+        await storage.updateCompetitionEntry(existing.id, {
+          stripeSessionId: session.id,
+          paymentStatus: "pending",
+        });
+      }
+
+      res.json({ url: session.url, sessionId: session.id });
+    } catch (error: any) {
+      console.error("Competition checkout error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Confirm competition payment (called after successful Stripe checkout)
+  app.post("/api/competitions/:id/confirm-payment", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { sessionId } = req.body;
+      const userId = req.headers["x-user-id"] as string;
+
+      if (!userId || !sessionId) {
+        return res.status(400).json({ error: "Missing required parameters" });
+      }
+
+      const stripe = await getUncachableStripeClient();
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+      if (session.payment_status !== 'paid') {
+        return res.status(400).json({ error: "Payment not completed" });
+      }
+
+      if (session.metadata?.competitionId !== id || session.metadata?.userId !== userId) {
+        return res.status(403).json({ error: "Payment session mismatch" });
+      }
+
+      const comp = await storage.getCompetition(id);
+      if (!comp) {
+        return res.status(404).json({ error: "Competition not found" });
+      }
+
+      const entry = await storage.getCompetitionEntry(id, userId);
+      if (!entry) {
+        return res.status(404).json({ error: "Entry not found" });
+      }
+
+      if (entry.paymentStatus === "succeeded") {
+        return res.json({ success: true, entry });
+      }
+
+      // Update entry with successful payment
+      const updatedEntry = await storage.updateCompetitionEntry(entry.id, {
         paidCents: comp.buyInCents,
         paymentStatus: "succeeded",
         cashCents: comp.startingBalanceCents,
         equityCents: comp.startingBalanceCents,
         maxEquityCents: comp.startingBalanceCents,
-        maxDrawdownPct: 0,
-        dq: false,
+        stripePaymentId: session.payment_intent as string,
       });
 
       const user = await storage.getUser(userId);
@@ -245,6 +352,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
           comp.name,
           comp.buyInCents,
           prizePool,
+          comp.startAt || new Date(),
+          comp.startingBalanceCents,
+          id
+        ).catch(err => {
+          console.error("Failed to send challenge entry email:", err);
+        });
+      }
+
+      res.json({ success: true, entry: updatedEntry });
+    } catch (error: any) {
+      console.error("Confirm payment error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Legacy join endpoint (for free competitions or testing)
+  app.post("/api/competitions/:id/join", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const userId = req.headers["x-user-id"] as string;
+
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const comp = await storage.getCompetition(id);
+      if (!comp) {
+        return res.status(404).json({ error: "Competition not found" });
+      }
+
+      // If competition has a buy-in, redirect to checkout
+      if (comp.buyInCents > 0) {
+        return res.status(400).json({ 
+          error: "This competition requires payment",
+          requiresPayment: true,
+          checkoutUrl: `/api/competitions/${id}/checkout`
+        });
+      }
+
+      if (comp.status !== "open" && comp.status !== "running") {
+        return res.status(400).json({ error: "Competition is not accepting entries" });
+      }
+
+      if (comp.entryCount >= comp.entryCap) {
+        return res.status(400).json({ error: "Competition is full" });
+      }
+
+      const existing = await storage.getCompetitionEntry(id, userId);
+      if (existing) {
+        return res.status(400).json({ error: "Already joined this competition" });
+      }
+
+      const entry = await storage.createCompetitionEntry({
+        competitionId: id,
+        userId,
+        paidCents: 0,
+        paymentStatus: "succeeded",
+        cashCents: comp.startingBalanceCents,
+        equityCents: comp.startingBalanceCents,
+        maxEquityCents: comp.startingBalanceCents,
+        maxDrawdownPct: 0,
+        dq: false,
+      });
+
+      const user = await storage.getUser(userId);
+      if (user?.email) {
+        EmailService.sendChallengeEntryConfirmedEmail(
+          user.id,
+          user.email,
+          comp.name,
+          0,
+          0,
           comp.startAt || new Date(),
           comp.startingBalanceCents,
           id
