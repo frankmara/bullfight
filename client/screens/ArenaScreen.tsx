@@ -109,7 +109,20 @@ interface LeaderboardEntry {
 const DESKTOP_BREAKPOINT = 1024;
 const TABLET_BREAKPOINT = 768;
 
-const QUICK_SIZES = [1000, 5000, 10000, 50000, 100000];
+const QUICK_LOT_SIZES = [0.01, 0.05, 0.1, 0.5, 1.0];
+const UNITS_PER_LOT = 100000;
+
+function lotsToUnits(lots: number): number {
+  return Math.round(lots * UNITS_PER_LOT);
+}
+
+function unitsToLots(units: number): number {
+  return Math.round((units / UNITS_PER_LOT) * 100) / 100;
+}
+
+function formatLots(lots: number): string {
+  return lots >= 0.01 ? lots.toFixed(2) : (lots * 1000).toFixed(1) + 'K';
+}
 
 type BlotterTab = "positions" | "orders" | "history";
 
@@ -129,7 +142,7 @@ export default function ArenaScreen() {
   const [selectedPair, setSelectedPair] = useState("EUR-USD");
   const [orderSide, setOrderSide] = useState<"buy" | "sell">("buy");
   const [orderType, setOrderType] = useState<"market" | "limit" | "stop">("market");
-  const [quantity, setQuantity] = useState("10000");
+  const [lotSize, setLotSize] = useState("0.1");
   const [limitPrice, setLimitPrice] = useState("");
   const [stopPrice, setStopPrice] = useState("");
   const [stopLoss, setStopLoss] = useState("");
@@ -275,8 +288,9 @@ export default function ArenaScreen() {
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/arena", id] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      showToast(`Order placed: ${variables.side.toUpperCase()} ${variables.quantityUnits.toLocaleString()} ${variables.pair}`, 'success');
-      setQuantity("10000");
+      const lotsStr = variables.lots ? variables.lots.toFixed(2) : formatLots(unitsToLots(variables.quantityUnits || 0));
+      showToast(`Order placed: ${variables.side.toUpperCase()} ${lotsStr} lots ${variables.pair}`, 'success');
+      setLotSize("0.1");
       setLimitPrice("");
       setStopPrice("");
       setStopLoss("");
@@ -319,11 +333,12 @@ export default function ArenaScreen() {
   });
 
   const handlePlaceOrder = useCallback(() => {
+    const lots = parseFloat(lotSize) || 0.1;
     const orderData: any = {
       pair: selectedPair,
       side: orderSide,
       type: orderType,
-      quantityUnits: parseInt(quantity, 10),
+      lots: lots,
     };
     if (orderType === "limit" && limitPrice) {
       orderData.limitPrice = parseFloat(limitPrice);
@@ -345,14 +360,14 @@ export default function ArenaScreen() {
       const fillPrice = orderSide === "buy" ? quote?.ask : quote?.bid;
       Alert.alert(
         "Confirm Order",
-        `${orderSide.toUpperCase()} ${parseInt(quantity).toLocaleString()} ${selectedPair}\nEstimated fill: ${fillPrice?.toFixed(5) || "N/A"}`,
+        `${orderSide.toUpperCase()} ${lots.toFixed(2)} lots ${selectedPair}\nEstimated fill: ${fillPrice?.toFixed(5) || "N/A"}`,
         [
           { text: "Cancel", style: "cancel" },
           { text: "Confirm", onPress: () => placeOrderMutation.mutate(orderData) },
         ]
       );
     }
-  }, [selectedPair, orderSide, orderType, quantity, limitPrice, stopPrice, stopLoss, takeProfit, oneClickTrading, quotes, placeOrderMutation]);
+  }, [selectedPair, orderSide, orderType, lotSize, limitPrice, stopPrice, stopLoss, takeProfit, oneClickTrading, quotes, placeOrderMutation]);
 
   const toggleFavorite = (pair: string) => {
     setFavorites((prev) =>
@@ -634,23 +649,24 @@ export default function ArenaScreen() {
       </View>
 
       <View style={styles.inputSection}>
-        <ThemedText style={styles.inputLabel}>SIZE (UNITS)</ThemedText>
+        <ThemedText style={styles.inputLabel}>SIZE (LOTS)</ThemedText>
         <TextInput
           style={styles.sizeInput}
-          value={quantity}
-          onChangeText={setQuantity}
-          keyboardType="numeric"
+          value={lotSize}
+          onChangeText={setLotSize}
+          keyboardType="decimal-pad"
           placeholderTextColor={Colors.dark.textMuted}
+          placeholder="0.1"
         />
         <View style={styles.quickSizeRow}>
-          {QUICK_SIZES.map((size) => (
+          {QUICK_LOT_SIZES.map((size) => (
             <Pressable
               key={size}
-              style={[styles.quickSizeBtn, parseInt(quantity) === size && styles.quickSizeBtnActive]}
-              onPress={() => setQuantity(size.toString())}
+              style={[styles.quickSizeBtn, parseFloat(lotSize) === size && styles.quickSizeBtnActive]}
+              onPress={() => setLotSize(size.toString())}
             >
               <ThemedText style={styles.quickSizeBtnText}>
-                {size >= 1000 ? `${size / 1000}K` : size}
+                {size}
               </ThemedText>
             </Pressable>
           ))}
@@ -722,7 +738,7 @@ export default function ArenaScreen() {
         <ThemedText style={styles.executeBtnText}>
           {placeOrderMutation.isPending
             ? "EXECUTING..."
-            : `${orderSide.toUpperCase()} ${parseInt(quantity || "0").toLocaleString()}`}
+            : `${orderSide.toUpperCase()} ${parseFloat(lotSize || "0.1").toFixed(2)} LOTS`}
         </ThemedText>
       </Pressable>
 
@@ -763,7 +779,7 @@ export default function ArenaScreen() {
         <View style={styles.blotterHeader}>
           <ThemedText style={[styles.blotterHeaderCell, { width: 80 }]}>SYMBOL</ThemedText>
           <ThemedText style={[styles.blotterHeaderCell, { width: 50 }]}>SIDE</ThemedText>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 80 }]}>SIZE</ThemedText>
+          <ThemedText style={[styles.blotterHeaderCell, { width: 80 }]}>LOTS</ThemedText>
           <ThemedText style={[styles.blotterHeaderCell, { width: 90 }]}>ENTRY</ThemedText>
           <ThemedText style={[styles.blotterHeaderCell, { width: 90 }]}>MARK</ThemedText>
           <ThemedText style={[styles.blotterHeaderCell, { width: 90 }]}>P&L</ThemedText>
@@ -784,7 +800,7 @@ export default function ArenaScreen() {
                   </View>
                 </View>
                 <ThemedText style={[styles.blotterCell, styles.monoText, { width: 80 }]}>
-                  {pos.quantityUnits.toLocaleString()}
+                  {unitsToLots(pos.quantityUnits).toFixed(2)}
                 </ThemedText>
                 <ThemedText style={[styles.blotterCell, styles.monoText, { width: 90 }]}>
                   {formatPrice(pos.avgEntryPrice, pos.pair)}
@@ -834,7 +850,7 @@ export default function ArenaScreen() {
           <ThemedText style={[styles.blotterHeaderCell, { width: 80 }]}>SYMBOL</ThemedText>
           <ThemedText style={[styles.blotterHeaderCell, { width: 60 }]}>TYPE</ThemedText>
           <ThemedText style={[styles.blotterHeaderCell, { width: 50 }]}>SIDE</ThemedText>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 80 }]}>SIZE</ThemedText>
+          <ThemedText style={[styles.blotterHeaderCell, { width: 80 }]}>LOTS</ThemedText>
           <ThemedText style={[styles.blotterHeaderCell, { width: 90 }]}>PRICE</ThemedText>
           <ThemedText style={[styles.blotterHeaderCell, { width: 70 }]}>SL</ThemedText>
           <ThemedText style={[styles.blotterHeaderCell, { width: 70 }]}>TP</ThemedText>
@@ -853,7 +869,7 @@ export default function ArenaScreen() {
                 </View>
               </View>
               <ThemedText style={[styles.blotterCell, styles.monoText, { width: 80 }]}>
-                {order.quantityUnits.toLocaleString()}
+                {unitsToLots(order.quantityUnits).toFixed(2)}
               </ThemedText>
               <ThemedText style={[styles.blotterCell, styles.monoText, { width: 90 }]}>
                 {order.limitPrice
@@ -894,7 +910,7 @@ export default function ArenaScreen() {
           <ThemedText style={[styles.blotterHeaderCell, { width: 140 }]}>TIME</ThemedText>
           <ThemedText style={[styles.blotterHeaderCell, { width: 80 }]}>SYMBOL</ThemedText>
           <ThemedText style={[styles.blotterHeaderCell, { width: 50 }]}>SIDE</ThemedText>
-          <ThemedText style={[styles.blotterHeaderCell, { width: 80 }]}>SIZE</ThemedText>
+          <ThemedText style={[styles.blotterHeaderCell, { width: 80 }]}>LOTS</ThemedText>
           <ThemedText style={[styles.blotterHeaderCell, { width: 90 }]}>PRICE</ThemedText>
           <ThemedText style={[styles.blotterHeaderCell, { width: 90 }]}>P&L</ThemedText>
         </View>
@@ -911,7 +927,7 @@ export default function ArenaScreen() {
                 </View>
               </View>
               <ThemedText style={[styles.blotterCell, styles.monoText, { width: 80 }]}>
-                {fill.quantityUnits.toLocaleString()}
+                {unitsToLots(fill.quantityUnits).toFixed(2)}
               </ThemedText>
               <ThemedText style={[styles.blotterCell, styles.monoText, { width: 90 }]}>
                 {formatPrice(fill.fillPrice, fill.pair)}

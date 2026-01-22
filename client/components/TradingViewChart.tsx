@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Platform, View, Text, StyleSheet } from 'react-native';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { Platform, View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { Colors, Spacing } from '@/constants/theme';
+import { getApiUrl } from '@/lib/query-client';
 
 let createChart: any = null;
 let CandlestickSeries: any = null;
@@ -50,10 +51,12 @@ interface TradingViewChartProps {
   height?: number;
   positions?: Position[];
   orders?: PendingOrder[];
+  timeframe?: string;
+  currentPrice?: number;
 }
 
 export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
-  ({ pair, height = 400, positions = [], orders = [] }, ref) => {
+  ({ pair, height = 400, positions = [], orders = [], timeframe = '1m', currentPrice }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<any>(null);
     const candlestickSeriesRef = useRef<any>(null);
@@ -61,212 +64,195 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
     const updateIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const lastDataRef = useRef<CandleData | null>(null);
     const [isClient, setIsClient] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [dataStatus, setDataStatus] = useState<'live' | 'mock'>('mock');
 
     useEffect(() => {
       setIsClient(true);
     }, []);
 
-    const generateInitialData = (pair: string): CandleData[] => {
-      const basePrice = getBasePrice(pair);
-      const data: CandleData[] = [];
-      const now = Math.floor(Date.now() / 1000);
-      const candleSize = 60;
-
-      for (let i = 50; i >= 0; i--) {
-        const time = now - i * candleSize;
-        const volatility = 0.0005;
-        const randomWalk = (Math.random() - 0.5) * 0.001;
-        const close = basePrice + randomWalk;
-        const open = close + (Math.random() - 0.5) * volatility;
-        const high = Math.max(open, close) + Math.random() * volatility;
-        const low = Math.min(open, close) - Math.random() * volatility;
-
-        data.push({
-          time,
-          open: Math.round(open * 100000) / 100000,
-          high: Math.round(high * 100000) / 100000,
-          low: Math.round(low * 100000) / 100000,
-          close: Math.round(close * 100000) / 100000,
-        });
+    const fetchCandles = useCallback(async (): Promise<CandleData[]> => {
+      try {
+        const url = new URL(`/api/market/candles/${pair}`, getApiUrl());
+        url.searchParams.set('timeframe', timeframe);
+        url.searchParams.set('limit', '500');
+        
+        const response = await fetch(url.toString());
+        if (!response.ok) throw new Error('Failed to fetch candles');
+        
+        const data = await response.json();
+        setDataStatus(data.isUsingMock ? 'mock' : 'live');
+        return data.candles || [];
+      } catch (e) {
+        console.error('Error fetching candles:', e);
+        return [];
       }
+    }, [pair, timeframe]);
 
-      return data;
-    };
-
-    const getBasePrice = (pairSymbol: string): number => {
-      const prices: Record<string, number> = {
-        'EUR-USD': 1.0875,
-        'GBP-USD': 1.2650,
-        'USD-JPY': 149.5,
-        'AUD-USD': 0.652,
-        'USD-CAD': 1.358,
-      };
-      return prices[pairSymbol] || 1.0;
-    };
-
-    const generateNewCandle = (pair: string, lastCandle: CandleData | null): CandleData => {
-      const basePrice = getBasePrice(pair);
+    const updateLastCandle = useCallback((price: number) => {
+      if (!candlestickSeriesRef.current || !lastDataRef.current) return;
+      
       const now = Math.floor(Date.now() / 1000);
-      const candleSize = 60;
-
-      if (!lastCandle) {
-        const volatility = 0.0005;
-        const randomWalk = (Math.random() - 0.5) * 0.001;
-        const close = basePrice + randomWalk;
-        const open = close + (Math.random() - 0.5) * volatility;
-        const high = Math.max(open, close) + Math.random() * volatility;
-        const low = Math.min(open, close) - Math.random() * volatility;
-
-        return {
-          time: Math.floor(now / candleSize) * candleSize,
-          open: Math.round(open * 100000) / 100000,
-          high: Math.round(high * 100000) / 100000,
-          low: Math.round(low * 100000) / 100000,
-          close: Math.round(close * 100000) / 100000,
+      const candleSeconds = 60;
+      const currentBucket = Math.floor(now / candleSeconds) * candleSeconds;
+      
+      const lastCandle = lastDataRef.current;
+      
+      if (lastCandle.time === currentBucket) {
+        const updatedCandle = {
+          ...lastCandle,
+          close: price,
+          high: Math.max(lastCandle.high, price),
+          low: Math.min(lastCandle.low, price),
         };
+        try {
+          candlestickSeriesRef.current.update(updatedCandle);
+          lastDataRef.current = updatedCandle;
+        } catch (e) {}
+      } else {
+        const newCandle: CandleData = {
+          time: currentBucket,
+          open: lastCandle.close,
+          high: price,
+          low: price,
+          close: price,
+        };
+        try {
+          candlestickSeriesRef.current.update(newCandle);
+          lastDataRef.current = newCandle;
+        } catch (e) {}
       }
-
-      const volatility = 0.0005;
-      const randomWalk = (Math.random() - 0.5) * 0.001;
-      const close = lastCandle.close + randomWalk;
-      const open = lastCandle.close;
-      const high = Math.max(open, close) + Math.random() * volatility;
-      const low = Math.min(open, close) - Math.random() * volatility;
-      const candleTime = Math.floor(now / candleSize) * candleSize;
-
-      return {
-        time: candleTime,
-        open: Math.round(open * 100000) / 100000,
-        high: Math.round(high * 100000) / 100000,
-        low: Math.round(low * 100000) / 100000,
-        close: Math.round(close * 100000) / 100000,
-      };
-    };
+    }, []);
 
     useEffect(() => {
       if (!isClient || Platform.OS !== 'web' || !createChart || !containerRef.current) {
         return;
       }
 
-      try {
-        const chart = createChart(containerRef.current, {
-          layout: {
-            background: { color: Colors.dark.backgroundRoot },
-            textColor: Colors.dark.textSecondary,
-            fontFamily: "'Space Grotesk', system-ui, sans-serif",
-          },
-          width: containerRef.current.clientWidth,
-          height,
-          timeScale: {
-            timeVisible: true,
-            secondsVisible: false,
-            borderColor: Colors.dark.border,
-          },
-          rightPriceScale: {
-            borderColor: Colors.dark.border,
-            textColor: Colors.dark.textSecondary,
-          },
-          grid: {
-            horzLines: {
-              color: `${Colors.dark.border}50`,
-              visible: true,
+      let isMounted = true;
+
+      const initChart = async () => {
+        if (!containerRef.current) return;
+        
+        setIsLoading(true);
+
+        try {
+          const chart = createChart(containerRef.current, {
+            layout: {
+              background: { color: Colors.dark.backgroundRoot },
+              textColor: Colors.dark.textSecondary,
+              fontFamily: "'Space Grotesk', system-ui, sans-serif",
             },
-            vertLines: {
-              color: `${Colors.dark.border}50`,
-              visible: true,
+            width: containerRef.current.clientWidth,
+            height,
+            timeScale: {
+              timeVisible: true,
+              secondsVisible: false,
+              borderColor: Colors.dark.border,
             },
-          },
-          crosshair: {
-            mode: 1,
-            vertLine: {
-              color: Colors.dark.textMuted,
-              labelBackgroundColor: Colors.dark.backgroundSecondary,
+            rightPriceScale: {
+              borderColor: Colors.dark.border,
+              textColor: Colors.dark.textSecondary,
             },
-            horzLine: {
-              color: Colors.dark.textMuted,
-              labelBackgroundColor: Colors.dark.backgroundSecondary,
+            grid: {
+              horzLines: {
+                color: `${Colors.dark.border}50`,
+                visible: true,
+              },
+              vertLines: {
+                color: `${Colors.dark.border}50`,
+                visible: true,
+              },
             },
-          },
-        });
+            crosshair: {
+              mode: 1,
+              vertLine: {
+                color: Colors.dark.textMuted,
+                labelBackgroundColor: Colors.dark.backgroundSecondary,
+              },
+              horzLine: {
+                color: Colors.dark.textMuted,
+                labelBackgroundColor: Colors.dark.backgroundSecondary,
+              },
+            },
+          });
 
-        chartRef.current = chart;
-
-        const candlestickSeries = CandlestickSeries 
-          ? chart.addSeries(CandlestickSeries, {
-              upColor: Colors.dark.success,
-              downColor: Colors.dark.danger,
-              borderUpColor: Colors.dark.success,
-              borderDownColor: Colors.dark.danger,
-              wickUpColor: Colors.dark.success,
-              wickDownColor: Colors.dark.danger,
-            })
-          : chart.addCandlestickSeries({
-              upColor: Colors.dark.success,
-              downColor: Colors.dark.danger,
-              borderUpColor: Colors.dark.success,
-              borderDownColor: Colors.dark.danger,
-              wickUpColor: Colors.dark.success,
-              wickDownColor: Colors.dark.danger,
-            });
-
-        candlestickSeriesRef.current = candlestickSeries;
-
-        const initialData = generateInitialData(pair);
-        candlestickSeries.setData(initialData);
-        lastDataRef.current = initialData[initialData.length - 1];
-
-        chart.timeScale().fitContent();
-
-        updateIntervalRef.current = setInterval(() => {
-          if (candlestickSeriesRef.current && lastDataRef.current) {
-            const newCandle = generateNewCandle(pair, lastDataRef.current);
-            if (newCandle.time >= lastDataRef.current.time) {
-              try {
-                candlestickSeriesRef.current.update(newCandle);
-                lastDataRef.current = newCandle;
-              } catch (e) {
-              }
-            }
-          }
-        }, 5000);
-
-        const handleResize = () => {
-          if (containerRef.current && chart) {
-            chart.applyOptions({
-              width: containerRef.current.clientWidth,
-            });
-          }
-        };
-
-        window.addEventListener('resize', handleResize);
-
-        return () => {
-          window.removeEventListener('resize', handleResize);
-          if (updateIntervalRef.current) {
-            clearInterval(updateIntervalRef.current);
-          }
-          if (chart) {
+          if (!isMounted) {
             chart.remove();
+            return;
           }
-        };
-      } catch (error) {
-        console.error('Error initializing TradingView chart:', error);
-      }
-    }, [isClient, pair, height]);
+
+          chartRef.current = chart;
+
+          const candlestickSeries = CandlestickSeries 
+            ? chart.addSeries(CandlestickSeries, {
+                upColor: Colors.dark.success,
+                downColor: Colors.dark.danger,
+                borderUpColor: Colors.dark.success,
+                borderDownColor: Colors.dark.danger,
+                wickUpColor: Colors.dark.success,
+                wickDownColor: Colors.dark.danger,
+              })
+            : chart.addCandlestickSeries({
+                upColor: Colors.dark.success,
+                downColor: Colors.dark.danger,
+                borderUpColor: Colors.dark.success,
+                borderDownColor: Colors.dark.danger,
+                wickUpColor: Colors.dark.success,
+                wickDownColor: Colors.dark.danger,
+              });
+
+          candlestickSeriesRef.current = candlestickSeries;
+
+          const candles = await fetchCandles();
+          if (!isMounted) return;
+          
+          if (candles.length > 0) {
+            candlestickSeries.setData(candles);
+            lastDataRef.current = candles[candles.length - 1];
+          }
+
+          chart.timeScale().fitContent();
+          setIsLoading(false);
+
+          const handleResize = () => {
+            if (containerRef.current && chart) {
+              chart.applyOptions({
+                width: containerRef.current.clientWidth,
+              });
+            }
+          };
+
+          window.addEventListener('resize', handleResize);
+
+          return () => {
+            window.removeEventListener('resize', handleResize);
+          };
+        } catch (error) {
+          console.error('Error initializing TradingView chart:', error);
+          setIsLoading(false);
+        }
+      };
+
+      initChart();
+
+      return () => {
+        isMounted = false;
+        if (updateIntervalRef.current) {
+          clearInterval(updateIntervalRef.current);
+        }
+        if (chartRef.current) {
+          chartRef.current.remove();
+          chartRef.current = null;
+        }
+      };
+    }, [isClient, pair, height, timeframe, fetchCandles]);
 
     useEffect(() => {
-      if (!isClient || Platform.OS !== 'web' || !candlestickSeriesRef.current) {
-        return;
+      if (currentPrice && candlestickSeriesRef.current) {
+        updateLastCandle(currentPrice);
       }
-
-      const newData = generateInitialData(pair);
-      candlestickSeriesRef.current.setData(newData);
-      lastDataRef.current = newData[newData.length - 1];
-
-      if (chartRef.current) {
-        chartRef.current.timeScale().fitContent();
-      }
-    }, [pair, isClient]);
+    }, [currentPrice, updateLastCandle]);
 
     useEffect(() => {
       if (!candlestickSeriesRef.current || Platform.OS !== 'web') {
@@ -283,13 +269,15 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
 
       positions.forEach((pos) => {
         try {
+          const lots = pos.quantityUnits / 100000;
+          const lotsDisplay = lots >= 0.01 ? lots.toFixed(2) : (lots * 100).toFixed(0) + 'K';
           const entryLine = candlestickSeriesRef.current.createPriceLine({
             price: pos.avgEntryPrice,
             color: pos.side === 'buy' ? Colors.dark.success : Colors.dark.danger,
             lineWidth: 2,
             lineStyle: 0,
             axisLabelVisible: true,
-            title: `${pos.side.toUpperCase()} ${pos.quantityUnits.toLocaleString()}`,
+            title: `${pos.side.toUpperCase()} ${lotsDisplay} lots`,
           });
           priceLinesRef.current.push(entryLine);
 
