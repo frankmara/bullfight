@@ -8,6 +8,7 @@ import {
   Alert,
   Platform,
   useWindowDimensions,
+  Modal,
 } from "react-native";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -227,6 +228,12 @@ export default function ArenaScreen() {
   const [selectedTimeframe, setSelectedTimeframe] = useState("15m");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [sltpDragModal, setSltpDragModal] = useState<{
+    positionId: string;
+    type: 'sl' | 'tp';
+    originalPrice: number;
+    newPrice: number;
+  } | null>(null);
   const [selectedTool, setSelectedTool] = useState<DrawingTool>("cursor");
   const [drawnLines, setDrawnLines] = useState<DrawnLine[]>([]);
   const [pendingTrendLine, setPendingTrendLine] = useState<{ startPrice: number; startTime: number } | null>(null);
@@ -538,6 +545,40 @@ export default function ArenaScreen() {
     placeOrderMutation.mutate(orderData);
   }, [selectedPair, orderSide, orderType, lotSize, limitPrice, stopPrice, stopLoss, takeProfit, placeOrderMutation]);
 
+  const handleSLTPDrag = useCallback((dragInfo: {
+    positionId: string;
+    type: 'sl' | 'tp';
+    originalPrice: number;
+    newPrice: number;
+  }) => {
+    setSltpDragModal(dragInfo);
+  }, []);
+
+  const confirmSLTPDrag = useCallback(() => {
+    if (!sltpDragModal) return;
+    
+    const { positionId, type, newPrice } = sltpDragModal;
+    const updates: { stopLossPrice?: number; takeProfitPrice?: number } = {};
+    
+    if (type === 'sl') {
+      updates.stopLossPrice = newPrice;
+    } else {
+      updates.takeProfitPrice = newPrice;
+    }
+    
+    editPositionMutation.mutate({
+      positionId,
+      ...updates,
+    });
+    
+    setSltpDragModal(null);
+  }, [sltpDragModal, editPositionMutation]);
+
+  const cancelSLTPDrag = useCallback(() => {
+    setSltpDragModal(null);
+    queryClient.invalidateQueries({ queryKey: [`/api/arena/${id}`] });
+  }, [id, queryClient]);
+
   if (isLoading) {
     return (
       <View style={[styles.container, styles.loadingContainer]}>
@@ -709,6 +750,7 @@ export default function ArenaScreen() {
           selectedTool={selectedTool}
           drawnLines={drawnLines}
           onChartClick={handleChartClick}
+          onSLTPDrag={handleSLTPDrag}
         />
       </View>
     </View>
@@ -1042,6 +1084,72 @@ export default function ArenaScreen() {
       </Animated.View>
     ) : null;
 
+  const renderSLTPDragModal = () =>
+    sltpDragModal ? (
+      <Modal
+        visible={true}
+        transparent
+        animationType="fade"
+        onRequestClose={cancelSLTPDrag}
+      >
+        <Pressable style={styles.sltpModalOverlay} onPress={cancelSLTPDrag}>
+          <View style={styles.sltpModalContent}>
+            <View style={styles.sltpModalHeader}>
+              <ThemedText style={styles.sltpModalTitle}>
+                Move {sltpDragModal.type === 'sl' ? 'Stop Loss' : 'Take Profit'}?
+              </ThemedText>
+              <Pressable onPress={cancelSLTPDrag}>
+                <Feather name="x" size={20} color={THEME.textMuted} />
+              </Pressable>
+            </View>
+            
+            <View style={styles.sltpModalBody}>
+              <View style={styles.sltpPriceRow}>
+                <ThemedText style={styles.sltpLabel}>From:</ThemedText>
+                <ThemedText style={[styles.sltpPrice, sltpDragModal.type === 'sl' ? styles.slPrice : styles.tpPrice]}>
+                  {formatPrice(sltpDragModal.originalPrice)}
+                </ThemedText>
+              </View>
+              <View style={styles.sltpArrow}>
+                <Feather name="arrow-down" size={20} color={THEME.textMuted} />
+              </View>
+              <View style={styles.sltpPriceRow}>
+                <ThemedText style={styles.sltpLabel}>To:</ThemedText>
+                <ThemedText style={[styles.sltpPrice, sltpDragModal.type === 'sl' ? styles.slPrice : styles.tpPrice]}>
+                  {formatPrice(sltpDragModal.newPrice)}
+                </ThemedText>
+              </View>
+              
+              <View style={styles.sltpDiff}>
+                <ThemedText style={styles.sltpDiffLabel}>Change:</ThemedText>
+                <ThemedText style={[
+                  styles.sltpDiffValue,
+                  (sltpDragModal.newPrice - sltpDragModal.originalPrice) >= 0 ? styles.positive : styles.negative
+                ]}>
+                  {(sltpDragModal.newPrice - sltpDragModal.originalPrice) >= 0 ? '+' : ''}
+                  {((sltpDragModal.newPrice - sltpDragModal.originalPrice) * 10000).toFixed(1)} pips
+                </ThemedText>
+              </View>
+            </View>
+
+            <View style={styles.sltpModalActions}>
+              <Pressable style={styles.sltpCancelBtn} onPress={cancelSLTPDrag}>
+                <ThemedText style={styles.sltpCancelText}>Cancel</ThemedText>
+              </Pressable>
+              <Pressable 
+                style={[styles.sltpConfirmBtn, sltpDragModal.type === 'sl' ? styles.slConfirmBtn : styles.tpConfirmBtn]}
+                onPress={confirmSLTPDrag}
+              >
+                <ThemedText style={styles.sltpConfirmText}>
+                  Confirm {sltpDragModal.type.toUpperCase()}
+                </ThemedText>
+              </Pressable>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+    ) : null;
+
   if (isDesktop) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -1085,6 +1193,7 @@ export default function ArenaScreen() {
               selectedTool={selectedTool}
               drawnLines={drawnLines}
               onChartClick={handleChartClick}
+              onSLTPDrag={handleSLTPDrag}
             />
           }
           marketWatch={
@@ -1153,6 +1262,7 @@ export default function ArenaScreen() {
             <>
               {renderLeaderboardPanel()}
               {renderToast()}
+              {renderSLTPDragModal()}
             </>
           }
           isFullscreen={isFullscreen}
@@ -1177,6 +1287,7 @@ export default function ArenaScreen() {
       </ScrollView>
       {renderLeaderboardPanel()}
       {renderToast()}
+      {renderSLTPDragModal()}
     </View>
   );
 }
@@ -1947,5 +2058,119 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: THEME.textPrimary,
     flex: 1,
+  },
+
+  sltpModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  sltpModalContent: {
+    backgroundColor: THEME.bgCard,
+    borderRadius: 12,
+    width: 320,
+    borderWidth: 1,
+    borderColor: THEME.border,
+    overflow: "hidden",
+  },
+  sltpModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: THEME.border,
+    backgroundColor: THEME.bgElevated,
+  },
+  sltpModalTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: THEME.textPrimary,
+  },
+  sltpModalBody: {
+    padding: 20,
+    alignItems: "center",
+  },
+  sltpPriceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  sltpLabel: {
+    fontSize: 13,
+    color: THEME.textMuted,
+    width: 50,
+  },
+  sltpPrice: {
+    ...TerminalTypography.price,
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  slPrice: {
+    color: THEME.danger,
+  },
+  tpPrice: {
+    color: THEME.success,
+  },
+  sltpArrow: {
+    paddingVertical: 8,
+  },
+  sltpDiff: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: THEME.border,
+  },
+  sltpDiffLabel: {
+    fontSize: 12,
+    color: THEME.textMuted,
+  },
+  sltpDiffValue: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  positive: {
+    color: THEME.success,
+  },
+  negative: {
+    color: THEME.danger,
+  },
+  sltpModalActions: {
+    flexDirection: "row",
+    borderTopWidth: 1,
+    borderTopColor: THEME.border,
+  },
+  sltpCancelBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: "center",
+    borderRightWidth: 1,
+    borderRightColor: THEME.border,
+  },
+  sltpCancelText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: THEME.textMuted,
+  },
+  sltpConfirmBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  slConfirmBtn: {
+    backgroundColor: "rgba(234, 57, 67, 0.2)",
+  },
+  tpConfirmBtn: {
+    backgroundColor: "rgba(22, 199, 132, 0.2)",
+  },
+  sltpConfirmText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: THEME.textPrimary,
   },
 });
