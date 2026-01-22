@@ -97,6 +97,20 @@ interface Fill {
   filledAt: string;
 }
 
+interface Trade {
+  id: string;
+  pair: string;
+  sideInitial: string;
+  totalInUnits: number;
+  totalOutUnits: number;
+  avgEntryPrice: number;
+  avgExitPrice?: number;
+  realizedPnlCents: number;
+  status: string;
+  openedAt: string;
+  closedAt?: string;
+}
+
 interface ArenaData {
   competition: {
     id: string;
@@ -200,6 +214,11 @@ export default function ArenaScreen() {
   const { data: marketStatus } = useQuery<{ isUsingMock: boolean }>({
     queryKey: ["/api/market/status"],
     refetchInterval: 30000,
+  });
+
+  const { data: closedTrades } = useQuery<Trade[]>({
+    queryKey: ["/api/arena", id, "trades"],
+    refetchInterval: 5000,
   });
 
   const { data: marketQuotes } = useQuery<MarketQuotesResponse>({
@@ -365,6 +384,52 @@ export default function ArenaScreen() {
     },
     onError: (error: any) => {
       showToast(error.message || "Failed to cancel order", 'error');
+    },
+  });
+
+  const partialCloseMutation = useMutation({
+    mutationFn: async ({ positionId, lots, percentage }: { positionId: string; lots?: number; percentage?: number }) => {
+      const res = await apiRequest("POST", `/api/arena/${id}/positions/${positionId}/partial-close`, { lots, percentage });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/arena", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/arena", id, "trades"] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      showToast('Partial close executed', 'success');
+    },
+    onError: (error: any) => {
+      showToast(error.message || "Failed to partial close", 'error');
+    },
+  });
+
+  const editPositionMutation = useMutation({
+    mutationFn: async ({ positionId, stopLossPrice, takeProfitPrice }: { positionId: string; stopLossPrice?: number | null; takeProfitPrice?: number | null }) => {
+      const res = await apiRequest("PUT", `/api/arena/${id}/positions/${positionId}`, { stopLossPrice, takeProfitPrice });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/arena", id] });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      showToast('Position updated', 'success');
+    },
+    onError: (error: any) => {
+      showToast(error.message || "Failed to update position", 'error');
+    },
+  });
+
+  const editOrderMutation = useMutation({
+    mutationFn: async ({ orderId, limitPrice, stopPrice, stopLossPrice, takeProfitPrice }: { orderId: string; limitPrice?: number; stopPrice?: number; stopLossPrice?: number | null; takeProfitPrice?: number | null }) => {
+      const res = await apiRequest("PUT", `/api/arena/${id}/orders/${orderId}`, { limitPrice, stopPrice, stopLossPrice, takeProfitPrice });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/arena", id] });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      showToast('Order updated', 'success');
+    },
+    onError: (error: any) => {
+      showToast(error.message || "Failed to update order", 'error');
     },
   });
 
@@ -988,10 +1053,13 @@ export default function ArenaScreen() {
             <Blotter
               positions={positions}
               pendingOrders={pendingOrders}
-              fills={fills}
+              closedTrades={(closedTrades || []).filter(t => t.status === 'closed')}
               quotes={quotes}
               onClosePosition={(positionId) => closePositionMutation.mutate(positionId)}
+              onPartialClose={(positionId, lots, percentage) => partialCloseMutation.mutate({ positionId, lots, percentage })}
+              onEditPosition={(positionId, sl, tp) => editPositionMutation.mutate({ positionId, stopLossPrice: sl, takeProfitPrice: tp })}
               onCancelOrder={(orderId) => cancelOrderMutation.mutate(orderId)}
+              onEditOrder={(orderId, updates) => editOrderMutation.mutate({ orderId, ...updates })}
               formatPrice={formatPrice}
               formatCurrency={formatCurrency}
               unitsToLots={unitsToLots}
