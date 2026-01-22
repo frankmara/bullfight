@@ -271,8 +271,7 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
             ? chart.addSeries(CandlestickSeries, {
                 upColor: TerminalColors.positive,
                 downColor: TerminalColors.negative,
-                borderUpColor: TerminalColors.positive,
-                borderDownColor: TerminalColors.negative,
+                borderVisible: false,
                 wickUpColor: TerminalColors.positive,
                 wickDownColor: TerminalColors.negative,
                 priceFormat: {
@@ -289,8 +288,7 @@ export const TradingViewChart = React.forwardRef<any, TradingViewChartProps>(
             : chart.addCandlestickSeries({
                 upColor: TerminalColors.positive,
                 downColor: TerminalColors.negative,
-                borderUpColor: TerminalColors.positive,
-                borderDownColor: TerminalColors.negative,
+                borderVisible: false,
                 wickUpColor: TerminalColors.positive,
                 wickDownColor: TerminalColors.negative,
                 priceFormat: {
