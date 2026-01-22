@@ -18,7 +18,7 @@ interface MarketWatchProps {
   selectedPair: string;
   onSelectPair: (pair: string) => void;
   formatPrice: (price: number, pair: string) => string;
-  searchRef?: React.RefObject<TextInput>;
+  searchRef?: React.RefObject<TextInput | null>;
 }
 
 export function MarketWatch({ 

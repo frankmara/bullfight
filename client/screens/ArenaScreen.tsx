@@ -32,6 +32,7 @@ import { apiRequest } from "@/lib/query-client";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/types/navigation";
 import { TerminalColors, TerminalTypography, TerminalSpacing, TerminalRadius } from "@/components/terminal";
+import { ArenaLayout, ToolDock, ChartToolbar, MarketWatch, OrderTicket, Blotter, LAYOUT_CONSTANTS } from "@/components/arena";
 
 interface Quote {
   pair: string;
@@ -891,20 +892,83 @@ export default function ArenaScreen() {
   if (isDesktop) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        {renderHeader()}
-        {renderAccountSummary()}
-        <View style={styles.desktopMain}>
-          <View style={styles.desktopLeft}>
-            {renderInstrumentSelector()}
-            {renderChartSection()}
-            {renderPositionsPanel()}
-          </View>
-          <View style={styles.desktopRight}>
-            {renderOrderPanel()}
-          </View>
-        </View>
-        {renderLeaderboardPanel()}
-        {renderToast()}
+        <ArenaLayout
+          header={renderHeader()}
+          accountMetrics={renderAccountSummary()}
+          toolDock={<ToolDock />}
+          chartToolbar={
+            <ChartToolbar
+              symbol={selectedPair}
+              currentPrice={currentQuote?.ask}
+              timeframe={selectedTimeframe}
+              onTimeframeChange={setSelectedTimeframe}
+              formatPrice={(price) => formatPrice(price, selectedPair)}
+            />
+          }
+          chart={
+            <TradingViewChart
+              pair={selectedPair}
+              height={height - 520}
+              positions={positions.filter((p) => p.pair === selectedPair)}
+              orders={pendingOrders.filter((o) => o.pair === selectedPair)}
+            />
+          }
+          marketWatch={
+            <MarketWatch
+              pairs={pairs}
+              quotes={quotes}
+              selectedPair={selectedPair}
+              onSelectPair={setSelectedPair}
+              formatPrice={formatPrice}
+              searchRef={searchInputRef}
+            />
+          }
+          orderTicket={
+            <OrderTicket
+              selectedPair={selectedPair}
+              currentQuote={currentQuote}
+              orderSide={orderSide}
+              orderType={orderType}
+              lotSize={lotSize}
+              limitPrice={limitPrice}
+              stopPrice={stopPrice}
+              stopLoss={stopLoss}
+              takeProfit={takeProfit}
+              oneClickTrading={oneClickTrading}
+              isTradeDisabled={isTradeDisabled}
+              isPending={placeOrderMutation.isPending}
+              onOrderSideChange={setOrderSide}
+              onOrderTypeChange={setOrderType}
+              onLotSizeChange={setLotSize}
+              onLimitPriceChange={setLimitPrice}
+              onStopPriceChange={setStopPrice}
+              onStopLossChange={setStopLoss}
+              onTakeProfitChange={setTakeProfit}
+              onOneClickTradingChange={setOneClickTrading}
+              onPlaceOrder={handlePlaceOrder}
+              formatPrice={(price) => formatPrice(price, selectedPair)}
+            />
+          }
+          blotter={
+            <Blotter
+              positions={positions}
+              pendingOrders={pendingOrders}
+              fills={fills}
+              quotes={quotes}
+              onClosePosition={(positionId) => closePositionMutation.mutate(positionId)}
+              onCancelOrder={(orderId) => cancelOrderMutation.mutate(orderId)}
+              formatPrice={formatPrice}
+              formatCurrency={formatCurrency}
+              unitsToLots={unitsToLots}
+            />
+          }
+          overlays={
+            <>
+              {renderLeaderboardPanel()}
+              {renderToast()}
+            </>
+          }
+        />
       </View>
     );
   }
