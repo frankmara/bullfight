@@ -30,7 +30,7 @@ const TIMEFRAMES = [
   { label: "15m", value: "15m" },
   { label: "1H", value: "1h" },
   { label: "4H", value: "4h" },
-  { label: "1D", value: "1D" },
+  { label: "1D", value: "1d" },
 ];
 
 const STATUS_COLORS: Record<QuoteStatus, string> = {
