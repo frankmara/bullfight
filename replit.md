@@ -174,12 +174,40 @@ Key entities defined in the schema:
 - fjmara@outlook.com has admin role
 - Admin can set competition status via database updates
 
+### Stripe Payment Integration
+- **StripeClient** (`/server/stripeClient.ts`) handles Stripe API initialization and checkout sessions
+- Uses Replit's managed Stripe integration with automatic secret handling
+- Webhook handlers process payment completion events
+
+#### Payment Flow
+1. **Competition Entry**: User clicks join on paid competition → redirects to Stripe Checkout
+2. **PvP Stakes**: User clicks pay on accepted challenge → redirects to Stripe Checkout  
+3. **Stripe Checkout**: User completes payment on Stripe's hosted page
+4. **Webhook/Redirect**: Payment confirmation creates competition entry or marks stake as paid
+5. **Success Screen**: User sees confirmation and can enter arena
+
+#### Payment API Endpoints
+- `POST /api/competitions/:id/checkout` - Create Stripe session for competition buy-in
+- `GET /api/payment/competition/:id/confirm` - Confirm payment after redirect
+- `POST /api/pvp/challenges/:id/checkout` - Create Stripe session for PvP stake
+- `GET /api/payment/pvp/:id/confirm` - Confirm PvP payment after redirect
+
+#### Payment Screens
+- `PaymentSuccessScreen` - Confirms payment, handles redirect with session verification
+- `PaymentCancelScreen` - Handles cancelled payments, offers retry
+
+#### Schema Fields
+- `competition_entries.stripeSessionId` - Tracks Stripe checkout session
+- `competition_entries.stripePaymentId` - Tracks successful payment ID
+- `pvp_challenges.challengerStripeSessionId/PaymentId` - Challenger payment tracking
+- `pvp_challenges.inviteeStripeSessionId/PaymentId` - Invitee payment tracking
+
 ### PvP Challenges System
 - One-on-one trading competitions between users
 - Challenger sets initial terms (stake, balance, duration, trading pairs)
 - Invitee can accept or propose counter-terms (negotiation)
 - Both parties must accept final terms before payment
-- Both parties pay stake; when both paid, competition auto-creates and starts
+- Both parties pay stake via Stripe; when both paid, competition auto-creates and starts
 - Winner determined by highest % return when competition ends
 - 3% rake (300 bps) taken from prize pool, configurable via `rakeBps` field
 
