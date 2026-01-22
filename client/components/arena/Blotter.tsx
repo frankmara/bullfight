@@ -43,10 +43,42 @@ interface ClosedTrade {
   closedAt?: string;
 }
 
+interface Deal {
+  id: string;
+  tradeId: string;
+  orderId?: string;
+  pair: string;
+  side: string;
+  units: number;
+  lots: number;
+  price: number;
+  kind: string;
+  realizedPnlCents: number;
+  createdAt: string;
+}
+
+interface OrderHistoryItem {
+  id: string;
+  pair: string;
+  side: string;
+  type: string;
+  quantityUnits: number;
+  limitPrice?: number;
+  stopPrice?: number;
+  takeProfitPrice?: number;
+  stopLossPrice?: number;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface BlotterProps {
   positions: Position[];
   pendingOrders: PendingOrder[];
   closedTrades: ClosedTrade[];
+  allTrades?: ClosedTrade[];
+  deals?: Deal[];
+  orderHistory?: OrderHistoryItem[];
   quotes: Record<string, { bid: number; ask: number }>;
   onClosePosition: (positionId: string) => void;
   onPartialClose: (positionId: string, lots?: number, percentage?: number) => void;
@@ -389,10 +421,170 @@ function EditOrderModal({ visible, order, onClose, onConfirm, formatPrice }: Edi
   );
 }
 
+interface OrderDetailModalProps {
+  visible: boolean;
+  order: OrderHistoryItem | null;
+  onClose: () => void;
+  formatPrice: (price: number, pair: string) => string;
+  formatCurrency: (cents: number) => string;
+  unitsToLots: (units: number) => number;
+  deals: Deal[];
+}
+
+function OrderDetailModal({ visible, order, onClose, formatPrice, formatCurrency, unitsToLots, deals }: OrderDetailModalProps) {
+  if (!order) return null;
+
+  const formatDateTime = (dateStr?: string) => {
+    if (!dateStr) return "—";
+    const d = new Date(dateStr);
+    return d.toLocaleString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      hour: '2-digit', 
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false 
+    });
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case "filled": return TerminalColors.positive;
+      case "cancelled": case "canceled": case "rejected": return TerminalColors.negative;
+      case "partially_filled": return TerminalColors.warning;
+      case "pending": return TerminalColors.accent;
+      default: return TerminalColors.textMuted;
+    }
+  };
+
+  const modalContent = (
+    <View style={modalStyles.backdrop}>
+      <View style={[modalStyles.container, { width: 420 }]}>
+        <View style={modalStyles.header}>
+          <ThemedText style={modalStyles.title}>Order Details</ThemedText>
+          <Pressable onPress={onClose}>
+            <Feather name="x" size={20} color={TerminalColors.textMuted} />
+          </Pressable>
+        </View>
+        
+        <View style={orderDetailStyles.section}>
+          <View style={orderDetailStyles.row}>
+            <ThemedText style={orderDetailStyles.label}>Order ID</ThemedText>
+            <ThemedText style={orderDetailStyles.value}>{order.id}</ThemedText>
+          </View>
+          <View style={orderDetailStyles.row}>
+            <ThemedText style={orderDetailStyles.label}>Symbol</ThemedText>
+            <ThemedText style={[orderDetailStyles.value, { fontWeight: "600" }]}>{order.pair}</ThemedText>
+          </View>
+          <View style={orderDetailStyles.row}>
+            <ThemedText style={orderDetailStyles.label}>Type</ThemedText>
+            <ThemedText style={orderDetailStyles.value}>{order.type.toUpperCase()}</ThemedText>
+          </View>
+          <View style={orderDetailStyles.row}>
+            <ThemedText style={orderDetailStyles.label}>Side</ThemedText>
+            <ThemedText style={[orderDetailStyles.value, { color: order.side === "buy" ? TerminalColors.positive : TerminalColors.negative }]}>
+              {order.side.toUpperCase()}
+            </ThemedText>
+          </View>
+          <View style={orderDetailStyles.row}>
+            <ThemedText style={orderDetailStyles.label}>Quantity</ThemedText>
+            <ThemedText style={orderDetailStyles.value}>{unitsToLots(order.quantityUnits).toFixed(2)} lots ({order.quantityUnits.toLocaleString()} units)</ThemedText>
+          </View>
+          {order.limitPrice ? (
+            <View style={orderDetailStyles.row}>
+              <ThemedText style={orderDetailStyles.label}>Limit Price</ThemedText>
+              <ThemedText style={orderDetailStyles.value}>{formatPrice(order.limitPrice, order.pair)}</ThemedText>
+            </View>
+          ) : null}
+          {order.stopPrice ? (
+            <View style={orderDetailStyles.row}>
+              <ThemedText style={orderDetailStyles.label}>Stop Price</ThemedText>
+              <ThemedText style={orderDetailStyles.value}>{formatPrice(order.stopPrice, order.pair)}</ThemedText>
+            </View>
+          ) : null}
+          {order.stopLossPrice ? (
+            <View style={orderDetailStyles.row}>
+              <ThemedText style={orderDetailStyles.label}>Stop Loss</ThemedText>
+              <ThemedText style={[orderDetailStyles.value, { color: TerminalColors.negative }]}>
+                {formatPrice(order.stopLossPrice, order.pair)}
+              </ThemedText>
+            </View>
+          ) : null}
+          {order.takeProfitPrice ? (
+            <View style={orderDetailStyles.row}>
+              <ThemedText style={orderDetailStyles.label}>Take Profit</ThemedText>
+              <ThemedText style={[orderDetailStyles.value, { color: TerminalColors.positive }]}>
+                {formatPrice(order.takeProfitPrice, order.pair)}
+              </ThemedText>
+            </View>
+          ) : null}
+          <View style={orderDetailStyles.row}>
+            <ThemedText style={orderDetailStyles.label}>Status</ThemedText>
+            <ThemedText style={[orderDetailStyles.value, { color: getStatusColor(order.status) }]}>
+              {order.status.toUpperCase()}
+            </ThemedText>
+          </View>
+          <View style={orderDetailStyles.row}>
+            <ThemedText style={orderDetailStyles.label}>Created</ThemedText>
+            <ThemedText style={orderDetailStyles.value}>{formatDateTime(order.createdAt)}</ThemedText>
+          </View>
+          <View style={orderDetailStyles.row}>
+            <ThemedText style={orderDetailStyles.label}>Updated</ThemedText>
+            <ThemedText style={orderDetailStyles.value}>{formatDateTime(order.updatedAt)}</ThemedText>
+          </View>
+        </View>
+
+        {deals.length > 0 ? (
+          <View style={orderDetailStyles.dealsSection}>
+            <ThemedText style={orderDetailStyles.dealsTitle}>Associated Deals ({deals.length})</ThemedText>
+            {deals.map((deal) => (
+              <View key={deal.id} style={orderDetailStyles.dealRow}>
+                <View style={orderDetailStyles.dealInfo}>
+                  <ThemedText style={orderDetailStyles.dealId}>{deal.id.slice(0, 8)}...</ThemedText>
+                  <View style={[orderDetailStyles.kindBadge, { backgroundColor: deal.kind === "in" ? TerminalColors.positive + "22" : TerminalColors.warning + "22" }]}>
+                    <ThemedText style={[orderDetailStyles.kindText, { color: deal.kind === "in" ? TerminalColors.positive : TerminalColors.warning }]}>
+                      {deal.kind.toUpperCase()}
+                    </ThemedText>
+                  </View>
+                </View>
+                <ThemedText style={orderDetailStyles.dealLots}>{deal.lots.toFixed(2)} lots @ {formatPrice(deal.price, deal.pair)}</ThemedText>
+                {deal.kind === "out" ? (
+                  <ThemedText style={[orderDetailStyles.dealPnl, { color: deal.realizedPnlCents >= 0 ? TerminalColors.positive : TerminalColors.negative }]}>
+                    {deal.realizedPnlCents >= 0 ? "+" : ""}{formatCurrency(deal.realizedPnlCents)}
+                  </ThemedText>
+                ) : null}
+              </View>
+            ))}
+          </View>
+        ) : null}
+
+        <View style={modalStyles.actions}>
+          <Pressable style={modalStyles.cancelBtn} onPress={onClose}>
+            <ThemedText style={modalStyles.cancelBtnText}>Close</ThemedText>
+          </Pressable>
+        </View>
+      </View>
+    </View>
+  );
+
+  if (Platform.OS === 'web') {
+    return visible ? modalContent : null;
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      {modalContent}
+    </Modal>
+  );
+}
+
 export function Blotter({
   positions,
   pendingOrders,
   closedTrades,
+  allTrades = [],
+  deals = [],
+  orderHistory = [],
   quotes,
   onClosePosition,
   onPartialClose,
@@ -411,11 +603,15 @@ export function Blotter({
   const [partialCloseModal, setPartialCloseModal] = useState<Position | null>(null);
   const [editSLTPModal, setEditSLTPModal] = useState<Position | null>(null);
   const [editOrderModal, setEditOrderModal] = useState<PendingOrder | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<OrderHistoryItem | null>(null);
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
 
   const totalPositions = positions.length;
   const totalPending = pendingOrders.length;
   const totalClosed = closedTrades.length;
+  const totalTrades = allTrades.length;
+  const totalDeals = deals.length;
+  const totalOrders = orderHistory.length;
   
   const renderEmptyState = (message: string) => (
     <View style={styles.emptyState}>
@@ -620,9 +816,194 @@ export function Blotter({
     </View>
   );
 
-  const renderPlaceholderTab = (tabName: string) => (
+  const renderTradesTab = () => (
     <View style={styles.tableContainer}>
-      {renderEmptyState(`${tabName} - Coming soon`)}
+      <View style={styles.tableHeader}>
+        <ThemedText style={[styles.headerCell, { width: 80, fontSize: 8 }]}>Trade ID</ThemedText>
+        <ThemedText style={[styles.headerCell, { width: 70 }]}>Symbol</ThemedText>
+        <ThemedText style={[styles.headerCell, { width: 50 }]}>Dir</ThemedText>
+        <ThemedText style={[styles.headerCell, { width: 65, textAlign: "right" }]}>Total In</ThemedText>
+        <ThemedText style={[styles.headerCell, { width: 65, textAlign: "right" }]}>Total Out</ThemedText>
+        <ThemedText style={[styles.headerCell, { width: 75, textAlign: "right" }]}>Avg Entry</ThemedText>
+        <ThemedText style={[styles.headerCell, { width: 75, textAlign: "right" }]}>Avg Exit</ThemedText>
+        <ThemedText style={[styles.headerCell, { width: 80, textAlign: "right" }]}>P&L</ThemedText>
+        <ThemedText style={[styles.headerCell, { width: 90 }]}>Opened</ThemedText>
+        <ThemedText style={[styles.headerCell, { width: 90 }]}>Closed</ThemedText>
+        <ThemedText style={[styles.headerCell, { width: 55 }]}>Status</ThemedText>
+      </View>
+      <ScrollView style={styles.tableBody} showsVerticalScrollIndicator={false}>
+        {allTrades.length > 0 ? (
+          allTrades.map((trade) => (
+            <View key={trade.id} style={styles.tableRow}>
+              <ThemedText style={[styles.cellText, { width: 80, fontSize: 8, color: TerminalColors.textMuted }]} numberOfLines={1}>
+                {trade.id.slice(0, 8)}...
+              </ThemedText>
+              <ThemedText style={[styles.cellText, { width: 70, fontWeight: "600" }]}>{trade.pair}</ThemedText>
+              <View style={[styles.sideBadge, trade.sideInitial === "buy" ? styles.sideBadgeBuy : styles.sideBadgeSell, { width: 50 }]}>
+                <ThemedText style={styles.sideBadgeText}>{trade.sideInitial.toUpperCase()}</ThemedText>
+              </View>
+              <ThemedText style={[styles.cellTextMono, { width: 65, textAlign: "right" }]}>
+                {unitsToLots(trade.totalInUnits).toFixed(2)}
+              </ThemedText>
+              <ThemedText style={[styles.cellTextMono, { width: 65, textAlign: "right" }]}>
+                {unitsToLots(trade.totalOutUnits).toFixed(2)}
+              </ThemedText>
+              <ThemedText style={[styles.cellTextMono, { width: 75, textAlign: "right" }]}>
+                {formatPrice(trade.avgEntryPrice, trade.pair)}
+              </ThemedText>
+              <ThemedText style={[styles.cellTextMono, { width: 75, textAlign: "right" }]}>
+                {trade.avgExitPrice ? formatPrice(trade.avgExitPrice, trade.pair) : "—"}
+              </ThemedText>
+              <ThemedText style={[
+                styles.cellTextMono, 
+                { width: 80, textAlign: "right", fontWeight: "600" },
+                { color: trade.realizedPnlCents >= 0 ? TerminalColors.positive : TerminalColors.negative }
+              ]}>
+                {trade.realizedPnlCents >= 0 ? "+" : ""}{formatCurrency(trade.realizedPnlCents)}
+              </ThemedText>
+              <ThemedText style={[styles.cellText, { width: 90, fontSize: 9, color: TerminalColors.textMuted }]}>
+                {formatDateTime(trade.openedAt)}
+              </ThemedText>
+              <ThemedText style={[styles.cellText, { width: 90, fontSize: 9, color: TerminalColors.textMuted }]}>
+                {formatDateTime(trade.closedAt)}
+              </ThemedText>
+              <View style={[styles.statusBadge, trade.status === "closed" ? styles.statusBadgeClosed : styles.statusBadgeOpen]}>
+                <ThemedText style={styles.statusBadgeText}>{trade.status.toUpperCase()}</ThemedText>
+              </View>
+            </View>
+          ))
+        ) : renderEmptyState("No trades recorded")}
+      </ScrollView>
+    </View>
+  );
+
+  const renderDealsTab = () => (
+    <View style={styles.tableContainer}>
+      <View style={styles.tableHeader}>
+        <ThemedText style={[styles.headerCell, { width: 90 }]}>Time</ThemedText>
+        <ThemedText style={[styles.headerCell, { width: 80, fontSize: 8 }]}>Deal ID</ThemedText>
+        <ThemedText style={[styles.headerCell, { width: 80, fontSize: 8 }]}>Trade ID</ThemedText>
+        <ThemedText style={[styles.headerCell, { width: 70 }]}>Symbol</ThemedText>
+        <ThemedText style={[styles.headerCell, { width: 45 }]}>In/Out</ThemedText>
+        <ThemedText style={[styles.headerCell, { width: 45 }]}>Side</ThemedText>
+        <ThemedText style={[styles.headerCell, { width: 55, textAlign: "right" }]}>Lots</ThemedText>
+        <ThemedText style={[styles.headerCell, { width: 75, textAlign: "right" }]}>Price</ThemedText>
+        <ThemedText style={[styles.headerCell, { width: 80, textAlign: "right" }]}>P&L</ThemedText>
+        <ThemedText style={[styles.headerCell, { flex: 1, fontSize: 8 }]}>Order ID</ThemedText>
+      </View>
+      <ScrollView style={styles.tableBody} showsVerticalScrollIndicator={false}>
+        {deals.length > 0 ? (
+          [...deals].reverse().map((deal) => (
+            <View key={deal.id} style={styles.tableRow}>
+              <ThemedText style={[styles.cellText, { width: 90, fontSize: 9, color: TerminalColors.textMuted }]}>
+                {formatDateTime(deal.createdAt)}
+              </ThemedText>
+              <ThemedText style={[styles.cellText, { width: 80, fontSize: 8, color: TerminalColors.textMuted }]} numberOfLines={1}>
+                {deal.id.slice(0, 8)}...
+              </ThemedText>
+              <ThemedText style={[styles.cellText, { width: 80, fontSize: 8, color: TerminalColors.textMuted }]} numberOfLines={1}>
+                {deal.tradeId.slice(0, 8)}...
+              </ThemedText>
+              <ThemedText style={[styles.cellText, { width: 70, fontWeight: "600" }]}>{deal.pair}</ThemedText>
+              <View style={[styles.kindBadge, deal.kind === "in" ? styles.kindBadgeIn : styles.kindBadgeOut]}>
+                <ThemedText style={styles.kindBadgeText}>{deal.kind.toUpperCase()}</ThemedText>
+              </View>
+              <View style={[styles.sideBadge, deal.side === "buy" ? styles.sideBadgeBuy : styles.sideBadgeSell, { width: 45 }]}>
+                <ThemedText style={styles.sideBadgeText}>{deal.side.toUpperCase()}</ThemedText>
+              </View>
+              <ThemedText style={[styles.cellTextMono, { width: 55, textAlign: "right" }]}>
+                {deal.lots.toFixed(2)}
+              </ThemedText>
+              <ThemedText style={[styles.cellTextMono, { width: 75, textAlign: "right" }]}>
+                {formatPrice(deal.price, deal.pair)}
+              </ThemedText>
+              <ThemedText style={[
+                styles.cellTextMono, 
+                { width: 80, textAlign: "right", fontWeight: "600" },
+                { color: deal.kind === "out" ? (deal.realizedPnlCents >= 0 ? TerminalColors.positive : TerminalColors.negative) : TerminalColors.textMuted }
+              ]}>
+                {deal.kind === "out" ? (deal.realizedPnlCents >= 0 ? "+" : "") + formatCurrency(deal.realizedPnlCents) : "—"}
+              </ThemedText>
+              <ThemedText style={[styles.cellText, { flex: 1, fontSize: 8, color: TerminalColors.textMuted }]} numberOfLines={1}>
+                {deal.orderId ? `${deal.orderId.slice(0, 8)}...` : "—"}
+              </ThemedText>
+            </View>
+          ))
+        ) : renderEmptyState("No deals recorded")}
+      </ScrollView>
+    </View>
+  );
+
+  const getOrderStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case "filled": return TerminalColors.positive;
+      case "cancelled": case "canceled": case "rejected": return TerminalColors.negative;
+      case "partially_filled": return TerminalColors.warning;
+      case "pending": return TerminalColors.accent;
+      default: return TerminalColors.textMuted;
+    }
+  };
+
+  const renderOrdersTab = () => (
+    <View style={styles.tableContainer}>
+      <View style={styles.tableHeader}>
+        <ThemedText style={[styles.headerCell, { width: 90 }]}>Time</ThemedText>
+        <ThemedText style={[styles.headerCell, { width: 80, fontSize: 8 }]}>Order ID</ThemedText>
+        <ThemedText style={[styles.headerCell, { width: 70 }]}>Symbol</ThemedText>
+        <ThemedText style={[styles.headerCell, { width: 55 }]}>Type</ThemedText>
+        <ThemedText style={[styles.headerCell, { width: 45 }]}>Side</ThemedText>
+        <ThemedText style={[styles.headerCell, { width: 55, textAlign: "right" }]}>Lots</ThemedText>
+        <ThemedText style={[styles.headerCell, { width: 75, textAlign: "right" }]}>Req Price</ThemedText>
+        <ThemedText style={[styles.headerCell, { width: 75, textAlign: "right" }]}>SL</ThemedText>
+        <ThemedText style={[styles.headerCell, { width: 75, textAlign: "right" }]}>TP</ThemedText>
+        <ThemedText style={[styles.headerCell, { width: 70 }]}>Status</ThemedText>
+        <ThemedText style={[styles.headerCell, { flex: 1, textAlign: "center" }]}>Details</ThemedText>
+      </View>
+      <ScrollView style={styles.tableBody} showsVerticalScrollIndicator={false}>
+        {orderHistory.length > 0 ? (
+          orderHistory.map((order) => (
+            <Pressable key={order.id} style={styles.tableRow} onPress={() => setSelectedOrder(order)}>
+              <ThemedText style={[styles.cellText, { width: 90, fontSize: 9, color: TerminalColors.textMuted }]}>
+                {formatDateTime(order.createdAt)}
+              </ThemedText>
+              <ThemedText style={[styles.cellText, { width: 80, fontSize: 8, color: TerminalColors.textMuted }]} numberOfLines={1}>
+                {order.id.slice(0, 8)}...
+              </ThemedText>
+              <ThemedText style={[styles.cellText, { width: 70, fontWeight: "600" }]}>{order.pair}</ThemedText>
+              <View style={[styles.typeBadge, { width: 55 }]}>
+                <ThemedText style={styles.typeBadgeText}>{order.type.toUpperCase()}</ThemedText>
+              </View>
+              <View style={[styles.sideBadge, order.side === "buy" ? styles.sideBadgeBuy : styles.sideBadgeSell, { width: 45 }]}>
+                <ThemedText style={styles.sideBadgeText}>{order.side.toUpperCase()}</ThemedText>
+              </View>
+              <ThemedText style={[styles.cellTextMono, { width: 55, textAlign: "right" }]}>
+                {unitsToLots(order.quantityUnits).toFixed(2)}
+              </ThemedText>
+              <ThemedText style={[styles.cellTextMono, { width: 75, textAlign: "right" }]}>
+                {order.limitPrice 
+                  ? formatPrice(order.limitPrice, order.pair) 
+                  : order.stopPrice 
+                    ? formatPrice(order.stopPrice, order.pair) 
+                    : "MKT"}
+              </ThemedText>
+              <ThemedText style={[styles.cellTextMono, { width: 75, textAlign: "right", color: order.stopLossPrice ? TerminalColors.negative : TerminalColors.textMuted }]}>
+                {order.stopLossPrice ? formatPrice(order.stopLossPrice, order.pair) : "—"}
+              </ThemedText>
+              <ThemedText style={[styles.cellTextMono, { width: 75, textAlign: "right", color: order.takeProfitPrice ? TerminalColors.positive : TerminalColors.textMuted }]}>
+                {order.takeProfitPrice ? formatPrice(order.takeProfitPrice, order.pair) : "—"}
+              </ThemedText>
+              <View style={[styles.orderStatusBadge, { backgroundColor: getOrderStatusColor(order.status) + "22" }]}>
+                <ThemedText style={[styles.orderStatusText, { color: getOrderStatusColor(order.status) }]}>
+                  {order.status.toUpperCase()}
+                </ThemedText>
+              </View>
+              <View style={{ flex: 1, alignItems: "center" }}>
+                <Feather name="chevron-right" size={14} color={TerminalColors.textMuted} />
+              </View>
+            </Pressable>
+          ))
+        ) : renderEmptyState("No orders recorded")}
+      </ScrollView>
     </View>
   );
 
@@ -635,11 +1016,11 @@ export function Blotter({
       case "closed":
         return renderClosedTab();
       case "trades":
-        return renderPlaceholderTab("Trades");
+        return renderTradesTab();
       case "deals":
-        return renderPlaceholderTab("Deal History");
+        return renderDealsTab();
       case "orders":
-        return renderPlaceholderTab("Order History");
+        return renderOrdersTab();
       default:
         return null;
     }
@@ -668,7 +1049,13 @@ export function Blotter({
                   ? totalPending 
                   : tab.key === "closed" 
                     ? totalClosed 
-                    : 0;
+                    : tab.key === "trades"
+                      ? totalTrades
+                      : tab.key === "deals"
+                        ? totalDeals
+                        : tab.key === "orders"
+                          ? totalOrders
+                          : 0;
                     
               return (
                 <Pressable
@@ -760,6 +1147,16 @@ export function Blotter({
           }
         }}
         formatPrice={formatPrice}
+      />
+      
+      <OrderDetailModal
+        visible={!!selectedOrder}
+        order={selectedOrder}
+        onClose={() => setSelectedOrder(null)}
+        formatPrice={formatPrice}
+        formatCurrency={formatCurrency}
+        unitsToLots={unitsToLots}
+        deals={deals.filter(d => d.orderId === selectedOrder?.id)}
       />
     </View>
   );
@@ -897,6 +1294,78 @@ const modalStyles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: TerminalColors.textPrimary,
+  },
+});
+
+const orderDetailStyles = StyleSheet.create({
+  section: {
+    marginBottom: 16,
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: TerminalColors.border,
+  },
+  label: {
+    fontSize: 11,
+    color: TerminalColors.textMuted,
+  },
+  value: {
+    fontSize: 11,
+    color: TerminalColors.textPrimary,
+    fontVariant: ['tabular-nums'],
+  },
+  dealsSection: {
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  dealsTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: TerminalColors.textSecondary,
+    marginBottom: 8,
+  },
+  dealRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: TerminalColors.border,
+  },
+  dealInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    width: 120,
+  },
+  dealId: {
+    fontSize: 9,
+    color: TerminalColors.textMuted,
+    fontVariant: ['tabular-nums'],
+  },
+  kindBadge: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 3,
+  },
+  kindText: {
+    fontSize: 8,
+    fontWeight: '600',
+  },
+  dealLots: {
+    flex: 1,
+    fontSize: 10,
+    color: TerminalColors.textSecondary,
+    fontVariant: ['tabular-nums'],
+  },
+  dealPnl: {
+    fontSize: 10,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
   },
 });
 
@@ -1167,5 +1636,65 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: TerminalColors.textMuted,
     marginTop: 8,
+  },
+  
+  statusBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 3,
+    alignItems: "center",
+    width: 55,
+  },
+  
+  statusBadgeOpen: {
+    backgroundColor: "rgba(209, 75, 58, 0.2)",
+  },
+  
+  statusBadgeClosed: {
+    backgroundColor: "rgba(107, 114, 128, 0.3)",
+  },
+  
+  statusBadgeText: {
+    fontSize: 8,
+    fontWeight: "700",
+    color: TerminalColors.textPrimary,
+    letterSpacing: 0.3,
+  },
+  
+  kindBadge: {
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 3,
+    alignItems: "center",
+    width: 45,
+  },
+  
+  kindBadgeIn: {
+    backgroundColor: "rgba(22, 199, 132, 0.2)",
+  },
+  
+  kindBadgeOut: {
+    backgroundColor: "rgba(251, 191, 36, 0.2)",
+  },
+  
+  kindBadgeText: {
+    fontSize: 8,
+    fontWeight: "700",
+    color: TerminalColors.textPrimary,
+    letterSpacing: 0.3,
+  },
+  
+  orderStatusBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 3,
+    alignItems: "center",
+    width: 70,
+  },
+  
+  orderStatusText: {
+    fontSize: 8,
+    fontWeight: "700",
+    letterSpacing: 0.3,
   },
 });
