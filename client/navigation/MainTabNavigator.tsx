@@ -182,6 +182,14 @@ function MobileTabNavigator() {
       screenOptions={{
         tabBarActiveTintColor: Colors.dark.tabIconSelected,
         tabBarInactiveTintColor: Colors.dark.tabIconDefault,
+        tabBarLabelStyle: {
+          fontSize: 10,
+          fontWeight: "500",
+          marginTop: 2,
+        },
+        tabBarIconStyle: {
+          marginBottom: -2,
+        },
         tabBarStyle: {
           position: "absolute",
           backgroundColor: Platform.select({
@@ -194,7 +202,7 @@ function MobileTabNavigator() {
           elevation: 0,
           height: tabBarHeight,
           paddingBottom: Math.max(insets.bottom, 8),
-          paddingTop: 8,
+          paddingTop: 6,
         },
         tabBarBackground: () =>
           Platform.OS === "ios" ? (
