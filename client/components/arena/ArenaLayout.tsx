@@ -4,7 +4,6 @@ import { TerminalColors } from "@/components/terminal";
 
 interface ArenaLayoutProps {
   header: React.ReactNode;
-  accountMetrics: React.ReactNode;
   toolDock: React.ReactNode;
   chartToolbar: React.ReactNode;
   chart: React.ReactNode;
@@ -22,7 +21,6 @@ const TOOLBAR_HEIGHT = 44;
 
 export function ArenaLayout({
   header,
-  accountMetrics,
   toolDock,
   chartToolbar,
   chart,
@@ -39,7 +37,6 @@ export function ArenaLayout({
   return (
     <View style={styles.container}>
       {header}
-      {!isFullscreen && accountMetrics}
       
       <View style={styles.mainGrid}>
         <View style={styles.toolDockColumn}>
@@ -132,13 +129,14 @@ const styles = StyleSheet.create({
   },
   
   marketWatchSection: {
-    flex: 0.62,
+    flex: 1,
     borderBottomWidth: 1,
     borderBottomColor: TerminalColors.border,
   },
   
   orderTicketSection: {
-    flex: 0.38,
+    height: 180,
+    flexShrink: 0,
   },
   
   blotterRow: {

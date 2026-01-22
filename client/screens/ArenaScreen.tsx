@@ -646,30 +646,6 @@ export default function ArenaScreen() {
     </View>
   );
 
-  const renderAccountSummary = () => (
-    <View style={styles.accountSummary}>
-      <View style={styles.summaryCard}>
-        <ThemedText style={styles.summaryLabel}>EQUITY</ThemedText>
-        <ThemedText style={styles.summaryValueLarge}>{formatCurrency(entry.equityCents)}</ThemedText>
-      </View>
-      <View style={styles.summaryCard}>
-        <ThemedText style={styles.summaryLabel}>P&L</ThemedText>
-        <ThemedText style={[styles.summaryValueLarge, { color: unrealizedPnl >= 0 ? THEME.success : THEME.danger }]}>
-          {unrealizedPnl >= 0 ? "+" : ""}{formatCurrency(unrealizedPnl)}
-        </ThemedText>
-      </View>
-      <View style={styles.summaryCard}>
-        <ThemedText style={styles.summaryLabel}>RETURN</ThemedText>
-        <ThemedText style={[styles.summaryValueLarge, { color: returnPct >= 0 ? THEME.success : THEME.danger }]}>
-          {returnPct >= 0 ? "+" : ""}{returnPct.toFixed(2)}%
-        </ThemedText>
-      </View>
-      <View style={styles.summaryCard}>
-        <ThemedText style={styles.summaryLabel}>RANK</ThemedText>
-        <ThemedText style={[styles.summaryValueLarge, styles.rankText]}>#{entry.rank || "-"}</ThemedText>
-      </View>
-    </View>
-  );
 
   const renderInstrumentSelector = () => (
     <View style={styles.instrumentSelector}>
@@ -1155,7 +1131,6 @@ export default function ArenaScreen() {
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <ArenaLayout
           header={renderHeader()}
-          accountMetrics={renderAccountSummary()}
           toolDock={
             <ToolDock
               selectedTool={selectedTool}
@@ -1289,7 +1264,6 @@ export default function ArenaScreen() {
         showsVerticalScrollIndicator={false}
       >
         {renderHeader()}
-        {renderAccountSummary()}
         {renderInstrumentSelector()}
         {renderChartSection()}
         {renderOrderPanel()}
@@ -1418,35 +1392,6 @@ const styles = StyleSheet.create({
     backgroundColor: THEME.bgElevated,
     alignItems: "center",
     justifyContent: "center",
-  },
-
-  accountSummary: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
-    backgroundColor: THEME.bg,
-    borderBottomWidth: 1,
-    borderBottomColor: THEME.border,
-  },
-  summaryCard: {
-    flex: 1,
-    backgroundColor: THEME.bgCard,
-    borderRadius: 8,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: THEME.border,
-  },
-  summaryLabel: {
-    ...TerminalTypography.label,
-    marginBottom: 4,
-  },
-  summaryValueLarge: {
-    ...TerminalTypography.priceLarge,
-    fontSize: 16,
-  },
-  rankText: {
-    color: THEME.accent,
   },
 
   instrumentSelector: {

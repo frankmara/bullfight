@@ -79,17 +79,31 @@ export default function ProfileScreen() {
   };
 
   const handleLogout = async () => {
-    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Sign Out",
-        style: "destructive",
-        onPress: async () => {
-          await logout();
-          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const performLogout = async () => {
+      await logout();
+      if (Platform.OS !== 'web') {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm("Are you sure you want to sign out?")) {
+        await performLogout();
+      }
+    } else {
+      Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Sign Out",
+          style: "destructive",
+          onPress: performLogout,
         },
-      },
-    ]);
+      ]);
+    }
   };
 
   const handleAdminPress = () => {
