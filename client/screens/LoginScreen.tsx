@@ -40,7 +40,10 @@ export default function LoginScreen() {
     try {
       await login(email, password);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      navigation.goBack();
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Main" }],
+      });
     } catch (err: any) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError(err.message || "Login failed");

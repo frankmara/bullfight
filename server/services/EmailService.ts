@@ -332,8 +332,8 @@ export class EmailService {
   }
 
   static async sendWelcomeEmail(userId: string, email: string): Promise<void> {
-    const appUrl = process.env.EXPO_PUBLIC_DOMAIN 
-      ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` 
+    const appUrl = process.env.REPLIT_DEV_DOMAIN 
+      ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
       : 'https://bullfight.app';
 
     await this.sendEmail('welcome', email, {
@@ -353,8 +353,8 @@ export class EmailService {
     startingBalanceCents: number,
     competitionId: string
   ): Promise<void> {
-    const appUrl = process.env.EXPO_PUBLIC_DOMAIN 
-      ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` 
+    const appUrl = process.env.REPLIT_DEV_DOMAIN 
+      ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
       : 'https://bullfight.app';
 
     await this.sendEmail('challenge_entry_confirmed', email, {
@@ -383,8 +383,8 @@ export class EmailService {
     participantCount: number,
     competitionId: string
   ): Promise<void> {
-    const appUrl = process.env.EXPO_PUBLIC_DOMAIN 
-      ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` 
+    const appUrl = process.env.REPLIT_DEV_DOMAIN 
+      ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
       : 'https://bullfight.app';
 
     const now = new Date();
@@ -441,8 +441,8 @@ export class EmailService {
     startingBalanceCents: number,
     challengeId: string
   ): Promise<void> {
-    const appUrl = process.env.EXPO_PUBLIC_DOMAIN 
-      ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` 
+    const appUrl = process.env.REPLIT_DEV_DOMAIN 
+      ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
       : 'https://bullfight.app';
 
     const prizePoolCents = stakeCents * 2;
@@ -471,8 +471,8 @@ export class EmailService {
     leaderboard: Array<{ rank: number; name: string; returnPct: number }>,
     competitionId: string
   ): Promise<void> {
-    const appUrl = process.env.EXPO_PUBLIC_DOMAIN 
-      ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` 
+    const appUrl = process.env.REPLIT_DEV_DOMAIN 
+      ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
       : 'https://bullfight.app';
 
     const now = new Date();
