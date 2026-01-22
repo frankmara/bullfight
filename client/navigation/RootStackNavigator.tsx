@@ -7,6 +7,8 @@ import CompetitionDetailScreen from "@/screens/CompetitionDetailScreen";
 import ArenaScreen from "@/screens/ArenaScreen";
 import AdminScreen from "@/screens/AdminScreen";
 import AdminCompetitionsScreen from "@/screens/AdminCompetitionsScreen";
+import AdminEmailScreen from "@/screens/AdminEmailScreen";
+import AdminEmailEditorScreen from "@/screens/AdminEmailEditorScreen";
 import CreateCompetitionScreen from "@/screens/CreateCompetitionScreen";
 import PvPListScreen from "@/screens/PvPListScreen";
 import PvPNewScreen from "@/screens/PvPNewScreen";
@@ -68,6 +70,20 @@ export default function RootStackNavigator() {
         component={AdminCompetitionsScreen}
         options={{
           headerTitle: "Competitions",
+        }}
+      />
+      <Stack.Screen
+        name="AdminEmail"
+        component={AdminEmailScreen}
+        options={{
+          headerTitle: "Email Configuration",
+        }}
+      />
+      <Stack.Screen
+        name="AdminEmailEditor"
+        component={AdminEmailEditorScreen}
+        options={{
+          headerTitle: "Edit Template",
         }}
       />
       <Stack.Screen

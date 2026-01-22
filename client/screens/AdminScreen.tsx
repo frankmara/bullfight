@@ -88,6 +88,22 @@ export default function AdminScreen() {
           </View>
           <Feather name="chevron-right" size={20} color={Colors.dark.textMuted} />
         </Pressable>
+
+        <Pressable
+          style={styles.menuItem}
+          onPress={() => navigation.navigate("AdminEmail")}
+        >
+          <View style={styles.menuItemIcon}>
+            <Feather name="mail" size={24} color={Colors.dark.info} />
+          </View>
+          <View style={styles.menuItemContent}>
+            <ThemedText style={styles.menuItemTitle}>Email Templates</ThemedText>
+            <ThemedText style={styles.menuItemDescription}>
+              Configure email notifications
+            </ThemedText>
+          </View>
+          <Feather name="chevron-right" size={20} color={Colors.dark.textMuted} />
+        </Pressable>
       </View>
     </View>
   );

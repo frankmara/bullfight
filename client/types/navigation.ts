@@ -6,6 +6,8 @@ export type RootStackParamList = {
   Arena: { id: string };
   Admin: undefined;
   AdminCompetitions: undefined;
+  AdminEmail: undefined;
+  AdminEmailEditor: { type: string };
   CreateCompetition: undefined;
   EditCompetition: { id: string };
   PvPList: undefined;
