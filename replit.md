@@ -104,6 +104,11 @@ Key entities defined in the schema:
 - Uses `chart.addSeries(CandlestickSeries, options)` for v5 API compatibility
 - Fetches candles from `/api/market/candles/:pair` endpoint (MarketDataService)
 - Real-time price updates with 1-minute candle intervals
+- OHLC overlay shows symbol, timeframe, O/H/L/C values, and % change in top-left of chart
+- Crosshair enabled with hover tracking to update OHLC display
+- Last price label on right price scale
+- Live candle updates using mid=(bid+ask)/2 from quote polling
+- Creates new candle automatically when timeframe bucket changes
 
 ### Trading Flow
 - Late entry enabled: users can join both "open" and "running" competitions
