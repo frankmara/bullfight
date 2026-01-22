@@ -358,7 +358,8 @@ export function OrderTicket({
 const styles = StyleSheet.create({
   container: {
     backgroundColor: "#0E141C",
-    padding: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     borderTopWidth: 1,
     borderTopColor: "#1C2533",
   },
@@ -367,9 +368,9 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    height: 32,
-    gap: 8,
-    marginBottom: 8,
+    height: 28,
+    gap: 10,
+    marginBottom: 10,
   },
   symbolDropdown: {
     flexDirection: "row",
@@ -452,9 +453,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    height: 22,
-    marginBottom: 8,
-    paddingHorizontal: 4,
+    height: 18,
+    marginBottom: 12,
   },
   infoText: {
     fontSize: 11,
@@ -465,16 +465,14 @@ const styles = StyleSheet.create({
   executionRow: {
     flexDirection: "row",
     alignItems: "stretch",
-    height: 56,
-    gap: 8,
+    height: 52,
+    gap: 10,
   },
   tradeBtn: {
     flex: 1,
-    minWidth: 120,
-    maxWidth: 160,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 8,
+    borderRadius: 6,
     position: "relative",
   },
   tradeBtnDisabled: {
@@ -514,15 +512,13 @@ const styles = StyleSheet.create({
   lotControls: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    flex: 1,
-    justifyContent: "center",
+    gap: 6,
   },
   stepperBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 6,
-    backgroundColor: "#101924",
+    width: 40,
+    height: 40,
+    borderRadius: 4,
+    backgroundColor: "#0A0F14",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
@@ -530,11 +526,11 @@ const styles = StyleSheet.create({
   },
   lotInputWrapper: {
     backgroundColor: "#0A0F14",
-    borderRadius: 6,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#1C2533",
-    width: 84,
-    height: 44,
+    width: 72,
+    height: 40,
     justifyContent: "center",
   },
   lotInput: {
@@ -551,8 +547,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "flex-start",
     alignItems: "center",
-    marginTop: 8,
-    paddingHorizontal: 4,
+    marginTop: 10,
   },
   helperText: {
     fontSize: 10,
