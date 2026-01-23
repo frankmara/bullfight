@@ -364,6 +364,9 @@ function setupErrorHandler(app: express.Application) {
   if (io) {
     const { presenceService } = await import("./services/PresenceService");
     presenceService.initialize(io);
+    
+    const { oddsService } = await import("./services/OddsService");
+    oddsService.initialize(io);
   }
 
   setupErrorHandler(app);

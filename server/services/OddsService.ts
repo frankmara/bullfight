@@ -150,16 +150,17 @@ class OddsService {
     const challengerEntry = entries.find((e) => e.userId === match.challengerId);
     const inviteeEntry = entries.find((e) => e.userId === match.inviteeId);
 
-    const returnA = challengerEntry
-      ? ((challengerEntry.currentBalance - challengerEntry.startingBalance) / challengerEntry.startingBalance)
+    const startingBalance = comp.startingBalanceCents;
+    const returnA = challengerEntry && startingBalance > 0
+      ? ((challengerEntry.equityCents - startingBalance) / startingBalance)
       : 0;
-    const returnB = inviteeEntry
-      ? ((inviteeEntry.currentBalance - inviteeEntry.startingBalance) / inviteeEntry.startingBalance)
+    const returnB = inviteeEntry && startingBalance > 0
+      ? ((inviteeEntry.equityCents - startingBalance) / startingBalance)
       : 0;
 
     const now = Date.now();
-    const startTime = comp.startDate.getTime();
-    const endTime = comp.endDate.getTime();
+    const startTime = comp.startAt?.getTime() || now;
+    const endTime = comp.endAt?.getTime() || (now + 3600000);
     const totalDuration = endTime - startTime;
     const elapsed = now - startTime;
     const remaining = Math.max(0, endTime - now);

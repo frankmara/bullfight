@@ -14,7 +14,7 @@ import {
   unitsToLots,
 } from "./services/ExecutionService";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
-import { usernameSchema, tokenPurchases, bets } from "@shared/schema";
+import { usernameSchema, tokenPurchases, bets, betMarkets } from "@shared/schema";
 import { getOrCreateWallet, getWallet, applyTokenTransaction, getTransactionHistory, lockTokens, unlockTokens, unlockAndDeductTokens } from "./lib/wallet";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
@@ -2940,6 +2940,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const market = await bettingService.createMarketForMatch(id);
           if (market) {
             console.log("[go-live] Created bet market", market.id, "for match", id);
+            const { oddsService } = await import("./services/OddsService");
+            await oddsService.startTickingForMatch(id);
           }
         }
       }
@@ -2991,6 +2993,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Notify connected viewers
       const { presenceService } = await import("./services/PresenceService");
       presenceService.notifyLiveStatusChange(id, "ended");
+
+      // Stop odds ticking for this match
+      const { oddsService } = await import("./services/OddsService");
+      oddsService.stopTickingForMatch(id);
+      oddsService.clearMatchHistory(id);
 
       await storage.createAuditLog(userId, "pvp_end_live", "pvp_challenge", id, {
         previousStatus: "live",
@@ -3174,6 +3181,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!result.success) {
         return res.status(400).json({ error: result.error });
+      }
+
+      const market = await bettingService.getMarketByMatchId(marketId);
+      if (!market) {
+        const marketById = await db.select().from(betMarkets).where(eq(betMarkets.id, marketId)).limit(1);
+        if (marketById.length > 0) {
+          const { oddsService } = await import("./services/OddsService");
+          await oddsService.onBetPlaced(marketById[0].matchId);
+        }
       }
 
       await storage.createAuditLog(userId, "bet_placed", "bet", result.betId!, {
