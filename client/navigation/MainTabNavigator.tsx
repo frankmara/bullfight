@@ -124,7 +124,7 @@ function DesktopNavBar({ activeTab, onTabChange }: {
       <View style={styles.navRight}>
         {user ? (
           <>
-            <WalletBadge />
+            <WalletBadge onPress={() => navigation.navigate('Wallet')} />
             <View style={styles.userInfo}>
               <View style={styles.userAvatar}>
                 <Text style={styles.userInitial}>

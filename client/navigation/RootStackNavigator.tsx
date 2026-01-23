@@ -16,6 +16,7 @@ import PvPNewScreen from "@/screens/PvPNewScreen";
 import PvPDetailScreen from "@/screens/PvPDetailScreen";
 import PaymentSuccessScreen from "@/screens/PaymentSuccessScreen";
 import PaymentCancelScreen from "@/screens/PaymentCancelScreen";
+import WalletScreen from "@/screens/WalletScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { RootStackParamList } from "@/types/navigation";
 
@@ -146,6 +147,13 @@ export default function RootStackNavigator() {
         options={{
           headerTitle: "Payment Cancelled",
           headerBackVisible: false,
+        }}
+      />
+      <Stack.Screen
+        name="Wallet"
+        component={WalletScreen}
+        options={{
+          headerTitle: "Wallet",
         }}
       />
     </Stack.Navigator>
