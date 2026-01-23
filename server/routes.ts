@@ -4249,6 +4249,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== SIMULATION ADMIN ROUTES ====================
+  
+  // Get simulation status
+  app.get("/api/admin/simulation/status", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      const { simulationService } = await import("./services/SimulationService");
+      const status = await simulationService.getStatus();
+      res.json(status);
+    } catch (error: any) {
+      console.error("Get simulation status error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Start simulation
+  app.post("/api/admin/simulation/start", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      const { simulationService } = await import("./services/SimulationService");
+      const result = await simulationService.start();
+      res.json(result);
+    } catch (error: any) {
+      console.error("Start simulation error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Stop simulation
+  app.post("/api/admin/simulation/stop", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      const { simulationService } = await import("./services/SimulationService");
+      const result = await simulationService.stop();
+      res.json(result);
+    } catch (error: any) {
+      console.error("Stop simulation error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Reset simulation
+  app.post("/api/admin/simulation/reset", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      const { simulationService } = await import("./services/SimulationService");
+      const result = await simulationService.reset();
+      res.json(result);
+    } catch (error: any) {
+      console.error("Reset simulation error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   startScheduledJobs();
 
   const httpServer = createServer(app);

@@ -152,6 +152,22 @@ export default function AdminScreen() {
           </View>
           <Feather name="chevron-right" size={20} color={Colors.dark.textMuted} />
         </Pressable>
+
+        <Pressable
+          style={styles.menuItem}
+          onPress={() => navigation.navigate("AdminSimulation")}
+        >
+          <View style={styles.menuItemIcon}>
+            <Feather name="cpu" size={24} color={Colors.dark.warning} />
+          </View>
+          <View style={styles.menuItemContent}>
+            <ThemedText style={styles.menuItemTitle}>Simulation Engine</ThemedText>
+            <ThemedText style={styles.menuItemDescription}>
+              Run bot traders, chat, and betting simulations
+            </ThemedText>
+          </View>
+          <Feather name="chevron-right" size={20} color={Colors.dark.textMuted} />
+        </Pressable>
       </View>
     </View>
   );
