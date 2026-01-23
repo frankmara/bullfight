@@ -22,6 +22,7 @@ import { RootStackParamList } from "@/types/navigation";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePresence } from "@/hooks/usePresence";
 import { useAuth } from "@/hooks/useAuth";
+import { useBettingOdds, OddsUpdate } from "@/hooks/useBettingOdds";
 
 type WatchPvPRouteProp = RouteProp<RootStackParamList, "WatchPvP">;
 
@@ -157,12 +158,77 @@ function LocalChatPanel({ chatEnabled, matchId }: { chatEnabled: boolean; matchI
 }
 
 
-function BetBehindPanel({ bettingEnabled }: { bettingEnabled: boolean }) {
+function formatMultiplier(mult: number | null): string {
+  if (mult === null) return "-";
+  return `x${mult.toFixed(2)}`;
+}
+
+function OddsDisplay({ odds, challengerName, inviteeName }: { 
+  odds: OddsUpdate; 
+  challengerName: string;
+  inviteeName: string;
+}) {
+  const pWinAPct = Math.round(odds.pWinA * 100);
+  const pWinBPct = Math.round(odds.pWinB * 100);
+  
+  return (
+    <View style={styles.oddsContainer}>
+      <View style={styles.oddsHeader}>
+        <Feather name="trending-up" size={14} color={Colors.dark.buy} />
+        <ThemedText style={styles.oddsTitle}>Live Odds</ThemedText>
+      </View>
+
+      <View style={styles.poolsRow}>
+        <View style={styles.poolCard}>
+          <ThemedText style={styles.poolLabel}>{challengerName}</ThemedText>
+          <ThemedText style={styles.poolMultiplier}>{formatMultiplier(odds.projMultA)}</ThemedText>
+          <ThemedText style={styles.poolAmount}>{odds.poolA} tokens</ThemedText>
+        </View>
+        <View style={styles.poolDivider} />
+        <View style={styles.poolCard}>
+          <ThemedText style={styles.poolLabel}>{inviteeName}</ThemedText>
+          <ThemedText style={styles.poolMultiplier}>{formatMultiplier(odds.projMultB)}</ThemedText>
+          <ThemedText style={styles.poolAmount}>{odds.poolB} tokens</ThemedText>
+        </View>
+      </View>
+
+      <View style={styles.probabilitySection}>
+        <ThemedText style={styles.probabilityTitle}>Win Probability</ThemedText>
+        <View style={styles.probabilityBar}>
+          <View style={[styles.probabilityFillA, { width: `${pWinAPct}%` }]} />
+          <View style={[styles.probabilityFillB, { width: `${pWinBPct}%` }]} />
+        </View>
+        <View style={styles.probabilityLabels}>
+          <ThemedText style={styles.probabilityLabelA}>{pWinAPct}%</ThemedText>
+          <ThemedText style={styles.probabilityLabelB}>{pWinBPct}%</ThemedText>
+        </View>
+      </View>
+
+      <View style={styles.totalPoolRow}>
+        <ThemedText style={styles.totalPoolLabel}>Total Pool</ThemedText>
+        <ThemedText style={styles.totalPoolValue}>{odds.poolA + odds.poolB} tokens</ThemedText>
+      </View>
+    </View>
+  );
+}
+
+function BetBehindPanel({ 
+  bettingEnabled, 
+  matchId,
+  challengerName,
+  inviteeName 
+}: { 
+  bettingEnabled: boolean;
+  matchId: string;
+  challengerName: string;
+  inviteeName: string;
+}) {
   const { data: bettingStatus } = useQuery<{ enabled: boolean }>({
     queryKey: ["/api/betting/status"],
   });
 
   const isFeatureEnabled = bettingStatus?.enabled ?? false;
+  const { odds } = useBettingOdds({ matchId, enabled: bettingEnabled && isFeatureEnabled });
 
   if (!bettingEnabled) {
     return null;
@@ -175,15 +241,26 @@ function BetBehindPanel({ bettingEnabled }: { bettingEnabled: boolean }) {
         <ThemedText style={styles.betBehindTitle}>Bet Behind</ThemedText>
         <View style={styles.betBehindBadge}>
           <ThemedText style={styles.betBehindBadgeText}>
-            {isFeatureEnabled ? "Coming Soon" : "Disabled"}
+            {isFeatureEnabled ? "LIVE" : "Disabled"}
           </ThemedText>
         </View>
       </View>
-      <ThemedText style={styles.betBehindText}>
-        {isFeatureEnabled
-          ? "Place bets on who will win this match. Feature coming soon."
-          : "Betting is currently disabled on this platform."}
-      </ThemedText>
+      
+      {isFeatureEnabled && odds ? (
+        <OddsDisplay 
+          odds={odds} 
+          challengerName={challengerName} 
+          inviteeName={inviteeName}
+        />
+      ) : isFeatureEnabled ? (
+        <ThemedText style={styles.betBehindText}>
+          Waiting for betting data...
+        </ThemedText>
+      ) : (
+        <ThemedText style={styles.betBehindText}>
+          Betting is currently disabled on this platform.
+        </ThemedText>
+      )}
     </View>
   );
 }
@@ -348,7 +425,12 @@ export default function WatchPvPScreen() {
           </View>
         ) : null}
         
-        <BetBehindPanel bettingEnabled={data.bettingEnabled} />
+        <BetBehindPanel 
+          bettingEnabled={data.bettingEnabled} 
+          matchId={matchId}
+          challengerName={data.challenger.username}
+          inviteeName={data.invitee.username}
+        />
       </ScrollView>
       
       <StreamSettingsModal
@@ -691,6 +773,103 @@ const styles = StyleSheet.create({
   betBehindText: {
     fontSize: 14,
     color: Colors.dark.textMuted,
+  },
+  oddsContainer: {
+    marginTop: Spacing.sm,
+  },
+  oddsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    marginBottom: Spacing.md,
+  },
+  oddsTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.dark.buy,
+  },
+  poolsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  poolCard: {
+    flex: 1,
+    alignItems: "center",
+    padding: Spacing.sm,
+  },
+  poolDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: Colors.dark.border,
+  },
+  poolLabel: {
+    fontSize: 12,
+    color: Colors.dark.textMuted,
+    marginBottom: Spacing.xs,
+  },
+  poolMultiplier: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: Colors.dark.text,
+  },
+  poolAmount: {
+    fontSize: 11,
+    color: Colors.dark.textMuted,
+    marginTop: Spacing.xs,
+  },
+  probabilitySection: {
+    marginBottom: Spacing.md,
+  },
+  probabilityTitle: {
+    fontSize: 12,
+    color: Colors.dark.textMuted,
+    marginBottom: Spacing.xs,
+  },
+  probabilityBar: {
+    flexDirection: "row",
+    height: 12,
+    borderRadius: 6,
+    overflow: "hidden",
+    backgroundColor: Colors.dark.backgroundRoot,
+  },
+  probabilityFillA: {
+    backgroundColor: Colors.dark.buy,
+  },
+  probabilityFillB: {
+    backgroundColor: Colors.dark.accent,
+  },
+  probabilityLabels: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: Spacing.xs,
+  },
+  probabilityLabelA: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Colors.dark.buy,
+  },
+  probabilityLabelB: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Colors.dark.accent,
+  },
+  totalPoolRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: Colors.dark.border,
+    paddingTop: Spacing.sm,
+  },
+  totalPoolLabel: {
+    fontSize: 12,
+    color: Colors.dark.textMuted,
+  },
+  totalPoolValue: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.dark.text,
   },
   errorText: {
     fontSize: 16,
