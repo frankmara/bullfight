@@ -21,6 +21,7 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/types/navigation";
 import { useViewerCounts } from "@/hooks/usePresence";
+import { getApiUrl } from "@/lib/query-client";
 
 function useSafeTabBarHeight() {
   try {
@@ -97,7 +98,9 @@ export default function ArenaModeScreen() {
   } = useQuery<ArenaMatch[]>({
     queryKey: ["/api/arena-mode/matches", activeTab],
     queryFn: async () => {
-      const res = await fetch(`/api/arena-mode/matches?status=${activeTab}`);
+      const baseUrl = getApiUrl();
+      const url = new URL(`/api/arena-mode/matches?status=${activeTab}`, baseUrl);
+      const res = await fetch(url.toString(), { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch matches");
       return res.json();
     },
