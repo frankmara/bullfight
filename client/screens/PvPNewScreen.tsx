@@ -51,7 +51,7 @@ export default function PvPNewScreen() {
 
   const [challengeName, setChallengeName] = useState("");
   const [inviteeEmail, setInviteeEmail] = useState("");
-  const [stakeDollars, setStakeDollars] = useState("10");
+  const [stakeTokens, setStakeTokens] = useState("10");
   const [startingBalanceDollars, setStartingBalanceDollars] = useState("100000");
   const [selectedPairs, setSelectedPairs] = useState<string[]>(AVAILABLE_PAIRS);
   const [durationHours, setDurationHours] = useState("24");
@@ -94,9 +94,9 @@ export default function PvPNewScreen() {
       return;
     }
 
-    const stake = parseFloat(stakeDollars);
+    const stake = parseInt(stakeTokens);
     if (isNaN(stake) || stake < 1) {
-      setError("Stake must be at least $1");
+      setError("Stake must be at least 1 token");
       return;
     }
 
@@ -118,7 +118,8 @@ export default function PvPNewScreen() {
     createChallengeMutation.mutate({
       name: challengeName.trim() || null,
       inviteeEmail: inviteeEmail.trim(),
-      stakeCents: Math.round(stake * 100),
+      stakeCents: stake * 100, // Keep for backward compat
+      stakeTokens: stake,
       startingBalanceCents: Math.round(balance * 100),
       allowedPairsJson: selectedPairs,
       startAt: startAt.toISOString(),
@@ -185,17 +186,17 @@ export default function PvPNewScreen() {
           <ThemedText style={styles.sectionTitle}>Stakes & Balance</ThemedText>
           <View style={styles.rowInputs}>
             <View style={[styles.inputContainer, { flex: 1 }]}>
-              <ThemedText style={styles.inputLabel}>Stake ($)</ThemedText>
+              <ThemedText style={styles.inputLabel}>Stake (tokens)</ThemedText>
               <TextInput
                 style={styles.textInput}
-                value={stakeDollars}
-                onChangeText={setStakeDollars}
+                value={stakeTokens}
+                onChangeText={setStakeTokens}
                 placeholder="10"
                 placeholderTextColor={Colors.dark.textMuted}
-                keyboardType="decimal-pad"
+                keyboardType="number-pad"
               />
               <ThemedText style={styles.inputHint}>
-                Each player pays this to enter
+                Each player stakes this to enter
               </ThemedText>
             </View>
             <View style={{ width: Spacing.md }} />
@@ -268,19 +269,19 @@ export default function PvPNewScreen() {
             <View style={styles.summaryRow}>
               <ThemedText style={styles.summaryLabel}>Your Stake</ThemedText>
               <ThemedText style={styles.summaryValue}>
-                ${parseFloat(stakeDollars) || 0}
+                {parseInt(stakeTokens) || 0} tokens
               </ThemedText>
             </View>
             <View style={styles.summaryRow}>
               <ThemedText style={styles.summaryLabel}>Total Prize Pool</ThemedText>
               <ThemedText style={styles.summaryValueGold}>
-                ${(parseFloat(stakeDollars) || 0) * 2}
+                {(parseInt(stakeTokens) || 0) * 2} tokens
               </ThemedText>
             </View>
             <View style={styles.summaryRow}>
               <ThemedText style={styles.summaryLabel}>Winner Takes (after 3% rake)</ThemedText>
               <ThemedText style={styles.summaryValueSuccess}>
-                ${((parseFloat(stakeDollars) || 0) * 2 * 0.97).toFixed(2)}
+                {Math.floor((parseInt(stakeTokens) || 0) * 2 * 0.97)} tokens
               </ThemedText>
             </View>
           </View>

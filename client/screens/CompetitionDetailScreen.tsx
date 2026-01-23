@@ -33,6 +33,7 @@ interface CompetitionDetail {
   description?: string;
   status: string;
   buyInCents: number;
+  buyInTokens?: number;
   entryCap: number;
   entryCount: number;
   prizePoolCents: number;
@@ -47,6 +48,12 @@ interface CompetitionDetail {
   minOrderIntervalMs: number;
   maxDrawdownPct?: number;
   isJoined?: boolean;
+}
+
+interface WalletInfo {
+  balanceTokens: number;
+  lockedTokens: number;
+  availableTokens: number;
 }
 
 interface LeaderboardEntry {
@@ -107,44 +114,41 @@ export default function CompetitionDetailScreen() {
     enabled: !!competition,
   });
 
-  const checkoutMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/competitions/${id}/checkout`, {});
-      return res.json();
-    },
-    onSuccess: async (data: { url: string; sessionId: string }) => {
-      if (data.url) {
-        if (Platform.OS === "web") {
-          window.location.href = data.url;
-        } else {
-          await WebBrowser.openBrowserAsync(data.url);
-        }
-      }
-    },
-    onError: (error: any) => {
-      Alert.alert("Error", error.message || "Failed to start checkout");
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    },
+  const { data: wallet } = useQuery<WalletInfo>({
+    queryKey: ["/api/wallet"],
+    enabled: isAuthenticated,
   });
 
-  const joinMutation = useMutation({
+  const joinWithTokensMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/competitions/${id}/join`, {});
+      const res = await apiRequest("POST", `/api/competitions/${id}/join-with-tokens`, {});
+      if (!res.ok) {
+        const data = await res.json();
+        throw data;
+      }
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/competitions", id] });
       queryClient.invalidateQueries({ queryKey: ["/api/user/competitions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/wallet"] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       navigation.navigate("Arena", { id });
     },
     onError: (error: any) => {
-      if (error.requiresPayment) {
-        checkoutMutation.mutate();
+      if (error.insufficientTokens) {
+        Alert.alert(
+          "Insufficient Tokens",
+          `You need ${error.required} tokens to join this competition. You have ${error.available} tokens available.`,
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Buy Tokens", onPress: () => navigation.navigate("Wallet") }
+          ]
+        );
       } else {
-        Alert.alert("Error", error.message || "Failed to join competition");
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert("Error", error.error || "Failed to join competition");
       }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     },
   });
 
@@ -155,11 +159,7 @@ export default function CompetitionDetailScreen() {
     }
     setIsJoining(true);
     try {
-      if (competition && competition.buyInCents > 0) {
-        await checkoutMutation.mutateAsync();
-      } else {
-        await joinMutation.mutateAsync();
-      }
+      await joinWithTokensMutation.mutateAsync();
     } finally {
       setIsJoining(false);
     }
@@ -186,6 +186,15 @@ export default function CompetitionDetailScreen() {
   }
 
   const formatCurrency = (cents: number) => `$${(cents / 100).toLocaleString()}`;
+  
+  const formatTokens = (tokens: number) => `${tokens.toLocaleString()} tokens`;
+  
+  // Get buy-in tokens (derive from buyInCents if buyInTokens is 0/default)
+  const buyInTokens = competition?.buyInTokens && competition.buyInTokens > 0 
+    ? competition.buyInTokens 
+    : Math.floor((competition?.buyInCents || 0) / 100);
+  
+  const hasEnoughTokens = wallet ? wallet.availableTokens >= buyInTokens : false;
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return "TBD";
@@ -303,10 +312,10 @@ export default function CompetitionDetailScreen() {
               <ThemedText style={styles.cardTitle}>Entry Information</ThemedText>
               <View style={styles.entryGrid}>
                 <View style={styles.entryItem}>
-                  <Feather name="dollar-sign" size={16} color={Colors.dark.accent} />
+                  <Feather name="zap" size={16} color={Colors.dark.accent} />
                   <ThemedText style={styles.entryLabel}>Buy-in</ThemedText>
                   <ThemedText style={styles.entryValue}>
-                    {formatCurrency(competition.buyInCents)}
+                    {buyInTokens > 0 ? formatTokens(buyInTokens) : "Free"}
                   </ThemedText>
                 </View>
                 <View style={styles.entryItem}>
@@ -393,11 +402,26 @@ export default function CompetitionDetailScreen() {
             </Button>
           ) : null}
           {isAuthenticated && canJoin ? (
-            <Button onPress={handleJoin} disabled={isJoining} style={styles.actionButton}>
-              {isJoining
-                ? "Joining..."
-                : `Join Competition - ${formatCurrency(competition.buyInCents)}`}
-            </Button>
+            <>
+              {buyInTokens > 0 && !hasEnoughTokens ? (
+                <View style={styles.insufficientTokensContainer}>
+                  <ThemedText style={styles.insufficientTokensText}>
+                    You need {formatTokens(buyInTokens)} to join. You have {wallet?.availableTokens || 0} tokens available.
+                  </ThemedText>
+                  <Button onPress={() => navigation.navigate("Wallet")} style={styles.actionButton}>
+                    Buy Tokens
+                  </Button>
+                </View>
+              ) : (
+                <Button onPress={handleJoin} disabled={isJoining} style={styles.actionButton}>
+                  {isJoining
+                    ? "Joining..."
+                    : buyInTokens > 0 
+                      ? `Join Competition - ${formatTokens(buyInTokens)}`
+                      : "Join Competition - Free"}
+                </Button>
+              )}
+            </>
           ) : null}
           {canEnter ? (
             <Button onPress={handleEnterArena} style={styles.actionButton}>
@@ -732,5 +756,19 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     marginBottom: Spacing.md,
+  },
+  insufficientTokensContainer: {
+    alignItems: "center",
+    padding: Spacing.lg,
+    backgroundColor: Colors.dark.backgroundDefault,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.dark.warning + "40",
+  },
+  insufficientTokensText: {
+    fontSize: 14,
+    color: Colors.dark.warning,
+    textAlign: "center",
+    marginBottom: Spacing.lg,
   },
 });

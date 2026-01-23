@@ -36,6 +36,7 @@ interface PvpChallenge {
   inviteeEmail: string;
   status: string;
   stakeCents: number;
+  stakeTokens?: number;
   startingBalanceCents: number;
   allowedPairsJson: string[];
   startAt: string | null;
@@ -49,6 +50,12 @@ interface PvpChallenge {
   inviteePaid: boolean;
   competitionId: string | null;
   createdAt: string;
+}
+
+interface WalletInfo {
+  balanceTokens: number;
+  lockedTokens: number;
+  availableTokens: number;
 }
 
 function useSafeHeaderHeight() {
@@ -89,6 +96,11 @@ export default function PvPDetailScreen() {
     enabled: isAuthenticated && !!id,
   });
 
+  const { data: wallet } = useQuery<WalletInfo>({
+    queryKey: ["/api/wallet"],
+    enabled: isAuthenticated,
+  });
+
   const acceptMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", `/api/pvp/challenges/${id}/accept`, {});
@@ -113,26 +125,34 @@ export default function PvPDetailScreen() {
     },
   });
 
-  const payMutation = useMutation({
+  const payWithTokensMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/pvp/challenges/${id}/checkout`, {});
+      const res = await apiRequest("POST", `/api/pvp/challenges/${id}/pay-with-tokens`, {});
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Failed to start checkout");
+        throw data;
       }
       return res.json();
     },
-    onSuccess: async (data: { url: string; sessionId: string }) => {
-      if (data.url) {
-        if (Platform.OS === "web") {
-          window.location.href = data.url;
-        } else {
-          await WebBrowser.openBrowserAsync(data.url);
-        }
-      }
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/pvp/challenges/${id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/pvp/challenges"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/wallet"] });
+      refetch();
     },
     onError: (error: any) => {
-      Alert.alert("Error", error.message || "Failed to start checkout");
+      if (error.insufficientTokens) {
+        Alert.alert(
+          "Insufficient Tokens",
+          `You need ${error.required} tokens to stake. You have ${error.available} tokens available.`,
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Buy Tokens", onPress: () => navigation.navigate("Wallet") }
+          ]
+        );
+      } else {
+        Alert.alert("Error", error.error || "Failed to stake tokens");
+      }
     },
   });
 
@@ -408,19 +428,19 @@ export default function PvPDetailScreen() {
                 <View style={styles.termRow}>
                   <ThemedText style={styles.termLabel}>Stake (each)</ThemedText>
                   <ThemedText style={styles.termValue}>
-                    {formatCurrency(challenge.stakeCents)}
+                    {challenge.stakeTokens ?? Math.round(challenge.stakeCents / 100)} tokens
                   </ThemedText>
                 </View>
                 <View style={styles.termRow}>
                   <ThemedText style={styles.termLabel}>Total Prize Pool</ThemedText>
                   <ThemedText style={[styles.termValue, { color: Colors.dark.gold }]}>
-                    {formatCurrency(challenge.stakeCents * 2)}
+                    {(challenge.stakeTokens ?? Math.round(challenge.stakeCents / 100)) * 2} tokens
                   </ThemedText>
                 </View>
                 <View style={styles.termRow}>
                   <ThemedText style={styles.termLabel}>Winner Takes (after rake)</ThemedText>
                   <ThemedText style={[styles.termValue, { color: Colors.dark.success }]}>
-                    {formatCurrency(Math.round(challenge.stakeCents * 2 * (1 - challenge.rakeBps / 10000)))}
+                    {Math.floor((challenge.stakeTokens ?? Math.round(challenge.stakeCents / 100)) * 2 * (1 - challenge.rakeBps / 10000))} tokens
                   </ThemedText>
                 </View>
                 <View style={styles.termDivider} />
@@ -489,21 +509,27 @@ export default function PvPDetailScreen() {
 
         {canPay && !hasPaid ? (
           <Pressable
-            onPress={() => payMutation.mutate()}
-            disabled={payMutation.isPending}
-            style={[styles.primaryButton, payMutation.isPending && styles.buttonDisabled]}
+            onPress={() => payWithTokensMutation.mutate()}
+            disabled={payWithTokensMutation.isPending}
+            style={[styles.primaryButton, payWithTokensMutation.isPending && styles.buttonDisabled]}
           >
-            {payMutation.isPending ? (
+            {payWithTokensMutation.isPending ? (
               <LoadingSpinner size="small" />
             ) : (
               <>
-                <Feather name="credit-card" size={18} color={Colors.dark.buttonText} />
+                <Feather name="zap" size={18} color={Colors.dark.buttonText} />
                 <ThemedText style={styles.primaryButtonText}>
-                  Pay {formatCurrency(challenge.stakeCents)}
+                  Stake {challenge.stakeTokens ?? Math.round(challenge.stakeCents / 100)} tokens
                 </ThemedText>
               </>
             )}
           </Pressable>
+        ) : null}
+
+        {canPay && !hasPaid && wallet ? (
+          <ThemedText style={styles.balanceHint}>
+            Your balance: {wallet.availableTokens} tokens
+          </ThemedText>
         ) : null}
 
         {hasPaid && challenge.status === "payment_pending" ? (
@@ -824,6 +850,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.dark.warning,
     fontWeight: "500",
+  },
+  balanceHint: {
+    fontSize: 14,
+    color: Colors.dark.textMuted,
+    textAlign: "center",
+    marginTop: -Spacing.sm,
+    marginBottom: Spacing.md,
   },
   errorText: {
     fontSize: 16,
