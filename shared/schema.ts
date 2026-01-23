@@ -475,3 +475,24 @@ export const tokenTransactions = pgTable("token_transactions", {
 export type Wallet = typeof wallets.$inferSelect;
 export type TokenTransaction = typeof tokenTransactions.$inferSelect;
 export type InsertTokenTransaction = typeof tokenTransactions.$inferInsert;
+
+export const tokenPurchaseStatuses = ["pending", "completed", "failed", "refunded"] as const;
+export type TokenPurchaseStatus = typeof tokenPurchaseStatuses[number];
+
+export const tokenPurchases = pgTable("token_purchases", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id")
+    .references(() => users.id)
+    .notNull(),
+  tokens: integer("tokens").notNull(),
+  amountCents: integer("amount_cents").notNull(),
+  provider: text("provider").notNull(),
+  providerRef: text("provider_ref"),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type TokenPurchase = typeof tokenPurchases.$inferSelect;
+export type InsertTokenPurchase = typeof tokenPurchases.$inferInsert;
