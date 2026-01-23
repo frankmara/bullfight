@@ -56,6 +56,13 @@ export default function PvPNewScreen() {
   const [selectedPairs, setSelectedPairs] = useState<string[]>(AVAILABLE_PAIRS);
   const [durationHours, setDurationHours] = useState("24");
   const [error, setError] = useState("");
+  
+  // Visibility and streaming options
+  const [isPublic, setIsPublic] = useState(false);
+  const [arenaListed, setArenaListed] = useState(false);
+  const [chatEnabled, setChatEnabled] = useState(true);
+  const [bettingEnabled, setBettingEnabled] = useState(false);
+  const [scheduledLiveAt, setScheduledLiveAt] = useState("");
 
   const createChallengeMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -124,6 +131,12 @@ export default function PvPNewScreen() {
       allowedPairsJson: selectedPairs,
       startAt: startAt.toISOString(),
       endAt: endAt.toISOString(),
+      // Visibility and streaming options
+      visibility: isPublic ? "public" : "private",
+      arenaListed,
+      chatEnabled,
+      bettingEnabled,
+      scheduledLiveAt: scheduledLiveAt || null,
     });
   };
 
@@ -261,6 +274,89 @@ export default function PvPNewScreen() {
               </Pressable>
             ))}
           </View>
+        </View>
+
+        <View style={styles.formSection}>
+          <ThemedText style={styles.sectionTitle}>Visibility Options</ThemedText>
+          <ThemedText style={styles.sectionHint}>
+            Control who can see and interact with this match
+          </ThemedText>
+          
+          <Pressable
+            style={styles.toggleRow}
+            onPress={() => setIsPublic(!isPublic)}
+          >
+            <View style={styles.toggleInfo}>
+              <ThemedText style={styles.toggleLabel}>Make Public</ThemedText>
+              <ThemedText style={styles.toggleHint}>Spectators can watch the match</ThemedText>
+            </View>
+            <View style={[styles.toggle, isPublic && styles.toggleActive]}>
+              <View style={[styles.toggleThumb, isPublic && styles.toggleThumbActive]} />
+            </View>
+          </Pressable>
+          
+          <Pressable
+            style={styles.toggleRow}
+            onPress={() => isPublic && setArenaListed(!arenaListed)}
+            disabled={!isPublic}
+          >
+            <View style={styles.toggleInfo}>
+              <ThemedText style={[styles.toggleLabel, !isPublic && styles.toggleLabelDisabled]}>
+                List in Arena Mode
+              </ThemedText>
+              <ThemedText style={styles.toggleHint}>Show in public arena listings</ThemedText>
+            </View>
+            <View style={[styles.toggle, arenaListed && isPublic && styles.toggleActive, !isPublic && styles.toggleDisabled]}>
+              <View style={[styles.toggleThumb, arenaListed && isPublic && styles.toggleThumbActive]} />
+            </View>
+          </Pressable>
+          
+          <Pressable
+            style={styles.toggleRow}
+            onPress={() => setChatEnabled(!chatEnabled)}
+          >
+            <View style={styles.toggleInfo}>
+              <ThemedText style={styles.toggleLabel}>Enable Chat</ThemedText>
+              <ThemedText style={styles.toggleHint}>Allow spectators to chat during match</ThemedText>
+            </View>
+            <View style={[styles.toggle, chatEnabled && styles.toggleActive]}>
+              <View style={[styles.toggleThumb, chatEnabled && styles.toggleThumbActive]} />
+            </View>
+          </Pressable>
+          
+          <Pressable
+            style={styles.toggleRow}
+            onPress={() => {}}
+            disabled={true}
+          >
+            <View style={styles.toggleInfo}>
+              <ThemedText style={[styles.toggleLabel, styles.toggleLabelDisabled]}>
+                Enable Bet-Behind (tokens)
+              </ThemedText>
+              <ThemedText style={[styles.toggleHint, { color: Colors.dark.warning }]}>
+                Requires compliance feature flag
+              </ThemedText>
+            </View>
+            <View style={[styles.toggle, styles.toggleDisabled]}>
+              <View style={styles.toggleThumb} />
+            </View>
+          </Pressable>
+          
+          {isPublic ? (
+            <View style={styles.inputContainer}>
+              <ThemedText style={styles.inputLabel}>Scheduled Live Time (optional)</ThemedText>
+              <TextInput
+                style={styles.textInput}
+                value={scheduledLiveAt}
+                onChangeText={setScheduledLiveAt}
+                placeholder="YYYY-MM-DD HH:MM"
+                placeholderTextColor={Colors.dark.textMuted}
+              />
+              <ThemedText style={styles.inputHint}>
+                Set a time when this match will go live for spectators
+              </ThemedText>
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.summarySection}>
@@ -404,6 +500,58 @@ const styles = StyleSheet.create({
   pairChipTextSelected: {
     color: Colors.dark.accent,
     fontWeight: "600",
+  },
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.dark.border,
+  },
+  toggleInfo: {
+    flex: 1,
+    marginRight: Spacing.md,
+  },
+  toggleLabel: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: Colors.dark.text,
+    marginBottom: 2,
+  },
+  toggleLabelDisabled: {
+    color: Colors.dark.textMuted,
+  },
+  toggleHint: {
+    fontSize: 12,
+    color: Colors.dark.textMuted,
+  },
+  toggle: {
+    width: 48,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.dark.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    padding: 2,
+    justifyContent: "center",
+  },
+  toggleActive: {
+    backgroundColor: Colors.dark.accent,
+    borderColor: Colors.dark.accent,
+  },
+  toggleDisabled: {
+    opacity: 0.5,
+  },
+  toggleThumb: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: Colors.dark.textMuted,
+  },
+  toggleThumbActive: {
+    backgroundColor: Colors.dark.text,
+    alignSelf: "flex-end",
   },
   summarySection: {
     marginBottom: Spacing.xl,

@@ -50,6 +50,15 @@ interface PvpChallenge {
   inviteePaid: boolean;
   competitionId: string | null;
   createdAt: string;
+  // Visibility and streaming options
+  visibility?: string;
+  arenaListed?: boolean;
+  chatEnabled?: boolean;
+  bettingEnabled?: boolean;
+  scheduledLiveAt?: string | null;
+  liveStatus?: string;
+  streamEmbedType?: string;
+  streamUrl?: string | null;
 }
 
 interface WalletInfo {
@@ -465,6 +474,49 @@ export default function PvPDetailScreen() {
                   </View>
                 ) : null}
               </View>
+              
+              {/* Visibility Options */}
+              <View style={styles.visibilitySection}>
+                <ThemedText style={styles.termLabel}>Visibility</ThemedText>
+                <View style={styles.visibilityTags}>
+                  <View style={[styles.visibilityTag, challenge.visibility === "public" && styles.visibilityTagActive]}>
+                    <Feather 
+                      name={challenge.visibility === "public" ? "eye" : "eye-off"} 
+                      size={12} 
+                      color={challenge.visibility === "public" ? Colors.dark.accent : Colors.dark.textMuted} 
+                    />
+                    <ThemedText style={[styles.visibilityTagText, challenge.visibility === "public" && styles.visibilityTagTextActive]}>
+                      {challenge.visibility === "public" ? "Public" : "Private"}
+                    </ThemedText>
+                  </View>
+                  {challenge.arenaListed ? (
+                    <View style={[styles.visibilityTag, styles.visibilityTagActive]}>
+                      <Feather name="list" size={12} color={Colors.dark.accent} />
+                      <ThemedText style={[styles.visibilityTagText, styles.visibilityTagTextActive]}>Arena Listed</ThemedText>
+                    </View>
+                  ) : null}
+                  {challenge.chatEnabled ? (
+                    <View style={[styles.visibilityTag, styles.visibilityTagActive]}>
+                      <Feather name="message-circle" size={12} color={Colors.dark.accent} />
+                      <ThemedText style={[styles.visibilityTagText, styles.visibilityTagTextActive]}>Chat</ThemedText>
+                    </View>
+                  ) : null}
+                  {challenge.bettingEnabled ? (
+                    <View style={[styles.visibilityTag, styles.visibilityTagActive]}>
+                      <Feather name="zap" size={12} color={Colors.dark.gold} />
+                      <ThemedText style={[styles.visibilityTagText, { color: Colors.dark.gold }]}>Betting</ThemedText>
+                    </View>
+                  ) : null}
+                </View>
+                {challenge.scheduledLiveAt ? (
+                  <View style={styles.scheduledRow}>
+                    <Feather name="calendar" size={14} color={Colors.dark.textMuted} />
+                    <ThemedText style={styles.scheduledText}>
+                      Live: {new Date(challenge.scheduledLiveAt).toLocaleString()}
+                    </ThemedText>
+                  </View>
+                ) : null}
+              </View>
             </View>
           </>
         )}
@@ -857,6 +909,50 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: -Spacing.sm,
     marginBottom: Spacing.md,
+  },
+  visibilitySection: {
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.dark.border,
+  },
+  visibilityTags: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  visibilityTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.dark.backgroundRoot,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  visibilityTagActive: {
+    backgroundColor: Colors.dark.accent + "20",
+    borderColor: Colors.dark.accent,
+  },
+  visibilityTagText: {
+    fontSize: 12,
+    color: Colors.dark.textMuted,
+  },
+  visibilityTagTextActive: {
+    color: Colors.dark.accent,
+  },
+  scheduledRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
+  },
+  scheduledText: {
+    fontSize: 13,
+    color: Colors.dark.textMuted,
   },
   errorText: {
     fontSize: 16,

@@ -277,6 +277,15 @@ export const pvpChallenges = pgTable("pvp_challenges", {
   inviteeStripePaymentId: text("invitee_stripe_payment_id"),
   competitionId: varchar("competition_id").references(() => competitions.id),
   winnerId: varchar("winner_id").references(() => users.id),
+  // Visibility and streaming options
+  visibility: text("visibility").notNull().default("private"), // 'private' | 'public'
+  arenaListed: boolean("arena_listed").notNull().default(false),
+  chatEnabled: boolean("chat_enabled").notNull().default(true),
+  bettingEnabled: boolean("betting_enabled").notNull().default(false),
+  scheduledLiveAt: timestamp("scheduled_live_at"),
+  liveStatus: text("live_status").notNull().default("offline"), // 'offline' | 'scheduled' | 'live' | 'ended'
+  streamEmbedType: text("stream_embed_type").notNull().default("none"), // 'none' | 'twitch' | 'youtube' | 'url'
+  streamUrl: text("stream_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

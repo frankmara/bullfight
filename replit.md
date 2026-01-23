@@ -60,8 +60,17 @@ Key entities include `users`, `competitions`, `competitionEntries`, `orders`, `f
 
 ### PvP Challenges System
 - Enables one-on-one trading competitions between users with stake, balance, duration, and pair negotiation.
-- Both parties pay a stake via Stripe, creating an auto-generated competition.
+- Both parties stake tokens (not direct payment) to enter, creating an auto-generated competition.
 - Winner determined by highest % return; a 3% rake is applied.
+- **Visibility Options**:
+  - `visibility`: 'private' (default) or 'public' (spectators can watch)
+  - `arenaListed`: Boolean to list in public arena mode (only when public)
+  - `chatEnabled`: Boolean to enable spectator chat (default true)
+  - `bettingEnabled`: Boolean for bet-behind feature (disabled by default, requires compliance flag)
+  - `scheduledLiveAt`: Optional timestamp for scheduled live events
+  - `liveStatus`: 'offline' | 'scheduled' | 'live' | 'ended'
+  - `streamEmbedType`: 'none' | 'twitch' | 'youtube' | 'url'
+  - `streamUrl`: Optional stream URL for embedded streams
 
 ### Email Notification System
 - Uses `EmailService` and Resend API for welcome, competition, PvP, and daily standings emails.

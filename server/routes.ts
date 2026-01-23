@@ -1922,6 +1922,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         maxSlippagePips,
         minOrderIntervalMs,
         maxDrawdownPct,
+        // Visibility and streaming options
+        visibility,
+        arenaListed,
+        chatEnabled,
+        bettingEnabled,
+        scheduledLiveAt,
+        streamEmbedType,
+        streamUrl,
       } = req.body;
 
       if (!inviteeEmail) {
@@ -1947,6 +1955,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         minOrderIntervalMs: minOrderIntervalMs || 1000,
         maxDrawdownPct: maxDrawdownPct || null,
         challengerAccepted: true,
+        // Visibility and streaming options
+        visibility: visibility || "private",
+        arenaListed: arenaListed ?? false,
+        chatEnabled: chatEnabled ?? true,
+        bettingEnabled: bettingEnabled ?? false,
+        scheduledLiveAt: scheduledLiveAt ? new Date(scheduledLiveAt) : null,
+        liveStatus: scheduledLiveAt ? "scheduled" : "offline",
+        streamEmbedType: streamEmbedType || "none",
+        streamUrl: streamUrl || null,
       });
 
       await storage.createAuditLog(userId, "pvp_challenge_created", "pvp_challenge", challenge.id, {
