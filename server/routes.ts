@@ -1851,6 +1851,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Arena Mode - Public matches listing
+  app.get("/api/arena-mode/matches", async (req: Request, res: Response) => {
+    try {
+      const { status = "ALL" } = req.query;
+      
+      // Get all public, arena-listed PvP challenges
+      const allChallenges = await storage.getPublicArenaListedChallenges();
+      
+      // Enrich with user data
+      const enrichedMatches = await Promise.all(
+        allChallenges.map(async (challenge: any) => {
+          const challenger = await storage.getUser(challenge.challengerId);
+          const invitee = challenge.inviteeId ? await storage.getUser(challenge.inviteeId) : null;
+          
+          return {
+            ...challenge,
+            challengerUsername: challenger?.username || "Unknown",
+            challengerAvatar: null, // Avatar support can be added later
+            inviteeUsername: invitee?.username || challenge.inviteeEmail?.split("@")[0] || "TBD",
+            inviteeAvatar: null,
+            viewersCount: 0, // Real-time viewers can be added later
+            chatMessageCount: 0, // Chat message count can be added later
+          };
+        })
+      );
+      
+      // Filter by status
+      let filtered = enrichedMatches;
+      const now = new Date();
+      
+      if (status === "LIVE") {
+        filtered = enrichedMatches.filter(m => m.liveStatus === "live" || m.status === "active");
+      } else if (status === "UPCOMING") {
+        filtered = enrichedMatches.filter(m => 
+          m.liveStatus === "scheduled" || 
+          (m.scheduledLiveAt && new Date(m.scheduledLiveAt) > now) ||
+          (m.status === "pending" || m.status === "payment_pending")
+        );
+      }
+      
+      // Sort: LIVE first by viewers desc, then stake desc
+      // UPCOMING by scheduledLiveAt soonest
+      filtered.sort((a, b) => {
+        const aIsLive = a.liveStatus === "live" || a.status === "active";
+        const bIsLive = b.liveStatus === "live" || b.status === "active";
+        
+        if (aIsLive && !bIsLive) return -1;
+        if (!aIsLive && bIsLive) return 1;
+        
+        if (aIsLive && bIsLive) {
+          // Both live: sort by viewers desc, then stake desc
+          if (b.viewersCount !== a.viewersCount) return b.viewersCount - a.viewersCount;
+          return (b.stakeTokens || 0) - (a.stakeTokens || 0);
+        }
+        
+        // Both not live: sort by scheduledLiveAt soonest
+        const aScheduled = a.scheduledLiveAt ? new Date(a.scheduledLiveAt).getTime() : Infinity;
+        const bScheduled = b.scheduledLiveAt ? new Date(b.scheduledLiveAt).getTime() : Infinity;
+        if (aScheduled !== bScheduled) return aScheduled - bScheduled;
+        
+        // Fallback to stake desc
+        return (b.stakeTokens || 0) - (a.stakeTokens || 0);
+      });
+      
+      res.json(filtered);
+    } catch (error: any) {
+      console.error("Get arena mode matches error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get("/api/pvp/challenges", async (req: Request, res: Response) => {
     try {
       const userId = req.headers["x-user-id"] as string;

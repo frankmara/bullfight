@@ -224,10 +224,19 @@ export default function PvPListScreen() {
               One-on-one trading competitions
             </ThemedText>
           </View>
-          <Button onPress={handleCreateChallenge} style={[styles.createButton, !isDesktop && styles.createButtonMobile]}>
-            <Feather name="plus" size={16} color={Colors.dark.buttonText} />
-            <ThemedText style={styles.createButtonText}>New Challenge</ThemedText>
-          </Button>
+          <View style={styles.headerActions}>
+            <Pressable 
+              onPress={() => navigation.navigate("ArenaMode" as any)} 
+              style={styles.arenaModeButton}
+            >
+              <Feather name="tv" size={16} color={Colors.dark.accent} />
+              <ThemedText style={styles.arenaModeButtonText}>Arena Mode</ThemedText>
+            </Pressable>
+            <Button onPress={handleCreateChallenge} style={[styles.createButton, !isDesktop && styles.createButtonMobile]}>
+              <Feather name="plus" size={16} color={Colors.dark.buttonText} />
+              <ThemedText style={styles.createButtonText}>New Challenge</ThemedText>
+            </Button>
+          </View>
         </View>
 
         <FlatList
@@ -306,6 +315,27 @@ const styles = StyleSheet.create({
   pageSubtitle: {
     fontSize: 14,
     color: Colors.dark.textMuted,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+  arenaModeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.dark.accent,
+    borderRadius: BorderRadius.md,
+    backgroundColor: "transparent",
+  },
+  arenaModeButtonText: {
+    color: Colors.dark.accent,
+    fontSize: 14,
+    fontWeight: "500",
   },
   createButton: {
     flexDirection: "row",

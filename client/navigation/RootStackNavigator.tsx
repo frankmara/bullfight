@@ -14,6 +14,7 @@ import CreateCompetitionScreen from "@/screens/CreateCompetitionScreen";
 import PvPListScreen from "@/screens/PvPListScreen";
 import PvPNewScreen from "@/screens/PvPNewScreen";
 import PvPDetailScreen from "@/screens/PvPDetailScreen";
+import ArenaModeScreen from "@/screens/ArenaModeScreen";
 import PaymentSuccessScreen from "@/screens/PaymentSuccessScreen";
 import PaymentCancelScreen from "@/screens/PaymentCancelScreen";
 import WalletScreen from "@/screens/WalletScreen";
@@ -68,6 +69,13 @@ export default function RootStackNavigator() {
         component={ArenaScreen}
         options={{
           headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="ArenaMode"
+        component={ArenaModeScreen}
+        options={{
+          headerTitle: "Arena Mode",
         }}
       />
       <Stack.Screen

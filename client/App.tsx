@@ -44,7 +44,8 @@ const linking: LinkingOptions<RootStackParamList> = {
       Register: "register",
       ForgotPassword: "forgot-password",
       CompetitionDetail: "competition/:id",
-      Arena: "arena/:id",
+      Arena: "arena/:competitionId",
+      ArenaMode: "arena-mode",
       Admin: "admin",
       AdminCompetitions: "admin/competitions",
       AdminEmail: "admin/email",
@@ -56,6 +57,7 @@ const linking: LinkingOptions<RootStackParamList> = {
       PvPDetail: "pvp/:id",
       PaymentSuccess: "payment/success",
       PaymentCancel: "payment/cancel",
+      Wallet: "wallet",
     },
   },
 };

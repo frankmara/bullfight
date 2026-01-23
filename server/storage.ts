@@ -76,6 +76,7 @@ export interface IStorage {
   getPvpChallenge(id: string): Promise<PvpChallenge | undefined>;
   createPvpChallenge(data: InsertPvpChallenge): Promise<PvpChallenge>;
   updatePvpChallenge(id: string, data: Partial<PvpChallenge>): Promise<PvpChallenge | undefined>;
+  getPublicArenaListedChallenges(): Promise<PvpChallenge[]>;
   
   createAuditLog(actorUserId: string, action: string, entityType: string, entityId: string, payload?: any): Promise<void>;
 }
@@ -566,6 +567,17 @@ class DatabaseStorage implements IStorage {
       .where(eq(pvpChallenges.id, id))
       .returning();
     return challenge;
+  }
+
+  async getPublicArenaListedChallenges(): Promise<PvpChallenge[]> {
+    const results = await db
+      .select()
+      .from(pvpChallenges)
+      .where(
+        sql`${pvpChallenges.visibility} = 'public' AND ${pvpChallenges.arenaListed} = true`
+      )
+      .orderBy(desc(pvpChallenges.createdAt));
+    return results;
   }
 
   async createAuditLog(
