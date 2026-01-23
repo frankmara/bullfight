@@ -3826,6 +3826,424 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== ADMIN ARENA MODE ====================
+  
+  // Get platform settings
+  app.get("/api/admin/platform-settings", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      const settings = await storage.getAllPlatformSettings();
+      res.json(settings);
+    } catch (error: any) {
+      console.error("Get platform settings error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update platform setting
+  app.put("/api/admin/platform-settings/:key", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      const { key } = req.params;
+      const { value } = req.body;
+      const setting = await storage.updatePlatformSetting(key, value, userId);
+      if (!setting) {
+        return res.status(404).json({ error: "Setting not found" });
+      }
+      await storage.createAuditLog(userId, "UPDATE_PLATFORM_SETTING", "platform_setting", key, { value });
+      res.json(setting);
+    } catch (error: any) {
+      console.error("Update platform setting error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get all arena matches (public, with featured status)
+  app.get("/api/admin/arena-matches", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      const matches = await storage.getPublicArenaListedChallenges();
+      const featured = await storage.getFeaturedMatches();
+      const featuredIds = new Set(featured.map(f => f.matchId));
+      
+      const matchesWithStatus = await Promise.all(
+        matches.map(async (match) => {
+          const challenger = await storage.getUser(match.challengerId);
+          const invitee = match.inviteeId ? await storage.getUser(match.inviteeId) : null;
+          return {
+            ...match,
+            isFeatured: featuredIds.has(match.id),
+            challengerUsername: challenger?.username || challenger?.email?.split("@")[0],
+            inviteeUsername: invitee?.username || invitee?.email?.split("@")[0],
+          };
+        })
+      );
+      res.json(matchesWithStatus);
+    } catch (error: any) {
+      console.error("Get arena matches error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Delist match from arena
+  app.post("/api/admin/arena-matches/:matchId/delist", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      const { matchId } = req.params;
+      const updated = await storage.updatePvpChallenge(matchId, { arenaListed: false });
+      if (!updated) {
+        return res.status(404).json({ error: "Match not found" });
+      }
+      await storage.createAuditLog(userId, "DELIST_ARENA_MATCH", "pvp_challenge", matchId, {});
+      res.json({ success: true, match: updated });
+    } catch (error: any) {
+      console.error("Delist arena match error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Feature/unfeature match
+  app.post("/api/admin/arena-matches/:matchId/feature", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      const { matchId } = req.params;
+      const { featured, expiresInHours } = req.body;
+      
+      if (featured) {
+        const expiresAt = expiresInHours
+          ? new Date(Date.now() + expiresInHours * 60 * 60 * 1000)
+          : undefined;
+        await storage.featureMatch(matchId, userId, expiresAt);
+      } else {
+        await storage.unfeatureMatch(matchId);
+      }
+      
+      await storage.createAuditLog(userId, featured ? "FEATURE_MATCH" : "UNFEATURE_MATCH", "featured_match", matchId, { expiresInHours });
+      res.json({ success: true, featured });
+    } catch (error: any) {
+      console.error("Feature match error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ==================== ADMIN CHAT MODERATION ====================
+  
+  // Get all chat channels
+  app.get("/api/admin/chat/channels", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      const channels = await storage.getAllChatChannels();
+      res.json(channels);
+    } catch (error: any) {
+      console.error("Get chat channels error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get messages by channel
+  app.get("/api/admin/chat/channels/:channelId/messages", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      const { channelId } = req.params;
+      const limit = parseInt(req.query.limit as string) || 100;
+      const messages = await storage.getChatMessagesByChannel(channelId, limit);
+      res.json(messages);
+    } catch (error: any) {
+      console.error("Get chat messages error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Delete chat message
+  app.delete("/api/admin/chat/messages/:messageId", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      const { messageId } = req.params;
+      await storage.deleteChatMessage(messageId);
+      await storage.createAuditLog(userId, "DELETE_CHAT_MESSAGE", "chat_message", messageId, {});
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Delete chat message error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get muted users
+  app.get("/api/admin/chat/mutes", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      const channelId = req.query.channelId as string | undefined;
+      const mutes = await storage.getChatMutes(channelId);
+      
+      const mutesWithUsers = await Promise.all(
+        mutes.map(async (mute) => {
+          const mutedUser = await storage.getUser(mute.userId);
+          return {
+            ...mute,
+            username: mutedUser?.username || mutedUser?.email?.split("@")[0],
+          };
+        })
+      );
+      res.json(mutesWithUsers);
+    } catch (error: any) {
+      console.error("Get chat mutes error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Mute user
+  app.post("/api/admin/chat/mutes", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      const { targetUserId, channelId, reason, durationMinutes } = req.body;
+      const mute = await storage.muteUser(targetUserId, userId, channelId, reason, durationMinutes);
+      await storage.createAuditLog(userId, "MUTE_USER", "chat_mute", targetUserId, { channelId, reason, durationMinutes });
+      res.json(mute);
+    } catch (error: any) {
+      console.error("Mute user error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Unmute user
+  app.delete("/api/admin/chat/mutes/:targetUserId", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      const { targetUserId } = req.params;
+      const channelId = req.query.channelId as string | undefined;
+      await storage.unmuteUser(targetUserId, channelId);
+      await storage.createAuditLog(userId, "UNMUTE_USER", "chat_mute", targetUserId, { channelId });
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Unmute user error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get banned users
+  app.get("/api/admin/chat/bans", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      const channelId = req.query.channelId as string | undefined;
+      const bans = await storage.getChatBans(channelId);
+      
+      const bansWithUsers = await Promise.all(
+        bans.map(async (ban) => {
+          const bannedUser = await storage.getUser(ban.userId);
+          return {
+            ...ban,
+            username: bannedUser?.username || bannedUser?.email?.split("@")[0],
+          };
+        })
+      );
+      res.json(bansWithUsers);
+    } catch (error: any) {
+      console.error("Get chat bans error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Ban user
+  app.post("/api/admin/chat/bans", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      const { targetUserId, channelId, reason, durationDays } = req.body;
+      const ban = await storage.banUser(targetUserId, userId, channelId, reason, durationDays);
+      await storage.createAuditLog(userId, "BAN_USER", "chat_ban", targetUserId, { channelId, reason, durationDays });
+      res.json(ban);
+    } catch (error: any) {
+      console.error("Ban user error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Unban user
+  app.delete("/api/admin/chat/bans/:targetUserId", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      const { targetUserId } = req.params;
+      const channelId = req.query.channelId as string | undefined;
+      await storage.unbanUser(targetUserId, channelId);
+      await storage.createAuditLog(userId, "UNBAN_USER", "chat_ban", targetUserId, { channelId });
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Unban user error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ==================== ADMIN BETTING ====================
+  
+  // Get all bet markets
+  app.get("/api/admin/betting/markets", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      const markets = await storage.getAllBetMarkets();
+      
+      const marketsWithDetails = await Promise.all(
+        markets.map(async (market) => {
+          const challenge = await storage.getPvpChallenge(market.matchId);
+          const bets = await storage.getBetsByMarket(market.id);
+          const totalPool = bets.reduce((sum, b) => sum + b.amountTokens, 0);
+          return {
+            ...market,
+            matchName: challenge?.name || "Unknown",
+            betCount: bets.length,
+            totalPool,
+          };
+        })
+      );
+      res.json(marketsWithDetails);
+    } catch (error: any) {
+      console.error("Get bet markets error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get bets for a market
+  app.get("/api/admin/betting/markets/:marketId/bets", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      const { marketId } = req.params;
+      const bets = await storage.getBetsByMarket(marketId);
+      res.json(bets);
+    } catch (error: any) {
+      console.error("Get market bets error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get suspicious activity
+  app.get("/api/admin/betting/suspicious", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      const suspicious = await storage.getSuspiciousActivity();
+      res.json(suspicious);
+    } catch (error: any) {
+      console.error("Get suspicious activity error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   startScheduledJobs();
 
   const httpServer = createServer(app);

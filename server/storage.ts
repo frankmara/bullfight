@@ -1,4 +1,4 @@
-import { eq, and, sql, desc, gt } from "drizzle-orm";
+import { eq, and, sql, desc, gt, isNull, or } from "drizzle-orm";
 import { db } from "./db";
 import {
   users,
@@ -11,6 +11,15 @@ import {
   payouts,
   auditLog,
   pvpChallenges,
+  platformSettings,
+  chatMutes,
+  chatBans,
+  featuredMatches,
+  betRateLimits,
+  chatChannels,
+  chatMessages,
+  betMarkets,
+  bets,
   type User,
   type InsertUser,
   type Competition,
@@ -23,6 +32,15 @@ import {
   type InsertPosition,
   type PvpChallenge,
   type InsertPvpChallenge,
+  type PlatformSetting,
+  type ChatMute,
+  type ChatBan,
+  type FeaturedMatch,
+  type BetRateLimit,
+  type ChatChannel,
+  type ChatMessage,
+  type BetMarket,
+  type Bet,
 } from "@shared/schema";
 import bcrypt from "bcryptjs";
 
@@ -594,6 +612,332 @@ class DatabaseStorage implements IStorage {
       entityId,
       payloadJson: payload || null,
     });
+  }
+
+  // Platform Settings
+  async getPlatformSetting(key: string): Promise<PlatformSetting | undefined> {
+    const [setting] = await db
+      .select()
+      .from(platformSettings)
+      .where(eq(platformSettings.key, key));
+    return setting;
+  }
+
+  async getAllPlatformSettings(): Promise<PlatformSetting[]> {
+    return await db.select().from(platformSettings);
+  }
+
+  async updatePlatformSetting(
+    key: string,
+    value: string,
+    updatedBy: string
+  ): Promise<PlatformSetting | undefined> {
+    const [setting] = await db
+      .update(platformSettings)
+      .set({ value, updatedBy, updatedAt: new Date() })
+      .where(eq(platformSettings.key, key))
+      .returning();
+    return setting;
+  }
+
+  // Chat Moderation - Mutes
+  async getChatMutes(channelId?: string): Promise<ChatMute[]> {
+    if (channelId) {
+      return await db
+        .select()
+        .from(chatMutes)
+        .where(
+          or(
+            eq(chatMutes.channelId, channelId),
+            isNull(chatMutes.channelId)
+          )
+        );
+    }
+    return await db.select().from(chatMutes);
+  }
+
+  async isUserMuted(userId: string, channelId?: string): Promise<boolean> {
+    const now = new Date();
+    const [mute] = await db
+      .select()
+      .from(chatMutes)
+      .where(
+        and(
+          eq(chatMutes.userId, userId),
+          or(
+            channelId ? eq(chatMutes.channelId, channelId) : sql`true`,
+            isNull(chatMutes.channelId)
+          ),
+          or(isNull(chatMutes.expiresAt), gt(chatMutes.expiresAt, now))
+        )
+      );
+    return !!mute;
+  }
+
+  async muteUser(
+    userId: string,
+    mutedBy: string,
+    channelId?: string,
+    reason?: string,
+    durationMinutes?: number
+  ): Promise<ChatMute> {
+    const expiresAt = durationMinutes
+      ? new Date(Date.now() + durationMinutes * 60 * 1000)
+      : null;
+    const [mute] = await db
+      .insert(chatMutes)
+      .values({ userId, mutedBy, channelId, reason, expiresAt })
+      .returning();
+    return mute;
+  }
+
+  async unmuteUser(userId: string, channelId?: string): Promise<void> {
+    if (channelId) {
+      await db
+        .delete(chatMutes)
+        .where(
+          and(
+            eq(chatMutes.userId, userId),
+            eq(chatMutes.channelId, channelId)
+          )
+        );
+    } else {
+      await db.delete(chatMutes).where(eq(chatMutes.userId, userId));
+    }
+  }
+
+  // Chat Moderation - Bans
+  async getChatBans(channelId?: string): Promise<ChatBan[]> {
+    if (channelId) {
+      return await db
+        .select()
+        .from(chatBans)
+        .where(
+          or(
+            eq(chatBans.channelId, channelId),
+            isNull(chatBans.channelId)
+          )
+        );
+    }
+    return await db.select().from(chatBans);
+  }
+
+  async isUserBanned(userId: string, channelId?: string): Promise<boolean> {
+    const now = new Date();
+    const [ban] = await db
+      .select()
+      .from(chatBans)
+      .where(
+        and(
+          eq(chatBans.userId, userId),
+          or(
+            channelId ? eq(chatBans.channelId, channelId) : sql`true`,
+            isNull(chatBans.channelId)
+          ),
+          or(isNull(chatBans.expiresAt), gt(chatBans.expiresAt, now))
+        )
+      );
+    return !!ban;
+  }
+
+  async banUser(
+    userId: string,
+    bannedBy: string,
+    channelId?: string,
+    reason?: string,
+    durationDays?: number
+  ): Promise<ChatBan> {
+    const expiresAt = durationDays
+      ? new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000)
+      : null;
+    const [ban] = await db
+      .insert(chatBans)
+      .values({ userId, bannedBy, channelId, reason, expiresAt })
+      .returning();
+    return ban;
+  }
+
+  async unbanUser(userId: string, channelId?: string): Promise<void> {
+    if (channelId) {
+      await db
+        .delete(chatBans)
+        .where(
+          and(
+            eq(chatBans.userId, userId),
+            eq(chatBans.channelId, channelId)
+          )
+        );
+    } else {
+      await db.delete(chatBans).where(eq(chatBans.userId, userId));
+    }
+  }
+
+  // Featured Matches
+  async getFeaturedMatches(): Promise<FeaturedMatch[]> {
+    return await db
+      .select()
+      .from(featuredMatches)
+      .orderBy(desc(featuredMatches.pinnedAt));
+  }
+
+  async isMatchFeatured(matchId: string): Promise<boolean> {
+    const [featured] = await db
+      .select()
+      .from(featuredMatches)
+      .where(eq(featuredMatches.matchId, matchId));
+    return !!featured;
+  }
+
+  async featureMatch(
+    matchId: string,
+    pinnedBy: string,
+    expiresAt?: Date
+  ): Promise<FeaturedMatch> {
+    const [featured] = await db
+      .insert(featuredMatches)
+      .values({ matchId, pinnedBy, expiresAt })
+      .onConflictDoUpdate({
+        target: featuredMatches.matchId,
+        set: { pinnedBy, pinnedAt: new Date(), expiresAt },
+      })
+      .returning();
+    return featured;
+  }
+
+  async unfeatureMatch(matchId: string): Promise<void> {
+    await db
+      .delete(featuredMatches)
+      .where(eq(featuredMatches.matchId, matchId));
+  }
+
+  // Bet Rate Limiting
+  async getBetRateLimit(
+    userId: string,
+    marketId: string
+  ): Promise<BetRateLimit | undefined> {
+    const [limit] = await db
+      .select()
+      .from(betRateLimits)
+      .where(
+        and(
+          eq(betRateLimits.userId, userId),
+          eq(betRateLimits.marketId, marketId)
+        )
+      );
+    return limit;
+  }
+
+  async incrementBetRateLimit(
+    userId: string,
+    marketId: string
+  ): Promise<BetRateLimit> {
+    const existing = await this.getBetRateLimit(userId, marketId);
+    if (existing) {
+      const [updated] = await db
+        .update(betRateLimits)
+        .set({ betCount: existing.betCount + 1, lastBetAt: new Date() })
+        .where(eq(betRateLimits.id, existing.id))
+        .returning();
+      return updated;
+    }
+    const [created] = await db
+      .insert(betRateLimits)
+      .values({ userId, marketId })
+      .returning();
+    return created;
+  }
+
+  // Admin helpers
+  async getAllChatChannels(): Promise<ChatChannel[]> {
+    return await db.select().from(chatChannels).orderBy(desc(chatChannels.createdAt));
+  }
+
+  async getChatMessagesByChannel(channelId: string, limit = 100): Promise<any[]> {
+    const messages = await db
+      .select({
+        id: chatMessages.id,
+        channelId: chatMessages.channelId,
+        userId: chatMessages.userId,
+        body: chatMessages.body,
+        createdAt: chatMessages.createdAt,
+        deletedAt: chatMessages.deletedAt,
+        senderUsername: users.username,
+        senderEmail: users.email,
+      })
+      .from(chatMessages)
+      .leftJoin(users, eq(chatMessages.userId, users.id))
+      .where(eq(chatMessages.channelId, channelId))
+      .orderBy(desc(chatMessages.createdAt))
+      .limit(limit);
+    return messages;
+  }
+
+  async deleteChatMessage(messageId: string): Promise<void> {
+    await db.delete(chatMessages).where(eq(chatMessages.id, messageId));
+  }
+
+  // Betting admin helpers
+  async getAllBetMarkets(): Promise<BetMarket[]> {
+    return await db.select().from(betMarkets).orderBy(desc(betMarkets.createdAt));
+  }
+
+  async getBetsByMarket(marketId: string): Promise<any[]> {
+    const betsList = await db
+      .select({
+        id: bets.id,
+        marketId: bets.marketId,
+        bettorId: bets.bettorId,
+        pickUserId: bets.pickUserId,
+        amountTokens: bets.amountTokens,
+        placedAt: bets.placedAt,
+        status: bets.status,
+        bettorUsername: users.username,
+        bettorEmail: users.email,
+      })
+      .from(bets)
+      .leftJoin(users, eq(bets.bettorId, users.id))
+      .where(eq(bets.marketId, marketId))
+      .orderBy(desc(bets.placedAt));
+    return betsList;
+  }
+
+  async getUserBetCountForMarket(userId: string, marketId: string): Promise<number> {
+    const [result] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(bets)
+      .where(and(eq(bets.bettorId, userId), eq(bets.marketId, marketId)));
+    return result?.count || 0;
+  }
+
+  async getUserTotalBetsForMarket(userId: string, marketId: string): Promise<number> {
+    const [result] = await db
+      .select({ total: sql<number>`COALESCE(SUM(${bets.amountTokens}), 0)::int` })
+      .from(bets)
+      .where(
+        and(
+          eq(bets.bettorId, userId),
+          eq(bets.marketId, marketId),
+          eq(bets.status, "PLACED")
+        )
+      );
+    return result?.total || 0;
+  }
+
+  async getSuspiciousActivity(): Promise<any[]> {
+    const suspiciousBettors = await db
+      .select({
+        bettorId: bets.bettorId,
+        marketId: bets.marketId,
+        betCount: sql<number>`count(*)::int`,
+        totalTokens: sql<number>`SUM(${bets.amountTokens})::int`,
+        bettorUsername: users.username,
+        bettorEmail: users.email,
+      })
+      .from(bets)
+      .leftJoin(users, eq(bets.bettorId, users.id))
+      .groupBy(bets.bettorId, bets.marketId, users.username, users.email)
+      .having(sql`count(*) > 3 OR SUM(${bets.amountTokens}) > 200`);
+    return suspiciousBettors;
   }
 }
 
