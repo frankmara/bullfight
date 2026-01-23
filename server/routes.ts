@@ -14,10 +14,10 @@ import {
   unitsToLots,
 } from "./services/ExecutionService";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
-import { usernameSchema, tokenPurchases } from "@shared/schema";
+import { usernameSchema, tokenPurchases, bets } from "@shared/schema";
 import { getOrCreateWallet, getWallet, applyTokenTransaction, getTransactionHistory, lockTokens, unlockTokens, unlockAndDeductTokens } from "./lib/wallet";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/register", async (req: Request, res: Response) => {
@@ -2933,6 +2933,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { presenceService } = await import("./services/PresenceService");
       presenceService.notifyLiveStatusChange(id, "live");
 
+      // Create bet market if betting is enabled for this match and feature flag is on
+      if (challenge.bettingEnabled) {
+        const { bettingService, isBettingEnabled } = await import("./services/BettingService");
+        if (isBettingEnabled()) {
+          const market = await bettingService.createMarketForMatch(id);
+          if (market) {
+            console.log("[go-live] Created bet market", market.id, "for match", id);
+          }
+        }
+      }
+
       await storage.createAuditLog(userId, "pvp_go_live", "pvp_challenge", id, {
         previousStatus: challenge.liveStatus,
       });
@@ -3097,6 +3108,113 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Update stream settings error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Betting feature flag status
+  app.get("/api/betting/status", async (req: Request, res: Response) => {
+    const { isBettingEnabled } = await import("./services/BettingService");
+    res.json({ enabled: isBettingEnabled() });
+  });
+
+  // Get bet market for a match
+  app.get("/api/betting/markets/:matchId", async (req: Request, res: Response) => {
+    try {
+      const { isBettingEnabled, bettingService } = await import("./services/BettingService");
+      
+      if (!isBettingEnabled()) {
+        return res.status(403).json({ error: "Betting is disabled" });
+      }
+
+      const { matchId } = req.params;
+      const market = await bettingService.getMarketByMatchId(matchId);
+
+      if (!market) {
+        return res.status(404).json({ error: "No betting market for this match" });
+      }
+
+      const poolStats = await bettingService.getPoolStats(market.id);
+
+      res.json({
+        market,
+        poolStats,
+      });
+    } catch (error: any) {
+      console.error("Get betting market error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Place a bet
+  app.post("/api/betting/bets", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { isBettingEnabled, bettingService } = await import("./services/BettingService");
+      
+      if (!isBettingEnabled()) {
+        return res.status(403).json({ error: "Betting is disabled" });
+      }
+
+      const { marketId, pickUserId, amountTokens } = req.body;
+
+      if (!marketId || !pickUserId || !amountTokens) {
+        return res.status(400).json({ error: "marketId, pickUserId, and amountTokens are required" });
+      }
+
+      if (typeof amountTokens !== "number" || amountTokens <= 0) {
+        return res.status(400).json({ error: "amountTokens must be a positive number" });
+      }
+
+      const result = await bettingService.placeBet(marketId, userId, pickUserId, amountTokens);
+
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+
+      await storage.createAuditLog(userId, "bet_placed", "bet", result.betId!, {
+        marketId,
+        pickUserId,
+        amountTokens,
+      });
+
+      res.json({
+        success: true,
+        betId: result.betId,
+      });
+    } catch (error: any) {
+      console.error("Place bet error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get user's bets for a market
+  app.get("/api/betting/markets/:marketId/my-bets", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { isBettingEnabled } = await import("./services/BettingService");
+      
+      if (!isBettingEnabled()) {
+        return res.status(403).json({ error: "Betting is disabled" });
+      }
+
+      const { marketId } = req.params;
+      const allBets = await db
+        .select()
+        .from(bets)
+        .where(and(eq(bets.marketId, marketId), eq(bets.bettorId, userId)));
+
+      res.json({ bets: allBets });
+    } catch (error: any) {
+      console.error("Get user bets error:", error);
       res.status(500).json({ error: error.message });
     }
   });
