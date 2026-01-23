@@ -2999,14 +2999,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
       oddsService.stopTickingForMatch(id);
       oddsService.clearMatchHistory(id);
 
+      // Determine winner and settle betting market
+      let winnerUserId: string | null = null;
+      let settlementResult: { success: boolean; error?: string } | null = null;
+      
+      if (challenge.competitionId && challenge.bettingEnabled) {
+        const challengerEntry = await storage.getCompetitionEntry(
+          challenge.competitionId,
+          challenge.challengerId
+        );
+        const inviteeEntry = challenge.inviteeId 
+          ? await storage.getCompetitionEntry(challenge.competitionId, challenge.inviteeId)
+          : null;
+
+        if (challengerEntry && inviteeEntry) {
+          const challengerReturn = 
+            (challengerEntry.equityCents - challenge.startingBalanceCents) / challenge.startingBalanceCents;
+          const inviteeReturn = 
+            (inviteeEntry.equityCents - challenge.startingBalanceCents) / challenge.startingBalanceCents;
+
+          if (challengerReturn > inviteeReturn) {
+            winnerUserId = challenge.challengerId;
+          } else if (inviteeReturn > challengerReturn) {
+            winnerUserId = challenge.inviteeId!;
+          } else {
+            winnerUserId = challenge.challengerId;
+          }
+
+          const { bettingService, isBettingEnabled } = await import("./services/BettingService");
+          if (isBettingEnabled()) {
+            settlementResult = await bettingService.settleMatchBets(id, winnerUserId);
+            console.log("[EndLive] Settled betting market for match", id, "winner:", winnerUserId, "result:", settlementResult);
+          }
+        }
+      }
+
       await storage.createAuditLog(userId, "pvp_end_live", "pvp_challenge", id, {
         previousStatus: "live",
+        winnerUserId,
+        settlementResult,
       });
 
       res.json({
         success: true,
         challenge: updated,
         liveStatus: "ended",
+        winnerUserId,
+        settlementResult,
       });
     } catch (error: any) {
       console.error("End live error:", error);
@@ -3231,6 +3270,119 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ bets: allBets });
     } catch (error: any) {
       console.error("Get user bets error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get user's bets for a match (by matchId - more convenient)
+  app.get("/api/betting/matches/:matchId/my-bets", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { bettingService } = await import("./services/BettingService");
+      const { matchId } = req.params;
+      
+      const { bets: userBets, market } = await bettingService.getUserBetsForMatch(matchId, userId);
+      
+      res.json({ 
+        bets: userBets, 
+        market: market ? {
+          id: market.id,
+          status: market.status,
+          winnerUserId: market.winnerUserId,
+          rakeBps: market.rakeBps,
+        } : null 
+      });
+    } catch (error: any) {
+      console.error("Get user bets by match error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get settlement info for a match
+  app.get("/api/betting/matches/:matchId/settlement", async (req: Request, res: Response) => {
+    try {
+      const { bettingService, isBettingEnabled } = await import("./services/BettingService");
+      
+      if (!isBettingEnabled()) {
+        return res.json({ enabled: false });
+      }
+
+      const { matchId } = req.params;
+      const settlement = await bettingService.getSettlementInfo(matchId);
+      
+      if (!settlement) {
+        return res.json({ market: null });
+      }
+
+      const challenge = await storage.getPvpChallenge(matchId);
+      const challenger = challenge ? await storage.getUser(challenge.challengerId) : null;
+      const invitee = challenge?.inviteeId ? await storage.getUser(challenge.inviteeId) : null;
+
+      res.json({
+        status: settlement.status,
+        winnerUserId: settlement.winnerUserId,
+        totalPool: settlement.totalPool,
+        challengerPool: settlement.challengerPool,
+        inviteePool: settlement.inviteePool,
+        rakeBps: settlement.rakeBps,
+        betCount: settlement.bets.length,
+        challenger: {
+          id: challenge?.challengerId,
+          username: challenger?.username || challenger?.email?.split("@")[0],
+        },
+        invitee: {
+          id: challenge?.inviteeId,
+          username: invitee?.username || invitee?.email?.split("@")[0],
+        },
+      });
+    } catch (error: any) {
+      console.error("Get settlement info error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Void betting market (admin or participants can cancel)
+  app.post("/api/betting/matches/:matchId/void", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { matchId } = req.params;
+      const challenge = await storage.getPvpChallenge(matchId);
+      
+      if (!challenge) {
+        return res.status(404).json({ error: "Match not found" });
+      }
+
+      const user = await storage.getUser(userId);
+      const isAdmin = user?.role === "admin";
+      const isParticipant = challenge.challengerId === userId || challenge.inviteeId === userId;
+
+      if (!isAdmin && !isParticipant) {
+        return res.status(403).json({ error: "Only participants or admins can void betting" });
+      }
+
+      const { bettingService, isBettingEnabled } = await import("./services/BettingService");
+      
+      if (!isBettingEnabled()) {
+        return res.status(403).json({ error: "Betting is disabled" });
+      }
+
+      await bettingService.voidMatchBets(matchId);
+
+      await storage.createAuditLog(userId, "betting_void", "pvp_challenge", matchId, {
+        voidedBy: userId,
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Void betting market error:", error);
       res.status(500).json({ error: error.message });
     }
   });
