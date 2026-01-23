@@ -2440,6 +2440,179 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Token-based PvP stake payment (new primary flow)
+  app.post("/api/pvp/challenges/:id/pay-with-tokens", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { id } = req.params;
+      const challenge = await storage.getPvpChallenge(id);
+
+      if (!challenge) {
+        return res.status(404).json({ error: "Challenge not found" });
+      }
+
+      const user = await storage.getUser(userId);
+      const isChallenger = challenge.challengerId === userId;
+      const isInviteeById = challenge.inviteeId === userId;
+      const isInviteeByEmail = user?.email && challenge.inviteeEmail === user.email;
+
+      if (!isChallenger && !isInviteeById && !isInviteeByEmail) {
+        return res.status(403).json({ error: "Not authorized" });
+      }
+
+      if (isInviteeByEmail && !challenge.inviteeId) {
+        await storage.updatePvpChallenge(id, { inviteeId: userId });
+        challenge.inviteeId = userId;
+      }
+
+      if (challenge.status !== "accepted" && challenge.status !== "payment_pending") {
+        return res.status(400).json({ error: "Challenge not ready for payment" });
+      }
+
+      const alreadyPaid = isChallenger ? challenge.challengerPaid : challenge.inviteePaid;
+      if (alreadyPaid) {
+        return res.status(400).json({ error: "Already paid for this challenge" });
+      }
+
+      // Get stake tokens (derive from stakeCents if stakeTokens is 0/default)
+      const stakeTokens = challenge.stakeTokens > 0 ? challenge.stakeTokens : Math.floor(challenge.stakeCents / 100);
+
+      // For free challenges, proceed without tokens
+      if (stakeTokens === 0) {
+        const challengerPaid = isChallenger ? true : challenge.challengerPaid;
+        const inviteePaid = !isChallenger ? true : challenge.inviteePaid;
+        const bothPaid = challengerPaid && inviteePaid;
+
+        let competitionId = challenge.competitionId;
+        if (bothPaid && !competitionId) {
+          competitionId = await createPvpCompetition(challenge, stakeTokens);
+        }
+
+        const updated = await storage.updatePvpChallenge(id, {
+          challengerPaid,
+          inviteePaid,
+          competitionId,
+          status: bothPaid ? "active" : "payment_pending",
+        });
+
+        return res.json({ success: true, challenge: updated, competitionId });
+      }
+
+      // Check wallet balance for locking
+      const wallet = await getOrCreateWallet(userId);
+      if (wallet.availableTokens < stakeTokens) {
+        return res.status(400).json({
+          error: "Insufficient tokens",
+          required: stakeTokens,
+          available: wallet.availableTokens,
+          insufficientTokens: true
+        });
+      }
+
+      // Lock tokens for the stake
+      const lockResult = await lockTokens(
+        userId,
+        stakeTokens,
+        "PVP_STAKE_LOCK",
+        "pvp_challenge",
+        id,
+        { challengeName: challenge.name, role: isChallenger ? "challenger" : "invitee" }
+      );
+
+      if (!lockResult.success) {
+        return res.status(400).json({ error: lockResult.error || "Token lock failed" });
+      }
+
+      const challengerPaid = isChallenger ? true : challenge.challengerPaid;
+      const inviteePaid = !isChallenger ? true : challenge.inviteePaid;
+      const bothPaid = challengerPaid && inviteePaid;
+
+      let competitionId = challenge.competitionId;
+
+      if (bothPaid && !competitionId) {
+        competitionId = await createPvpCompetition(challenge, stakeTokens);
+      }
+
+      const updated = await storage.updatePvpChallenge(id, {
+        challengerPaid,
+        inviteePaid,
+        competitionId,
+        status: bothPaid ? "active" : "payment_pending",
+      });
+
+      await storage.createAuditLog(userId, "pvp_stake_locked", "pvp_challenge", id, {
+        stakeTokens,
+        isChallenger,
+        challengerPaid,
+        inviteePaid,
+        bothPaid,
+        competitionId,
+      });
+
+      res.json({ success: true, challenge: updated, competitionId, tokensLocked: stakeTokens });
+    } catch (error: any) {
+      console.error("Pay PvP with tokens error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Helper function to create PvP competition
+  async function createPvpCompetition(challenge: any, stakeTokens: number): Promise<string> {
+    const now = new Date();
+    let adjustedStartAt = challenge.startAt;
+    
+    if (challenge.startAt && new Date(challenge.startAt) <= now) {
+      adjustedStartAt = now;
+    }
+
+    const comp = await storage.createCompetition({
+      type: "pvp",
+      status: "running",
+      title: challenge.name || `PvP Challenge`,
+      buyInCents: challenge.stakeCents,
+      buyInTokens: stakeTokens,
+      entryCap: 2,
+      rakeBps: challenge.rakeBps,
+      startAt: adjustedStartAt,
+      endAt: challenge.endAt,
+      startingBalanceCents: challenge.startingBalanceCents,
+      allowedPairsJson: challenge.allowedPairsJson,
+      spreadMarkupPips: challenge.spreadMarkupPips,
+      maxSlippagePips: challenge.maxSlippagePips,
+      minOrderIntervalMs: challenge.minOrderIntervalMs,
+      maxDrawdownPct: challenge.maxDrawdownPct,
+      createdBy: challenge.challengerId,
+    });
+
+    await storage.createCompetitionEntry({
+      competitionId: comp.id,
+      userId: challenge.challengerId,
+      paidCents: 0,
+      paidTokens: stakeTokens,
+      paymentStatus: "succeeded",
+      cashCents: challenge.startingBalanceCents,
+      equityCents: challenge.startingBalanceCents,
+      maxEquityCents: challenge.startingBalanceCents,
+    });
+
+    await storage.createCompetitionEntry({
+      competitionId: comp.id,
+      userId: challenge.inviteeId!,
+      paidCents: 0,
+      paidTokens: stakeTokens,
+      paymentStatus: "succeeded",
+      cashCents: challenge.startingBalanceCents,
+      equityCents: challenge.startingBalanceCents,
+      maxEquityCents: challenge.startingBalanceCents,
+    });
+
+    return comp.id;
+  }
+
   app.post("/api/pvp/challenges/:id/cancel", async (req: Request, res: Response) => {
     try {
       const userId = req.headers["x-user-id"] as string;
@@ -2472,15 +2645,162 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Cannot cancel challenge in current state" });
       }
 
+      // Release any locked tokens back to participants
+      const stakeTokens = challenge.stakeTokens > 0 ? challenge.stakeTokens : Math.floor(challenge.stakeCents / 100);
+      if (stakeTokens > 0) {
+        if (challenge.challengerPaid) {
+          await unlockTokens(
+            challenge.challengerId,
+            stakeTokens,
+            "PVP_STAKE_RELEASE",
+            "pvp_challenge",
+            id,
+            { reason: "challenge_cancelled" }
+          );
+        }
+        if (challenge.inviteePaid && challenge.inviteeId) {
+          await unlockTokens(
+            challenge.inviteeId,
+            stakeTokens,
+            "PVP_STAKE_RELEASE",
+            "pvp_challenge",
+            id,
+            { reason: "challenge_cancelled" }
+          );
+        }
+      }
+
       const updated = await storage.updatePvpChallenge(id, {
         status: "cancelled",
       });
 
-      await storage.createAuditLog(userId, "pvp_challenge_cancelled", "pvp_challenge", id, {});
+      await storage.createAuditLog(userId, "pvp_challenge_cancelled", "pvp_challenge", id, {
+        tokensReleased: stakeTokens,
+      });
 
       res.json(updated);
     } catch (error: any) {
       console.error("Cancel PvP challenge error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // PvP challenge settlement - called when competition ends to distribute winnings
+  app.post("/api/pvp/challenges/:id/settle", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { id } = req.params;
+      const challenge = await storage.getPvpChallenge(id);
+
+      if (!challenge) {
+        return res.status(404).json({ error: "Challenge not found" });
+      }
+
+      // Only allow admin or system to settle
+      const user = await storage.getUser(userId);
+      if (user?.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      if (challenge.status !== "active") {
+        return res.status(400).json({ error: "Challenge must be active to settle" });
+      }
+
+      if (!challenge.competitionId) {
+        return res.status(400).json({ error: "No competition associated with challenge" });
+      }
+
+      // Get competition entries to determine winner
+      const entries = await storage.getCompetitionEntries(challenge.competitionId);
+      if (entries.length !== 2) {
+        return res.status(400).json({ error: "Invalid number of entries for PvP" });
+      }
+
+      // Determine winner by equity
+      const [entry1, entry2] = entries;
+      const winnerId = entry1.equityCents >= entry2.equityCents ? entry1.userId : entry2.userId;
+      const loserId = winnerId === entry1.userId ? entry2.userId : entry1.userId;
+
+      const stakeTokens = challenge.stakeTokens > 0 ? challenge.stakeTokens : Math.floor(challenge.stakeCents / 100);
+      const totalPool = stakeTokens * 2;
+      const rakeTokens = Math.floor(totalPool * (challenge.rakeBps / 10000));
+      const winnerPayout = totalPool - rakeTokens;
+
+      // Unlock and deduct loser's stake (they lose it)
+      await unlockAndDeductTokens(
+        loserId,
+        stakeTokens,
+        "PVP_STAKE_RELEASE",
+        "pvp_challenge",
+        id,
+        { reason: "lost", winnerId }
+      );
+
+      // Unlock and add winnings to winner
+      await unlockTokens(
+        winnerId,
+        stakeTokens,
+        "PVP_STAKE_RELEASE",
+        "pvp_challenge",
+        id,
+        { reason: "won" }
+      );
+
+      // Credit winner with the winnings (loser's stake minus rake)
+      await applyTokenTransaction({
+        userId: winnerId,
+        kind: "BET_PAYOUT",
+        amountTokens: stakeTokens - rakeTokens,
+        referenceType: "pvp_challenge",
+        referenceId: id,
+        metadata: { totalPool, rakeTokens, loserId },
+      });
+
+      // Record rake fee
+      if (rakeTokens > 0) {
+        await applyTokenTransaction({
+          userId: winnerId,
+          kind: "RAKE_FEE",
+          amountTokens: 0, // Just for record, actual deduction is in payout calc
+          referenceType: "pvp_challenge",
+          referenceId: id,
+          metadata: { rakeTokens, rakeBps: challenge.rakeBps },
+        });
+      }
+
+      // Update challenge
+      const updated = await storage.updatePvpChallenge(id, {
+        status: "completed",
+        winnerId,
+      });
+
+      // Update competition
+      await storage.updateCompetition(challenge.competitionId, {
+        status: "completed",
+      });
+
+      await storage.createAuditLog(userId, "pvp_challenge_settled", "pvp_challenge", id, {
+        winnerId,
+        loserId,
+        stakeTokens,
+        winnerPayout,
+        rakeTokens,
+      });
+
+      res.json({
+        success: true,
+        challenge: updated,
+        winnerId,
+        loserId,
+        payout: winnerPayout,
+        rake: rakeTokens,
+      });
+    } catch (error: any) {
+      console.error("Settle PvP challenge error:", error);
       res.status(500).json({ error: error.message });
     }
   });
