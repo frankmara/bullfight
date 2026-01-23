@@ -15,6 +15,7 @@ import PvPListScreen from "@/screens/PvPListScreen";
 import PvPNewScreen from "@/screens/PvPNewScreen";
 import PvPDetailScreen from "@/screens/PvPDetailScreen";
 import ArenaModeScreen from "@/screens/ArenaModeScreen";
+import WatchPvPScreen from "@/screens/WatchPvPScreen";
 import PaymentSuccessScreen from "@/screens/PaymentSuccessScreen";
 import PaymentCancelScreen from "@/screens/PaymentCancelScreen";
 import WalletScreen from "@/screens/WalletScreen";
@@ -76,6 +77,13 @@ export default function RootStackNavigator() {
         component={ArenaModeScreen}
         options={{
           headerTitle: "Arena Mode",
+        }}
+      />
+      <Stack.Screen
+        name="WatchPvP"
+        component={WatchPvPScreen}
+        options={{
+          headerTitle: "Watch Match",
         }}
       />
       <Stack.Screen

@@ -2895,6 +2895,118 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Watch PvP match endpoint - returns both traders' stats for spectators
+  app.get("/api/watch/pvp/:matchId", async (req: Request, res: Response) => {
+    try {
+      const { matchId } = req.params;
+      const challenge = await storage.getPvpChallenge(matchId);
+
+      if (!challenge) {
+        return res.status(404).json({ error: "Match not found" });
+      }
+
+      // Only allow watching public matches or matches that are arena-listed
+      if (challenge.visibility !== "public" && !challenge.arenaListed) {
+        return res.status(403).json({ error: "This match is private" });
+      }
+
+      // Get challenger info
+      const challenger = await storage.getUser(challenge.challengerId);
+      let challengerStats = {
+        id: challenge.challengerId,
+        username: challenger?.username || challenger?.email?.split("@")[0] || "Unknown",
+        equityCents: challenge.startingBalanceCents,
+        startingBalanceCents: challenge.startingBalanceCents,
+        cashCents: challenge.startingBalanceCents,
+        openPositionsCount: 0,
+        pnlCents: 0,
+        returnPct: 0,
+      };
+
+      // Get invitee info
+      const invitee = challenge.inviteeId ? await storage.getUser(challenge.inviteeId) : null;
+      let inviteeStats = {
+        id: challenge.inviteeId || "",
+        username: invitee?.username || invitee?.email?.split("@")[0] || "Pending",
+        equityCents: challenge.startingBalanceCents,
+        startingBalanceCents: challenge.startingBalanceCents,
+        cashCents: challenge.startingBalanceCents,
+        openPositionsCount: 0,
+        pnlCents: 0,
+        returnPct: 0,
+      };
+
+      // If competition exists, get real trading data
+      if (challenge.competitionId) {
+        const challengerEntry = await storage.getCompetitionEntry(
+          challenge.competitionId,
+          challenge.challengerId
+        );
+        if (challengerEntry) {
+          const challengerPositions = await storage.getPositions(
+            challenge.competitionId,
+            challenge.challengerId
+          );
+          challengerStats = {
+            ...challengerStats,
+            equityCents: challengerEntry.equityCents,
+            cashCents: challengerEntry.cashCents,
+            openPositionsCount: challengerPositions.length,
+            pnlCents: challengerEntry.equityCents - challenge.startingBalanceCents,
+            returnPct:
+              ((challengerEntry.equityCents - challenge.startingBalanceCents) /
+                challenge.startingBalanceCents) *
+              100,
+          };
+        }
+
+        if (challenge.inviteeId) {
+          const inviteeEntry = await storage.getCompetitionEntry(
+            challenge.competitionId,
+            challenge.inviteeId
+          );
+          if (inviteeEntry) {
+            const inviteePositions = await storage.getPositions(
+              challenge.competitionId,
+              challenge.inviteeId
+            );
+            inviteeStats = {
+              ...inviteeStats,
+              equityCents: inviteeEntry.equityCents,
+              cashCents: inviteeEntry.cashCents,
+              openPositionsCount: inviteePositions.length,
+              pnlCents: inviteeEntry.equityCents - challenge.startingBalanceCents,
+              returnPct:
+                ((inviteeEntry.equityCents - challenge.startingBalanceCents) /
+                  challenge.startingBalanceCents) *
+                100,
+            };
+          }
+        }
+      }
+
+      res.json({
+        id: challenge.id,
+        name: challenge.name || "PvP Match",
+        status: challenge.status,
+        liveStatus: challenge.liveStatus,
+        chatEnabled: challenge.chatEnabled,
+        bettingEnabled: challenge.bettingEnabled,
+        streamEmbedType: challenge.streamEmbedType,
+        streamUrl: challenge.streamUrl,
+        startAt: challenge.startAt,
+        endAt: challenge.endAt,
+        stakeTokens: challenge.stakeTokens,
+        challenger: challengerStats,
+        invitee: inviteeStats,
+        lastUpdatedAt: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error("Watch PvP match error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   await EmailService.ensureDefaultTemplates();
 
   app.get("/api/admin/email-templates", async (req: Request, res: Response) => {

@@ -46,6 +46,7 @@ const linking: LinkingOptions<RootStackParamList> = {
       CompetitionDetail: "competition/:id",
       Arena: "arena/:competitionId",
       ArenaMode: "arena-mode",
+      WatchPvP: "watch/pvp/:matchId",
       Admin: "admin",
       AdminCompetitions: "admin/competitions",
       AdminEmail: "admin/email",

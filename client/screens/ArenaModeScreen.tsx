@@ -101,11 +101,7 @@ export default function ArenaModeScreen() {
   });
 
   const handleWatchMatch = (match: ArenaMatch) => {
-    if (match.competitionId) {
-      navigation.navigate("Arena", { competitionId: match.competitionId });
-    } else {
-      navigation.navigate("PvPDetail" as any, { id: match.id });
-    }
+    navigation.navigate("WatchPvP", { matchId: match.id });
   };
 
   const getLiveStatusBadge = (match: ArenaMatch) => {

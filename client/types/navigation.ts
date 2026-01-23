@@ -7,6 +7,7 @@ export type RootStackParamList = {
   CompetitionDetail: { id: string };
   Arena: { competitionId: string };
   ArenaMode: undefined;
+  WatchPvP: { matchId: string };
   Admin: undefined;
   AdminCompetitions: undefined;
   AdminEmail: undefined;
