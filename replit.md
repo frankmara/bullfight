@@ -28,7 +28,15 @@ Preferred communication style: Simple, everyday language.
 - **Execution Model**: Deal-based system (Orders → Deals → Trades → Positions) managed by an `ExecutionService`.
 
 ### Data Models
-Key entities include `users`, `competitions`, `competitionEntries`, `orders`, `fills`, `positions`, `trades`, `deals`, `payments`, `payouts`, and `auditLog`.
+Key entities include `users`, `competitions`, `competitionEntries`, `orders`, `fills`, `positions`, `trades`, `deals`, `payments`, `payouts`, `auditLog`, `wallets`, and `tokenTransactions`.
+
+### Token Wallet System
+- Each user has a wallet with `balanceTokens`, `lockedTokens`, and computed `availableTokens`.
+- All token changes are recorded in an immutable ledger (`tokenTransactions` table).
+- Transaction kinds: PURCHASE, COMPETITION_ENTRY, PVP_STAKE_LOCK, PVP_STAKE_RELEASE, BET_PLACE, BET_REFUND, BET_PAYOUT, RAKE_FEE, ADJUSTMENT.
+- Wallets are auto-created on user registration.
+- API: GET /api/wallet, GET /api/wallet/transactions, POST /api/wallet/dev-adjust (dev only).
+- WalletBadge component displays token balance in the desktop navigation bar.
 
 ### Real-time Features
 - Server-side simulated forex quotes.
