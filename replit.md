@@ -78,11 +78,19 @@ Key entities include `users`, `competitions`, `competitionEntries`, `orders`, `f
   - Scoreboard header with both traders' stats (equity, P&L, return%, open positions)
   - Time remaining countdown
   - Live status indicator (LIVE, SCHEDULED, ENDED, OFFLINE)
-  - Stream container placeholder (for future video integration)
+  - Stream embed supporting Twitch, YouTube, and whitelisted providers
   - Chat panel (if chatEnabled) on the right (desktop) or bottom (mobile)
   - Bet Behind panel placeholder (disabled by default, for future betting feature)
 - API: `GET /api/watch/pvp/:matchId` returns trader stats, refreshes every 5 seconds
 - Only public matches can be watched; private matches return 403
+
+### Streaming System
+- **Stream Embed Types**: none, twitch, youtube, url
+- **StreamEmbed Component** (`client/components/StreamEmbed.tsx`): Renders embedded video from supported providers
+- **StreamSettingsModal** (`client/components/StreamSettingsModal.tsx`): Allows participants to configure their stream
+- **Whitelisted Domains**: twitch.tv, youtube.com, player.vimeo.com, player.kick.com, clips.twitch.tv, youtube-nocookie.com, kick.com
+- **Security**: URL validation with domain whitelist, iframe sandbox attributes for XSS protection
+- **API**: `PUT /api/pvp/challenges/:id/stream` to update stream settings (participants only)
 
 ### Email Notification System
 - Uses `EmailService` and Resend API for welcome, competition, PvP, and daily standings emails.
