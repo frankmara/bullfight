@@ -3008,6 +3008,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update stream settings for PvP match (participants only)
+  app.put("/api/pvp/challenges/:id/stream", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { id } = req.params;
+      const { streamEmbedType, streamUrl } = req.body;
+
+      const challenge = await storage.getPvpChallenge(id);
+      if (!challenge) {
+        return res.status(404).json({ error: "Challenge not found" });
+      }
+
+      // Only participants can update stream settings
+      if (challenge.challengerId !== userId && challenge.acceptedById !== userId && challenge.inviteeId !== userId) {
+        return res.status(403).json({ error: "Only match participants can update stream settings" });
+      }
+
+      // Validate stream embed type
+      const validTypes = ["none", "twitch", "youtube", "url"];
+      if (!validTypes.includes(streamEmbedType)) {
+        return res.status(400).json({ error: "Invalid stream type. Must be: none, twitch, youtube, or url" });
+      }
+
+      // Validate and sanitize stream URL based on type
+      let sanitizedUrl: string | null = null;
+      if (streamEmbedType !== "none" && streamUrl) {
+        if (streamEmbedType === "twitch") {
+          // Extract channel name from Twitch URL or use as-is if it's just a channel name
+          const twitchMatch = streamUrl.match(/(?:twitch\.tv\/)?([a-zA-Z0-9_]+)/);
+          if (!twitchMatch) {
+            return res.status(400).json({ error: "Invalid Twitch channel" });
+          }
+          sanitizedUrl = twitchMatch[1];
+        } else if (streamEmbedType === "youtube") {
+          // Extract video/channel ID from YouTube URL
+          const youtubeMatch = streamUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+          if (!youtubeMatch) {
+            return res.status(400).json({ error: "Invalid YouTube video ID or URL" });
+          }
+          sanitizedUrl = youtubeMatch[1];
+        } else if (streamEmbedType === "url") {
+          // Whitelist allowed domains for generic iframe embeds
+          const allowedDomains = [
+            "player.twitch.tv",
+            "www.youtube.com",
+            "youtube.com",
+            "www.twitch.tv",
+            "twitch.tv",
+            "vimeo.com",
+            "player.vimeo.com",
+            "kick.com",
+          ];
+          
+          try {
+            const url = new URL(streamUrl);
+            if (!allowedDomains.some(domain => url.hostname === domain || url.hostname.endsWith("." + domain))) {
+              return res.status(400).json({ 
+                error: "URL domain not whitelisted. Allowed: Twitch, YouTube, Vimeo, Kick" 
+              });
+            }
+            sanitizedUrl = streamUrl;
+          } catch {
+            return res.status(400).json({ error: "Invalid URL format" });
+          }
+        }
+      }
+
+      const updated = await storage.updatePvpChallenge(id, {
+        streamEmbedType,
+        streamUrl: sanitizedUrl,
+      });
+
+      await storage.createAuditLog(userId, "pvp_stream_updated", "pvp_challenge", id, {
+        streamEmbedType,
+        streamUrl: sanitizedUrl,
+      });
+
+      res.json({
+        success: true,
+        challenge: updated,
+        streamEmbedType,
+        streamUrl: sanitizedUrl,
+      });
+    } catch (error: any) {
+      console.error("Update stream settings error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Watch PvP match endpoint - returns both traders' stats for spectators
   app.get("/api/watch/pvp/:matchId", async (req: Request, res: Response) => {
     try {
