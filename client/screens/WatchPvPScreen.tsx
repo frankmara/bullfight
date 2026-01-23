@@ -15,6 +15,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { ChatPanel } from "@/components/ChatPanel";
+import { StreamEmbed } from "@/components/StreamEmbed";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/types/navigation";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -153,19 +154,6 @@ function LocalChatPanel({ chatEnabled, matchId }: { chatEnabled: boolean; matchI
   );
 }
 
-function StreamPlaceholder() {
-  return (
-    <View style={styles.streamPlaceholder}>
-      <View style={styles.streamIcon}>
-        <Feather name="video" size={48} color={Colors.dark.textMuted} />
-      </View>
-      <ThemedText style={styles.streamText}>Stream Coming Soon</ThemedText>
-      <ThemedText style={styles.streamSubtext}>
-        Live video feed will be displayed here
-      </ThemedText>
-    </View>
-  );
-}
 
 function BetBehindPanel({ bettingEnabled }: { bettingEnabled: boolean }) {
   if (!bettingEnabled) {
@@ -313,7 +301,11 @@ export default function WatchPvPScreen() {
         
         <View style={[styles.mainContent, isDesktop && styles.mainContentDesktop]}>
           <View style={[styles.streamContainer, isDesktop && styles.streamContainerDesktop]}>
-            <StreamPlaceholder />
+            <StreamEmbed
+              streamEmbedType={data.streamEmbedType as "none" | "twitch" | "youtube" | "url"}
+              streamUrl={data.streamUrl}
+              style={styles.streamEmbed}
+            />
           </View>
           
           {isDesktop ? (
@@ -531,28 +523,9 @@ const styles = StyleSheet.create({
   streamContainerDesktop: {
     flex: 2,
   },
-  streamPlaceholder: {
+  streamEmbed: {
     aspectRatio: 16 / 9,
-    backgroundColor: Colors.dark.backgroundSecondary,
-    borderRadius: BorderRadius.lg,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    borderStyle: "dashed",
-  },
-  streamIcon: {
-    marginBottom: Spacing.md,
-  },
-  streamText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: Colors.dark.textMuted,
-  },
-  streamSubtext: {
-    fontSize: 14,
-    color: Colors.dark.textMuted,
-    marginTop: Spacing.xs,
+    width: "100%",
   },
   chatContainer: {
     flex: 1,
