@@ -2895,6 +2895,119 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Go Live - transition PvP match to live status
+  app.post("/api/pvp/challenges/:id/go-live", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { id } = req.params;
+      const challenge = await storage.getPvpChallenge(id);
+
+      if (!challenge) {
+        return res.status(404).json({ error: "Challenge not found" });
+      }
+
+      // Only match participants can go live
+      if (challenge.challengerId !== userId && challenge.acceptedById !== userId) {
+        return res.status(403).json({ error: "Only match participants can go live" });
+      }
+
+      // Can only go live from offline or scheduled status
+      if (challenge.liveStatus !== "offline" && challenge.liveStatus !== "scheduled") {
+        return res.status(400).json({ error: `Cannot go live from status: ${challenge.liveStatus}` });
+      }
+
+      // Challenge must be active
+      if (challenge.status !== "active") {
+        return res.status(400).json({ error: "Challenge must be active to go live" });
+      }
+
+      const updated = await storage.updatePvpChallenge(id, {
+        liveStatus: "live",
+      });
+
+      // Notify connected viewers
+      const { presenceService } = await import("./services/PresenceService");
+      presenceService.notifyLiveStatusChange(id, "live");
+
+      await storage.createAuditLog(userId, "pvp_go_live", "pvp_challenge", id, {
+        previousStatus: challenge.liveStatus,
+      });
+
+      res.json({
+        success: true,
+        challenge: updated,
+        liveStatus: "live",
+      });
+    } catch (error: any) {
+      console.error("Go live error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // End Live - transition PvP match to ended status
+  app.post("/api/pvp/challenges/:id/end-live", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { id } = req.params;
+      const challenge = await storage.getPvpChallenge(id);
+
+      if (!challenge) {
+        return res.status(404).json({ error: "Challenge not found" });
+      }
+
+      // Only match participants can end live
+      if (challenge.challengerId !== userId && challenge.acceptedById !== userId) {
+        return res.status(403).json({ error: "Only match participants can end live" });
+      }
+
+      // Can only end from live status
+      if (challenge.liveStatus !== "live") {
+        return res.status(400).json({ error: `Cannot end live from status: ${challenge.liveStatus}` });
+      }
+
+      const updated = await storage.updatePvpChallenge(id, {
+        liveStatus: "ended",
+      });
+
+      // Notify connected viewers
+      const { presenceService } = await import("./services/PresenceService");
+      presenceService.notifyLiveStatusChange(id, "ended");
+
+      await storage.createAuditLog(userId, "pvp_end_live", "pvp_challenge", id, {
+        previousStatus: "live",
+      });
+
+      res.json({
+        success: true,
+        challenge: updated,
+        liveStatus: "ended",
+      });
+    } catch (error: any) {
+      console.error("End live error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get viewer counts for multiple matches
+  app.get("/api/pvp/viewer-counts", async (req: Request, res: Response) => {
+    try {
+      const { presenceService } = await import("./services/PresenceService");
+      const counts = presenceService.getAllViewerCounts();
+      res.json({ viewerCounts: counts });
+    } catch (error: any) {
+      console.error("Get viewer counts error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Watch PvP match endpoint - returns both traders' stats for spectators
   app.get("/api/watch/pvp/:matchId", async (req: Request, res: Response) => {
     try {

@@ -359,6 +359,13 @@ function setupErrorHandler(app: express.Application) {
   // Initialize chat Socket.io service
   chatService.initialize(server);
 
+  // Initialize presence Socket.io service (shares same io instance)
+  const io = chatService.getIo();
+  if (io) {
+    const { presenceService } = await import("./services/PresenceService");
+    presenceService.initialize(io);
+  }
+
   setupErrorHandler(app);
 
   const port = parseInt(process.env.PORT || "5000", 10);

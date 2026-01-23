@@ -106,6 +106,10 @@ class ChatService {
     console.log("ChatService initialized with Socket.io /chat namespace");
   }
 
+  getIo(): Server | null {
+    return this.io;
+  }
+
   private setupEventHandlers(): void {
     if (!this.chatNamespace) return;
 
