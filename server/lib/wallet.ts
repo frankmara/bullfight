@@ -165,7 +165,7 @@ export async function lockTokens(
         amountTokens: 0,
         referenceType: referenceType || null,
         referenceId: referenceId || null,
-        metadataJson: { ...metadata, action: "lock", lockedAmount: amountTokens } || null,
+        metadataJson: metadata ? { ...metadata, action: "lock", lockedAmount: amountTokens } : { action: "lock", lockedAmount: amountTokens },
       });
     });
 
@@ -222,7 +222,7 @@ export async function unlockTokens(
         amountTokens: 0,
         referenceType: referenceType || null,
         referenceId: referenceId || null,
-        metadataJson: { ...metadata, action: "unlock", unlockedAmount: amountTokens } || null,
+        metadataJson: metadata ? { ...metadata, action: "unlock", unlockedAmount: amountTokens } : { action: "unlock", unlockedAmount: amountTokens },
       });
     });
 

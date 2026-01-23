@@ -15,6 +15,7 @@ import {
 } from "./services/ExecutionService";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 import { usernameSchema } from "@shared/schema";
+import { getOrCreateWallet, getWallet, applyTokenTransaction, getTransactionHistory } from "./lib/wallet";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/register", async (req: Request, res: Response) => {
@@ -44,6 +45,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const user = await storage.createUser(email, password, username);
+      
+      await getOrCreateWallet(user.id);
       
       EmailService.sendWelcomeEmail(user.id, user.email).catch(err => {
         console.error("Failed to send welcome email:", err);
@@ -202,6 +205,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Set username error:", error);
       res.status(500).json({ error: error.message || "Failed to set username" });
+    }
+  });
+
+  app.get("/api/wallet", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const wallet = await getOrCreateWallet(userId);
+      res.json({
+        balanceTokens: wallet.balanceTokens,
+        lockedTokens: wallet.lockedTokens,
+        availableTokens: wallet.availableTokens,
+        updatedAt: wallet.updatedAt,
+      });
+    } catch (error: any) {
+      console.error("Get wallet error:", error);
+      res.status(500).json({ error: error.message || "Failed to get wallet" });
+    }
+  });
+
+  app.get("/api/wallet/transactions", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+      const transactions = await getTransactionHistory(userId, limit);
+      res.json({ transactions });
+    } catch (error: any) {
+      console.error("Get transactions error:", error);
+      res.status(500).json({ error: error.message || "Failed to get transactions" });
+    }
+  });
+
+  app.post("/api/wallet/dev-adjust", async (req: Request, res: Response) => {
+    try {
+      if (process.env.NODE_ENV === "production") {
+        return res.status(403).json({ error: "Not available in production" });
+      }
+
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { amountTokens, reason } = req.body;
+      if (typeof amountTokens !== "number" || !Number.isInteger(amountTokens)) {
+        return res.status(400).json({ error: "amountTokens must be an integer" });
+      }
+
+      await getOrCreateWallet(userId);
+
+      const result = await applyTokenTransaction({
+        userId,
+        kind: "ADJUSTMENT",
+        amountTokens,
+        referenceType: "dev_adjustment",
+        referenceId: null,
+        metadata: { reason: reason || "Dev adjustment", adjustedBy: "dev-endpoint" },
+      });
+
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+
+      const wallet = await getWallet(userId);
+      res.json({
+        success: true,
+        newBalance: result.newBalance,
+        wallet: wallet ? {
+          balanceTokens: wallet.balanceTokens,
+          lockedTokens: wallet.lockedTokens,
+          availableTokens: wallet.availableTokens,
+        } : null,
+      });
+    } catch (error: any) {
+      console.error("Dev adjust error:", error);
+      res.status(500).json({ error: error.message || "Failed to adjust tokens" });
     }
   });
 
