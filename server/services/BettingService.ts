@@ -1,9 +1,37 @@
 import { db } from "../db";
-import { betMarkets, bets, wallets, tokenTransactions, pvpChallenges } from "@shared/schema";
+import { betMarkets, bets, wallets, tokenTransactions, pvpChallenges, users } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
+
+export const HOUSE_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 export function isBettingEnabled(): boolean {
   return process.env.ENABLE_BET_BEHIND === "true";
+}
+
+async function ensureHouseUserExists(): Promise<void> {
+  const [existing] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, HOUSE_USER_ID))
+    .limit(1);
+
+  if (!existing) {
+    await db.insert(users).values({
+      id: HOUSE_USER_ID,
+      email: "house@system.internal",
+      username: "HOUSE",
+      passwordHash: "SYSTEM_USER_NO_LOGIN",
+      role: "system",
+    }).onConflictDoNothing();
+    
+    await db.insert(wallets).values({
+      userId: HOUSE_USER_ID,
+      balanceTokens: 0,
+      lockedTokens: 0,
+    }).onConflictDoNothing();
+    
+    console.log("[BettingService] Created HOUSE_USER for rake accounting");
+  }
 }
 
 export class BettingService {
@@ -143,7 +171,7 @@ export class BettingService {
   async settleMarket(
     marketId: string,
     winnerUserId: string
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<{ success: boolean; error?: string; payouts?: { bettorId: string; payout: number }[] }> {
     const [market] = await db
       .select()
       .from(betMarkets)
@@ -163,6 +191,19 @@ export class BettingService {
       .from(bets)
       .where(and(eq(bets.marketId, marketId), eq(bets.status, "PLACED")));
 
+    if (allBets.length === 0) {
+      await db
+        .update(betMarkets)
+        .set({
+          status: "SETTLED",
+          settledAt: new Date(),
+          winnerUserId,
+        })
+        .where(eq(betMarkets.id, marketId));
+      console.log("[BettingService] Settled market", marketId, "with no bets");
+      return { success: true, payouts: [] };
+    }
+
     const winningBets = allBets.filter((b) => b.pickUserId === winnerUserId);
     const losingBets = allBets.filter((b) => b.pickUserId !== winnerUserId);
 
@@ -172,9 +213,14 @@ export class BettingService {
     const rakeAmount = Math.floor((totalPool * market.rakeBps) / 10000);
     const payoutPool = totalPool - rakeAmount;
 
+    const payouts: { bettorId: string; payout: number }[] = [];
+    let totalPaidOut = 0;
+
     for (const bet of winningBets) {
       const share = winningPool > 0 ? bet.amountTokens / winningPool : 0;
       const payout = Math.floor(payoutPool * share);
+      totalPaidOut += payout;
+      payouts.push({ bettorId: bet.bettorId, payout });
 
       await db
         .update(wallets)
@@ -190,6 +236,7 @@ export class BettingService {
         amountTokens: payout,
         referenceType: "bet",
         referenceId: bet.id,
+        metadataJson: { matchId: market.matchId, winnerUserId },
       });
 
       await db.update(bets).set({ status: "SETTLED" }).where(eq(bets.id, bet.id));
@@ -207,6 +254,36 @@ export class BettingService {
       await db.update(bets).set({ status: "SETTLED" }).where(eq(bets.id, bet.id));
     }
 
+    const remainder = payoutPool - totalPaidOut;
+    const totalRake = rakeAmount + remainder;
+
+    if (totalRake > 0) {
+      await ensureHouseUserExists();
+      
+      await db
+        .update(wallets)
+        .set({
+          balanceTokens: sql`${wallets.balanceTokens} + ${totalRake}`,
+        })
+        .where(eq(wallets.userId, HOUSE_USER_ID));
+
+      await db.insert(tokenTransactions).values({
+        userId: HOUSE_USER_ID,
+        kind: "RAKE_FEE",
+        amountTokens: totalRake,
+        referenceType: "bet_market",
+        referenceId: marketId,
+        metadataJson: { 
+          matchId: market.matchId, 
+          baseRake: rakeAmount, 
+          remainder, 
+          totalPool 
+        },
+      });
+      
+      console.log("[BettingService] Recorded rake", totalRake, "(base:", rakeAmount, "remainder:", remainder, ")");
+    }
+
     await db
       .update(betMarkets)
       .set({
@@ -217,7 +294,7 @@ export class BettingService {
       .where(eq(betMarkets.id, marketId));
 
     console.log("[BettingService] Settled market", marketId, "winner:", winnerUserId);
-    return { success: true };
+    return { success: true, payouts };
   }
 
   async voidMarket(marketId: string): Promise<void> {
@@ -357,6 +434,106 @@ export class BettingService {
       rakeBps: market.rakeBps,
       challengerId: match.challengerId,
       inviteeId: match.inviteeId!,
+    };
+  }
+  async getUserBetsForMatch(matchId: string, userId: string) {
+    const [market] = await db
+      .select()
+      .from(betMarkets)
+      .where(eq(betMarkets.matchId, matchId))
+      .limit(1);
+
+    if (!market) {
+      return { bets: [], market: null };
+    }
+
+    const userBets = await db
+      .select()
+      .from(bets)
+      .where(and(eq(bets.marketId, market.id), eq(bets.bettorId, userId)));
+
+    return { bets: userBets, market };
+  }
+
+  async settleMatchBets(
+    matchId: string, 
+    winnerUserId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const market = await this.getMarketByMatchId(matchId);
+    
+    if (!market) {
+      console.log("[BettingService] No betting market for match", matchId);
+      return { success: true };
+    }
+
+    if (market.status === "SETTLED" || market.status === "VOID") {
+      console.log("[BettingService] Market already finalized for match", matchId);
+      return { success: true };
+    }
+
+    await this.closeMarket(market.id);
+
+    const result = await this.settleMarket(market.id, winnerUserId);
+    return result;
+  }
+
+  async voidMatchBets(matchId: string): Promise<{ success: boolean }> {
+    const market = await this.getMarketByMatchId(matchId);
+    
+    if (!market) {
+      console.log("[BettingService] No betting market to void for match", matchId);
+      return { success: true };
+    }
+
+    if (market.status === "SETTLED" || market.status === "VOID") {
+      console.log("[BettingService] Market already finalized for match", matchId);
+      return { success: true };
+    }
+
+    await this.voidMarket(market.id);
+    return { success: true };
+  }
+
+  async getSettlementInfo(matchId: string) {
+    const [market] = await db
+      .select()
+      .from(betMarkets)
+      .where(eq(betMarkets.matchId, matchId))
+      .limit(1);
+
+    if (!market) {
+      return null;
+    }
+
+    const allBets = await db.select().from(bets).where(eq(bets.marketId, market.id));
+
+    const [match] = await db
+      .select()
+      .from(pvpChallenges)
+      .where(eq(pvpChallenges.id, matchId))
+      .limit(1);
+
+    if (!match) {
+      return null;
+    }
+
+    const challengerPool = allBets
+      .filter((b) => b.pickUserId === match.challengerId)
+      .reduce((sum, b) => sum + b.amountTokens, 0);
+
+    const inviteePool = allBets
+      .filter((b) => b.pickUserId === match.inviteeId)
+      .reduce((sum, b) => sum + b.amountTokens, 0);
+
+    return {
+      market,
+      bets: allBets,
+      totalPool: challengerPool + inviteePool,
+      challengerPool,
+      inviteePool,
+      winnerUserId: market.winnerUserId,
+      status: market.status,
+      rakeBps: market.rakeBps,
     };
   }
 }
