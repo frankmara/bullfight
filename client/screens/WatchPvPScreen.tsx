@@ -18,6 +18,7 @@ import { ChatPanel } from "@/components/ChatPanel";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/types/navigation";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { usePresence } from "@/hooks/usePresence";
 
 type WatchPvPRouteProp = RouteProp<RootStackParamList, "WatchPvP">;
 
@@ -46,6 +47,7 @@ interface WatchData {
   stakeTokens: number;
   challenger: TraderStats;
   invitee: TraderStats;
+  viewerCount: number;
   lastUpdatedAt: string;
 }
 
@@ -194,6 +196,11 @@ export default function WatchPvPScreen() {
   const isDesktop = width >= 1024;
   const [timeRemaining, setTimeRemaining] = React.useState("");
   
+  const { viewerCount: realtimeViewerCount, liveStatus: realtimeLiveStatus } = usePresence({
+    matchId,
+    enabled: true,
+  });
+  
   const { data, isLoading, error, refetch, isRefetching } = useQuery<WatchData>({
     queryKey: ["/api/watch/pvp", matchId],
     refetchInterval: 5000,
@@ -233,12 +240,15 @@ export default function WatchPvPScreen() {
   const challengerLeading = data.challenger.returnPct > data.invitee.returnPct;
   const inviteeLeading = data.invitee.returnPct > data.challenger.returnPct;
   
+  const effectiveLiveStatus = realtimeLiveStatus || data.liveStatus;
+  const effectiveViewerCount = realtimeViewerCount > 0 ? realtimeViewerCount : (data.viewerCount || 0);
+  
   const liveStatusColor = {
     live: Colors.dark.success,
     scheduled: Colors.dark.warning,
     ended: Colors.dark.textMuted,
     offline: Colors.dark.textMuted,
-  }[data.liveStatus] || Colors.dark.textMuted;
+  }[effectiveLiveStatus] || Colors.dark.textMuted;
   
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom }]}>
@@ -256,13 +266,21 @@ export default function WatchPvPScreen() {
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <View style={[styles.liveStatusBadge, { backgroundColor: liveStatusColor + "20" }]}>
-              {data.liveStatus === "live" ? (
+              {effectiveLiveStatus === "live" ? (
                 <View style={[styles.liveDot, { backgroundColor: liveStatusColor }]} />
               ) : null}
               <ThemedText style={[styles.liveStatusText, { color: liveStatusColor }]}>
-                {data.liveStatus.toUpperCase()}
+                {effectiveLiveStatus.toUpperCase()}
               </ThemedText>
             </View>
+            {effectiveViewerCount > 0 ? (
+              <View style={styles.viewerCountBadge}>
+                <Feather name="eye" size={14} color={Colors.dark.accent} />
+                <ThemedText style={styles.viewerCountText}>
+                  {effectiveViewerCount} {effectiveViewerCount === 1 ? "viewer" : "viewers"}
+                </ThemedText>
+              </View>
+            ) : null}
             <ThemedText style={styles.matchTitle}>{data.name || "PvP Match"}</ThemedText>
           </View>
           <View style={styles.headerRight}>
@@ -367,6 +385,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     textTransform: "uppercase",
+  },
+  viewerCountBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.dark.accent + "20",
+  },
+  viewerCountText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Colors.dark.accent,
   },
   matchTitle: {
     fontSize: 24,

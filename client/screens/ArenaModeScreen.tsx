@@ -20,6 +20,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/types/navigation";
+import { useViewerCounts } from "@/hooks/usePresence";
 
 function useSafeTabBarHeight() {
   try {
@@ -81,6 +82,7 @@ export default function ArenaModeScreen() {
   const bottomPadding = isDesktop ? Spacing.xl : tabBarHeight + Spacing.lg;
 
   const [activeTab, setActiveTab] = useState<TabType>("ALL");
+  const { viewerCounts } = useViewerCounts();
 
   const isWeb = Platform.OS === "web";
   const maxWidth = 1200;
@@ -129,6 +131,7 @@ export default function ArenaModeScreen() {
   const renderMatchCard = ({ item }: { item: ArenaMatch }) => {
     const statusBadge = getLiveStatusBadge(item);
     const isLive = statusBadge.label === "LIVE";
+    const realtimeViewerCount = viewerCounts[item.id] ?? item.viewersCount;
 
     return (
       <Pressable
@@ -186,10 +189,12 @@ export default function ArenaModeScreen() {
                 {formatDuration(item.startAt, item.endAt)}
               </ThemedText>
             </View>
-            {item.viewersCount > 0 ? (
+            {realtimeViewerCount > 0 ? (
               <View style={styles.metaItem}>
-                <Feather name="eye" size={12} color={Colors.dark.textMuted} />
-                <ThemedText style={styles.metaText}>{item.viewersCount}</ThemedText>
+                <Feather name="eye" size={12} color={isLive ? Colors.dark.accent : Colors.dark.textMuted} />
+                <ThemedText style={[styles.metaText, isLive && styles.metaTextLive]}>
+                  {realtimeViewerCount}
+                </ThemedText>
               </View>
             ) : null}
             {item.chatEnabled && item.chatMessageCount > 0 ? (
@@ -474,6 +479,10 @@ const styles = StyleSheet.create({
   metaText: {
     fontSize: 12,
     color: Colors.dark.textMuted,
+  },
+  metaTextLive: {
+    color: Colors.dark.accent,
+    fontWeight: "600",
   },
   watchButton: {
     flexDirection: "row",
