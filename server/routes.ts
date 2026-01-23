@@ -1859,6 +1859,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get all public, arena-listed PvP challenges
       const allChallenges = await storage.getPublicArenaListedChallenges();
       
+      // Get featured matches for badge display
+      const featuredMatches = await storage.getFeaturedMatches();
+      const featuredMatchIds = new Set(featuredMatches.map(f => f.matchId));
+      
       // Enrich with user data
       const enrichedMatches = await Promise.all(
         allChallenges.map(async (challenge: any) => {
@@ -1873,6 +1877,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             inviteeAvatar: null,
             viewersCount: 0, // Real-time viewers can be added later
             chatMessageCount: 0, // Chat message count can be added later
+            isFeatured: featuredMatchIds.has(challenge.id),
           };
         })
       );

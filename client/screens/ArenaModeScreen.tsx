@@ -64,6 +64,7 @@ interface ArenaMatch {
   viewersCount: number;
   chatMessageCount: number;
   createdAt: string;
+  isFeatured?: boolean;
 }
 
 const DESKTOP_BREAKPOINT = 768;
@@ -139,11 +140,19 @@ export default function ArenaModeScreen() {
         onPress={() => handleWatchMatch(item)}
       >
         <View style={styles.cardHeader}>
-          <View style={[styles.statusBadge, { backgroundColor: statusBadge.color + "20" }]}>
-            <Feather name={statusBadge.icon} size={12} color={statusBadge.color} />
-            <ThemedText style={[styles.statusText, { color: statusBadge.color }]}>
-              {statusBadge.label}
-            </ThemedText>
+          <View style={styles.badgeRow}>
+            <View style={[styles.statusBadge, { backgroundColor: statusBadge.color + "20" }]}>
+              <Feather name={statusBadge.icon} size={12} color={statusBadge.color} />
+              <ThemedText style={[styles.statusText, { color: statusBadge.color }]}>
+                {statusBadge.label}
+              </ThemedText>
+            </View>
+            {item.isFeatured ? (
+              <View style={styles.featuredBadge}>
+                <Feather name="star" size={12} color={Colors.dark.gold} />
+                <ThemedText style={styles.featuredText}>FEATURED</ThemedText>
+              </View>
+            ) : null}
           </View>
           <View style={styles.stakeBadge}>
             <Feather name="zap" size={12} color={Colors.dark.gold} />
@@ -393,6 +402,26 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: Spacing.md,
+  },
+  badgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  featuredBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: "rgba(255, 193, 7, 0.15)",
+  },
+  featuredText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: Colors.dark.gold,
+    textTransform: "uppercase",
   },
   statusBadge: {
     flexDirection: "row",
