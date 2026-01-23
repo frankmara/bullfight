@@ -3098,6 +3098,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Get viewer count
+      const { presenceService } = await import("./services/PresenceService");
+      const viewerCount = presenceService.getViewerCount(matchId);
+
       res.json({
         id: challenge.id,
         name: challenge.name || "PvP Match",
@@ -3112,6 +3116,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         stakeTokens: challenge.stakeTokens,
         challenger: challengerStats,
         invitee: inviteeStats,
+        viewerCount,
         lastUpdatedAt: new Date().toISOString(),
       });
     } catch (error: any) {
