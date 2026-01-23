@@ -16,6 +16,7 @@ import PvPListScreen from "@/screens/PvPListScreen";
 import { Colors, Spacing } from "@/constants/theme";
 import { MainTabParamList } from "@/types/navigation";
 import { useAuth } from "@/hooks/useAuth";
+import { WalletBadge } from "@/components/WalletBadge";
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -122,16 +123,19 @@ function DesktopNavBar({ activeTab, onTabChange }: {
 
       <View style={styles.navRight}>
         {user ? (
-          <View style={styles.userInfo}>
-            <View style={styles.userAvatar}>
-              <Text style={styles.userInitial}>
-                {user.email?.charAt(0).toUpperCase()}
+          <>
+            <WalletBadge />
+            <View style={styles.userInfo}>
+              <View style={styles.userAvatar}>
+                <Text style={styles.userInitial}>
+                  {user.email?.charAt(0).toUpperCase()}
+                </Text>
+              </View>
+              <Text style={styles.userEmail} numberOfLines={1}>
+                {user.email}
               </Text>
             </View>
-            <Text style={styles.userEmail} numberOfLines={1}>
-              {user.email}
-            </Text>
-          </View>
+          </>
         ) : (
           <Pressable
             onPress={() => navigation.navigate('Login')}
