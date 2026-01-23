@@ -158,6 +158,12 @@ function LocalChatPanel({ chatEnabled, matchId }: { chatEnabled: boolean; matchI
 
 
 function BetBehindPanel({ bettingEnabled }: { bettingEnabled: boolean }) {
+  const { data: bettingStatus } = useQuery<{ enabled: boolean }>({
+    queryKey: ["/api/betting/status"],
+  });
+
+  const isFeatureEnabled = bettingStatus?.enabled ?? false;
+
   if (!bettingEnabled) {
     return null;
   }
@@ -168,11 +174,15 @@ function BetBehindPanel({ bettingEnabled }: { bettingEnabled: boolean }) {
         <Feather name="dollar-sign" size={16} color={Colors.dark.warning} />
         <ThemedText style={styles.betBehindTitle}>Bet Behind</ThemedText>
         <View style={styles.betBehindBadge}>
-          <ThemedText style={styles.betBehindBadgeText}>Coming Soon</ThemedText>
+          <ThemedText style={styles.betBehindBadgeText}>
+            {isFeatureEnabled ? "Coming Soon" : "Disabled"}
+          </ThemedText>
         </View>
       </View>
       <ThemedText style={styles.betBehindText}>
-        Place bets on who will win this match. Feature coming soon.
+        {isFeatureEnabled
+          ? "Place bets on who will win this match. Feature coming soon."
+          : "Betting is currently disabled on this platform."}
       </ThemedText>
     </View>
   );
