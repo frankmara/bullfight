@@ -29,11 +29,20 @@ export default function PaymentSuccessScreen() {
 
   const confirmPaymentMutation = useMutation({
     mutationFn: async () => {
-      const endpoint = type === "competition" 
-        ? `/api/competitions/${id}/confirm-payment`
-        : `/api/pvp/challenges/${id}/confirm-payment`;
+      let endpoint: string;
+      if (type === "competition") {
+        endpoint = `/api/competitions/${id}/confirm-payment`;
+      } else if (type === "tokens") {
+        endpoint = "/api/tokens/purchase-confirm";
+      } else {
+        endpoint = `/api/pvp/challenges/${id}/confirm-payment`;
+      }
       
-      const res = await apiRequest("POST", endpoint, { sessionId });
+      const body = type === "tokens" 
+        ? { purchaseId: id, sessionId }
+        : { sessionId };
+      
+      const res = await apiRequest("POST", endpoint, body);
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || "Payment confirmation failed");
@@ -47,6 +56,7 @@ export default function PaymentSuccessScreen() {
       queryClient.invalidateQueries({ queryKey: ["/api/competitions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user/competitions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/pvp/challenges"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/wallet"] });
     },
     onError: (error: any) => {
       setStatus("error");
@@ -69,6 +79,8 @@ export default function PaymentSuccessScreen() {
       navigation.replace("Arena", { id });
     } else if (type === "pvp") {
       navigation.replace("PvPDetail", { id });
+    } else if (type === "tokens") {
+      navigation.replace("Wallet");
     } else {
       navigation.replace("Main");
     }
@@ -104,21 +116,30 @@ export default function PaymentSuccessScreen() {
     );
   }
 
+  const getSuccessMessage = () => {
+    if (type === "competition") {
+      return "You have successfully joined the competition. Good luck trading!";
+    } else if (type === "tokens") {
+      return "Your tokens have been added to your wallet. You can now use them to enter competitions and challenges!";
+    }
+    return "Your stake has been submitted. Once both parties have paid, the challenge will begin.";
+  };
+
+  const getButtonText = () => {
+    if (type === "competition") return "Enter Arena";
+    if (type === "tokens") return "View Wallet";
+    return "View Challenge";
+  };
+
   return (
     <ThemedView style={styles.container}>
       <View style={styles.iconContainer}>
         <Feather name="check-circle" size={64} color={Colors.dark.success} />
       </View>
       <ThemedText style={styles.title}>Payment Successful!</ThemedText>
-      <ThemedText style={styles.message}>
-        {type === "competition" 
-          ? "You have successfully joined the competition. Good luck trading!"
-          : "Your stake has been submitted. Once both parties have paid, the challenge will begin."}
-      </ThemedText>
+      <ThemedText style={styles.message}>{getSuccessMessage()}</ThemedText>
       <Pressable style={styles.button} onPress={handleContinue}>
-        <ThemedText style={styles.buttonText}>
-          {type === "competition" ? "Enter Arena" : "View Challenge"}
-        </ThemedText>
+        <ThemedText style={styles.buttonText}>{getButtonText()}</ThemedText>
       </Pressable>
     </ThemedView>
   );

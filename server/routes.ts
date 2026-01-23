@@ -319,9 +319,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid token package" });
       }
 
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
       let stripeAvailable = false;
-      let clientSecret: string | null = null;
-      let purchaseId: string | null = null;
 
       try {
         const stripe = await getUncachableStripeClient();
@@ -339,12 +342,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
               status: "pending",
             })
             .returning();
-          purchaseId = purchaseResult.id;
+          const purchaseId = purchaseResult.id;
 
-          const paymentIntent = await stripe.paymentIntents.create({
-            amount: pkg.amountCents,
-            currency: "usd",
+          const baseUrl = `https://${process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+          
+          const session = await stripe.checkout.sessions.create({
+            line_items: [{
+              price_data: {
+                currency: 'usd',
+                unit_amount: pkg.amountCents,
+                product_data: {
+                  name: `${pkg.tokens} Tokens`,
+                  description: `Purchase ${pkg.tokens} tokens for Bullfight`,
+                },
+              },
+              quantity: 1,
+            }],
+            mode: 'payment',
+            success_url: `${baseUrl}/payment/success?type=tokens&id=${purchaseId}&session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${baseUrl}/payment/cancel?type=tokens&id=${purchaseId}`,
+            customer_email: user.email,
             metadata: {
+              type: 'token_purchase',
               purchaseId,
               userId,
               tokens: pkg.tokens.toString(),
@@ -353,10 +372,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           await db
             .update(tokenPurchases)
-            .set({ providerRef: paymentIntent.id })
+            .set({ providerRef: session.id })
             .where(eq(tokenPurchases.id, purchaseId));
 
-          clientSecret = paymentIntent.client_secret;
+          return res.json({
+            mode: "stripe",
+            url: session.url,
+            sessionId: session.id,
+            purchaseId,
+            tokens: pkg.tokens,
+            amountCents: pkg.amountCents,
+          });
         }
       } catch (stripeError) {
         console.log("Stripe not available, using simulation mode");
@@ -378,25 +404,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             status: "pending",
           })
           .returning();
-        purchaseId = purchaseResult.id;
 
         return res.json({
           mode: "simulate",
-          purchaseId,
+          purchaseId: purchaseResult.id,
           tokens: pkg.tokens,
           amountCents: pkg.amountCents,
         });
       }
-
-      const publishableKey = await getStripePublishableKey();
-      res.json({
-        mode: "stripe",
-        clientSecret,
-        purchaseId,
-        publishableKey,
-        tokens: pkg.tokens,
-        amountCents: pkg.amountCents,
-      });
     } catch (error: any) {
       console.error("Purchase intent error:", error);
       res.status(500).json({ error: error.message || "Failed to create purchase intent" });
@@ -410,7 +425,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Authentication required" });
       }
 
-      const { purchaseId, paymentIntentId } = req.body;
+      const { purchaseId, sessionId } = req.body;
       if (!purchaseId) {
         return res.status(400).json({ error: "Purchase ID required" });
       }
@@ -442,19 +457,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (purchase.provider === "stripe") {
-        if (!paymentIntentId) {
-          return res.status(400).json({ error: "Payment intent ID required for Stripe" });
+        if (!sessionId) {
+          return res.status(400).json({ error: "Session ID required for Stripe" });
         }
 
         const stripe = await getUncachableStripeClient();
-        const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+        const session = await stripe.checkout.sessions.retrieve(sessionId);
 
-        if (paymentIntent.status !== "succeeded") {
-          return res.status(400).json({ error: "Payment not successful", status: paymentIntent.status });
+        if (session.payment_status !== "paid") {
+          return res.status(400).json({ error: "Payment not completed", status: session.payment_status });
         }
 
-        if (paymentIntent.metadata.purchaseId !== purchaseId) {
-          return res.status(400).json({ error: "Payment intent mismatch" });
+        if (session.metadata?.purchaseId !== purchaseId) {
+          return res.status(400).json({ error: "Session mismatch" });
         }
       }
 

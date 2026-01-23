@@ -14,6 +14,7 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as WebBrowser from "expo-web-browser";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { ThemedText } from "@/components/ThemedText";
@@ -40,8 +41,8 @@ interface PurchaseIntentResponse {
   purchaseId: string;
   tokens: number;
   amountCents: number;
-  clientSecret?: string;
-  publishableKey?: string;
+  url?: string;
+  sessionId?: string;
 }
 
 const DESKTOP_BREAKPOINT = 768;
@@ -110,13 +111,22 @@ export default function WalletScreen() {
 
       return intentRes;
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       if ("success" in data && data.success) {
         setPurchaseSuccess(`Successfully purchased ${(data as any).tokens} tokens!`);
         queryClient.invalidateQueries({ queryKey: ["/api/wallet"] });
         setSelectedPackage(null);
+        setIsPurchasing(false);
+      } else if (data.mode === "stripe" && data.url) {
+        if (Platform.OS === "web") {
+          window.location.href = data.url;
+        } else {
+          await WebBrowser.openBrowserAsync(data.url);
+          setIsPurchasing(false);
+        }
+      } else {
+        setIsPurchasing(false);
       }
-      setIsPurchasing(false);
     },
     onError: (error: any) => {
       setPurchaseError(error.message || "Purchase failed");
