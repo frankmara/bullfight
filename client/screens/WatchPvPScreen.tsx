@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   StyleSheet,
@@ -16,10 +16,12 @@ import { ThemedView } from "@/components/ThemedView";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { ChatPanel } from "@/components/ChatPanel";
 import { StreamEmbed } from "@/components/StreamEmbed";
+import { StreamSettingsModal } from "@/components/StreamSettingsModal";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/types/navigation";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePresence } from "@/hooks/usePresence";
+import { useAuth } from "@/hooks/useAuth";
 
 type WatchPvPRouteProp = RouteProp<RootStackParamList, "WatchPvP">;
 
@@ -183,6 +185,8 @@ export default function WatchPvPScreen() {
   const insets = useSafeAreaInsets();
   const isDesktop = width >= 1024;
   const [timeRemaining, setTimeRemaining] = React.useState("");
+  const [showStreamSettings, setShowStreamSettings] = useState(false);
+  const { user } = useAuth();
   
   const { viewerCount: realtimeViewerCount, liveStatus: realtimeLiveStatus } = usePresence({
     matchId,
@@ -193,6 +197,10 @@ export default function WatchPvPScreen() {
     queryKey: ["/api/watch/pvp", matchId],
     refetchInterval: 5000,
   });
+  
+  const isParticipant = user && data && (
+    user.id === data.challenger.id || user.id === data.invitee.id
+  );
   
   React.useEffect(() => {
     if (data?.endAt) {
@@ -306,6 +314,15 @@ export default function WatchPvPScreen() {
               streamUrl={data.streamUrl}
               style={styles.streamEmbed}
             />
+            {isParticipant ? (
+              <Pressable 
+                style={styles.streamSettingsButton}
+                onPress={() => setShowStreamSettings(true)}
+              >
+                <Feather name="settings" size={16} color={Colors.dark.text} />
+                <ThemedText style={styles.streamSettingsText}>Stream Settings</ThemedText>
+              </Pressable>
+            ) : null}
           </View>
           
           {isDesktop ? (
@@ -323,6 +340,14 @@ export default function WatchPvPScreen() {
         
         <BetBehindPanel bettingEnabled={data.bettingEnabled} />
       </ScrollView>
+      
+      <StreamSettingsModal
+        visible={showStreamSettings}
+        onClose={() => setShowStreamSettings(false)}
+        matchId={matchId}
+        currentStreamType={data.streamEmbedType as "none" | "twitch" | "youtube" | "url"}
+        currentStreamUrl={data.streamUrl}
+      />
     </View>
   );
 }
@@ -526,6 +551,25 @@ const styles = StyleSheet.create({
   streamEmbed: {
     aspectRatio: 16 / 9,
     width: "100%",
+  },
+  streamSettingsButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.dark.backgroundSecondary,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    alignSelf: "flex-start",
+  },
+  streamSettingsText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.dark.text,
   },
   chatContainer: {
     flex: 1,
