@@ -28,6 +28,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { Leaderboard } from "@/components/Leaderboard";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { TradingViewChart } from "@/components/TradingViewChart";
+import { ChatPanel } from "@/components/ChatPanel";
 import { useAuthContext } from "@/context/AuthContext";
 import { apiRequest } from "@/lib/query-client";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
@@ -222,6 +223,7 @@ export default function ArenaScreen() {
   const [takeProfit, setTakeProfit] = useState("");
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showChat, setShowChat] = useState(false);
   const [oneClickTrading, setOneClickTrading] = useState(false);
   const [activeBlotterTab, setActiveBlotterTab] = useState<BlotterTab>("positions");
   const [timeRemaining, setTimeRemaining] = useState("");
@@ -640,9 +642,14 @@ export default function ArenaScreen() {
           </View>
         </View>
       </View>
-      <Pressable style={styles.leaderboardButton} onPress={() => setShowLeaderboard(!showLeaderboard)}>
-        <Feather name="award" size={18} color={showLeaderboard ? THEME.accent : THEME.textSecondary} />
-      </Pressable>
+      <View style={styles.headerButtons}>
+        <Pressable style={styles.headerButton} onPress={() => setShowChat(!showChat)}>
+          <Feather name="message-circle" size={18} color={showChat ? THEME.accent : THEME.textSecondary} />
+        </Pressable>
+        <Pressable style={styles.headerButton} onPress={() => setShowLeaderboard(!showLeaderboard)}>
+          <Feather name="award" size={18} color={showLeaderboard ? THEME.accent : THEME.textSecondary} />
+        </Pressable>
+      </View>
     </View>
   );
 
@@ -1042,6 +1049,26 @@ export default function ArenaScreen() {
       </View>
     ) : null;
 
+  const renderChatPanel = () =>
+    showChat && competition ? (
+      <View style={styles.chatOverlay}>
+        <View style={styles.chatPanelContainer}>
+          <View style={styles.chatPanelHeader}>
+            <ThemedText style={styles.chatPanelTitle}>Competition Chat</ThemedText>
+            <Pressable onPress={() => setShowChat(false)}>
+              <Feather name="x" size={20} color={THEME.textSecondary} />
+            </Pressable>
+          </View>
+          <ChatPanel
+            channelKind="COMPETITION"
+            refId={competition.id}
+            enabled={true}
+            style={styles.chatPanelContent}
+          />
+        </View>
+      </View>
+    ) : null;
+
   const renderToast = () =>
     toast ? (
       <Animated.View
@@ -1249,6 +1276,7 @@ export default function ArenaScreen() {
           overlays={
             <>
               {renderLeaderboardPanel()}
+              {renderChatPanel()}
               {renderToast()}
               {renderSLTPDragModal()}
             </>
@@ -1273,6 +1301,7 @@ export default function ArenaScreen() {
         {renderPositionsPanel()}
       </ScrollView>
       {renderLeaderboardPanel()}
+      {renderChatPanel()}
       {renderToast()}
       {renderSLTPDragModal()}
     </View>
@@ -1389,6 +1418,19 @@ const styles = StyleSheet.create({
     color: THEME.success,
   },
   leaderboardButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: THEME.bgElevated,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  headerButton: {
     width: 40,
     height: 40,
     borderRadius: 8,
@@ -1987,6 +2029,41 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: THEME.textPrimary,
+  },
+
+  chatOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1000,
+  },
+  chatPanelContainer: {
+    backgroundColor: THEME.bgCard,
+    borderRadius: 12,
+    width: 380,
+    height: 500,
+    maxHeight: "80%",
+    borderWidth: 1,
+    borderColor: THEME.border,
+    overflow: "hidden",
+  },
+  chatPanelHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: THEME.border,
+  },
+  chatPanelTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: THEME.textPrimary,
+  },
+  chatPanelContent: {
+    flex: 1,
+    borderRadius: 0,
   },
 
   toast: {

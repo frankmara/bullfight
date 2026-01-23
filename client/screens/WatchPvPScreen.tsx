@@ -5,7 +5,6 @@ import {
   ScrollView,
   useWindowDimensions,
   Pressable,
-  TextInput,
   FlatList,
   RefreshControl,
 } from "react-native";
@@ -15,6 +14,7 @@ import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { ChatPanel } from "@/components/ChatPanel";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/types/navigation";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -131,9 +131,7 @@ function TraderCard({ trader, label, isLeading }: { trader: TraderStats; label: 
   );
 }
 
-function ChatPanel({ chatEnabled }: { chatEnabled: boolean }) {
-  const [message, setMessage] = React.useState("");
-  
+function LocalChatPanel({ chatEnabled, matchId }: { chatEnabled: boolean; matchId: string }) {
   if (!chatEnabled) {
     return (
       <View style={styles.chatDisabled}>
@@ -144,29 +142,12 @@ function ChatPanel({ chatEnabled }: { chatEnabled: boolean }) {
   }
   
   return (
-    <View style={styles.chatPanel}>
-      <View style={styles.chatHeader}>
-        <Feather name="message-circle" size={16} color={Colors.dark.accent} />
-        <ThemedText style={styles.chatTitle}>Live Chat</ThemedText>
-      </View>
-      
-      <View style={styles.chatMessages}>
-        <ThemedText style={styles.chatPlaceholder}>Chat messages will appear here...</ThemedText>
-      </View>
-      
-      <View style={styles.chatInputContainer}>
-        <TextInput
-          style={styles.chatInput}
-          placeholder="Send a message..."
-          placeholderTextColor={Colors.dark.textMuted}
-          value={message}
-          onChangeText={setMessage}
-        />
-        <Pressable style={styles.chatSendButton}>
-          <Feather name="send" size={18} color={Colors.dark.buttonText} />
-        </Pressable>
-      </View>
-    </View>
+    <ChatPanel 
+      channelKind="PVP_MATCH" 
+      refId={matchId} 
+      enabled={chatEnabled}
+      style={styles.chatPanel}
+    />
   );
 }
 
@@ -319,14 +300,14 @@ export default function WatchPvPScreen() {
           
           {isDesktop ? (
             <View style={styles.chatContainer}>
-              <ChatPanel chatEnabled={data.chatEnabled} />
+              <LocalChatPanel chatEnabled={data.chatEnabled} matchId={matchId} />
             </View>
           ) : null}
         </View>
         
         {!isDesktop ? (
           <View style={styles.mobileChatContainer}>
-            <ChatPanel chatEnabled={data.chatEnabled} />
+            <LocalChatPanel chatEnabled={data.chatEnabled} matchId={matchId} />
           </View>
         ) : null}
         
