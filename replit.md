@@ -92,6 +92,25 @@ Key entities include `users`, `competitions`, `competitionEntries`, `orders`, `f
 - **Security**: URL validation with domain whitelist, iframe sandbox attributes for XSS protection
 - **API**: `PUT /api/pvp/challenges/:id/stream` to update stream settings (participants only)
 
+### Bet-Behind System (Pari-Mutuel Betting)
+- **Feature Flag**: `ENABLE_BET_BEHIND` (default: false) gates all betting functionality
+- **Model**: Pari-mutuel pool betting where spectators bet on PvP match outcomes
+- **Rake**: 5% (500 basis points) applied to winning payouts
+- **Limits**: Min 1 token, max 500 tokens per user per market
+- **Database Tables**:
+  - `bet_markets`: Tracks betting pools per match (status: OPEN/CLOSED/SETTLED/VOID)
+  - `bets`: Individual bets linking users to markets with token amounts
+- **Token Integration**: Bets lock tokens via `token_transactions` (kind=BET_PLACE), settled/refunded on outcome
+- **Market Lifecycle**: 
+  - Auto-created when match goes LIVE (if bettingEnabled=true and feature flag on)
+  - OPEN during match, CLOSED when match ends, then SETTLED/VOID
+- **API Endpoints**:
+  - `GET /api/betting/status` - Returns whether betting is enabled
+  - `GET /api/betting/markets/:matchId` - Get market info and pool totals
+  - `POST /api/betting/bets` - Place a bet (requires auth, locks tokens)
+- **UI**: BetBehindPanel shows "Disabled" badge when feature flag is off
+- **Service**: `BettingService` handles market creation, bet placement, settlement, and voiding
+
 ### Email Notification System
 - Uses `EmailService` and Resend API for welcome, competition, PvP, and daily standings emails.
 - Admin portal for managing email templates and viewing logs.
