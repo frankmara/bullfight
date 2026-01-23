@@ -104,11 +104,23 @@ Key entities include `users`, `competitions`, `competitionEntries`, `orders`, `f
 - **Market Lifecycle**: 
   - Auto-created when match goes LIVE (if bettingEnabled=true and feature flag on)
   - OPEN during match, CLOSED when match ends, then SETTLED/VOID
+- **Settlement**:
+  - Automatic when PvP match ends (triggered by end-live route)
+  - Winner determined by higher equity return %; ties favor challenger
+  - Winning bets receive `BET_PAYOUT` with floor(betAmount * payoutPool / winnerPoolTotal)
+  - Remainder tokens from flooring added to house rake
+  - **HOUSE_USER**: System user (ID: 00000000-0000-0000-0000-000000000000) receives all rake via `RAKE_FEE` transactions
 - **API Endpoints**:
   - `GET /api/betting/status` - Returns whether betting is enabled
   - `GET /api/betting/markets/:matchId` - Get market info and pool totals
   - `POST /api/betting/bets` - Place a bet (requires auth, locks tokens)
-- **UI**: BetBehindPanel shows "Disabled" badge when feature flag is off, live odds and probability meter when enabled
+  - `GET /api/betting/matches/:matchId/my-bets` - Get authenticated user's bets for a match
+  - `GET /api/betting/matches/:matchId/settlement` - Get settlement info (pools, winner, rake, bet count)
+  - `POST /api/betting/matches/:matchId/void` - Void a market (admin or participants only)
+- **UI**: 
+  - BetBehindPanel shows "Disabled" badge when feature flag off, live odds when LIVE
+  - Settlement display shows winner announcement, pool breakdown, rake %, bet count
+  - User's bets section shows pick, amount, and outcome status (Won/Lost/Refunded/Pending)
 - **Service**: `BettingService` handles market creation, bet placement, settlement, and voiding
 
 ### Live Odds & Probability Meter
