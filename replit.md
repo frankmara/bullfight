@@ -108,8 +108,27 @@ Key entities include `users`, `competitions`, `competitionEntries`, `orders`, `f
   - `GET /api/betting/status` - Returns whether betting is enabled
   - `GET /api/betting/markets/:matchId` - Get market info and pool totals
   - `POST /api/betting/bets` - Place a bet (requires auth, locks tokens)
-- **UI**: BetBehindPanel shows "Disabled" badge when feature flag is off
+- **UI**: BetBehindPanel shows "Disabled" badge when feature flag is off, live odds and probability meter when enabled
 - **Service**: `BettingService` handles market creation, bet placement, settlement, and voiding
+
+### Live Odds & Probability Meter
+- **OddsService** (`server/services/OddsService.ts`): Calculates and broadcasts real-time odds via Socket.io
+- **Socket.io Namespace**: `/betting` for real-time odds updates
+- **Pool-Based Projected Payout**:
+  - `projMultiplierA = payoutPool / poolA` (where payoutPool = totalPool * (1 - rake))
+  - Displayed as "x1.82" format for each trader
+- **Performance-Based Win Probability**:
+  - Uses Normal CDF with lead (return difference) and volatility
+  - `pWinA = NormalCDF(lead / (sigmaDiff * sqrt(timeRemainingPct)))`
+  - Updates as P&L changes and time passes
+- **Real-time Updates**:
+  - Ticks every second when match is LIVE
+  - Immediate broadcast on new bet placement
+- **UI Components**:
+  - OddsDisplay shows projected multipliers for each trader
+  - Probability bar shows visual win probability meter (A% / B%)
+  - Total pool display
+- **Hook**: `useBettingOdds` (`client/hooks/useBettingOdds.ts`) connects to Socket.io for real-time updates
 
 ### Email Notification System
 - Uses `EmailService` and Resend API for welcome, competition, PvP, and daily standings emails.
