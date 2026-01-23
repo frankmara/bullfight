@@ -72,6 +72,18 @@ Key entities include `users`, `competitions`, `competitionEntries`, `orders`, `f
   - `streamEmbedType`: 'none' | 'twitch' | 'youtube' | 'url'
   - `streamUrl`: Optional stream URL for embedded streams
 
+### Arena Mode & Watch Page
+- **Arena Mode** (`/arena-mode`): Lists public arena-listed PvP matches with LIVE/UPCOMING/ALL tabs.
+- **Watch Page** (`/watch/pvp/:matchId`): Spectator view for public PvP matches showing:
+  - Scoreboard header with both traders' stats (equity, P&L, return%, open positions)
+  - Time remaining countdown
+  - Live status indicator (LIVE, SCHEDULED, ENDED, OFFLINE)
+  - Stream container placeholder (for future video integration)
+  - Chat panel (if chatEnabled) on the right (desktop) or bottom (mobile)
+  - Bet Behind panel placeholder (disabled by default, for future betting feature)
+- API: `GET /api/watch/pvp/:matchId` returns trader stats, refreshes every 5 seconds
+- Only public matches can be watched; private matches return 403
+
 ### Email Notification System
 - Uses `EmailService` and Resend API for welcome, competition, PvP, and daily standings emails.
 - Admin portal for managing email templates and viewing logs.
