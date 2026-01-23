@@ -624,3 +624,91 @@ export type BetMarket = typeof betMarkets.$inferSelect;
 export type InsertBetMarket = typeof betMarkets.$inferInsert;
 export type Bet = typeof bets.$inferSelect;
 export type InsertBet = typeof bets.$inferInsert;
+
+// Platform settings for global feature flags and betting configuration
+export const platformSettings = pgTable("platform_settings", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  key: text("key").notNull().unique(),
+  value: text("value").notNull(),
+  description: text("description"),
+  updatedBy: varchar("updated_by").references(() => users.id),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Chat moderation - muted users
+export const chatMutes = pgTable("chat_mutes", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id")
+    .references(() => users.id)
+    .notNull(),
+  channelId: varchar("channel_id").references(() => chatChannels.id),
+  mutedBy: varchar("muted_by")
+    .references(() => users.id)
+    .notNull(),
+  reason: text("reason"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Chat moderation - banned users
+export const chatBans = pgTable("chat_bans", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id")
+    .references(() => users.id)
+    .notNull(),
+  channelId: varchar("channel_id").references(() => chatChannels.id),
+  bannedBy: varchar("banned_by")
+    .references(() => users.id)
+    .notNull(),
+  reason: text("reason"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Featured matches for Arena Mode
+export const featuredMatches = pgTable("featured_matches", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  matchId: varchar("match_id")
+    .references(() => pvpChallenges.id)
+    .notNull()
+    .unique(),
+  pinnedBy: varchar("pinned_by")
+    .references(() => users.id)
+    .notNull(),
+  pinnedAt: timestamp("pinned_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at"),
+});
+
+// Bet rate limiting
+export const betRateLimits = pgTable("bet_rate_limits", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id")
+    .references(() => users.id)
+    .notNull(),
+  marketId: varchar("market_id")
+    .references(() => betMarkets.id)
+    .notNull(),
+  betCount: integer("bet_count").notNull().default(1),
+  lastBetAt: timestamp("last_bet_at").defaultNow().notNull(),
+});
+
+export type PlatformSetting = typeof platformSettings.$inferSelect;
+export type InsertPlatformSetting = typeof platformSettings.$inferInsert;
+export type ChatMute = typeof chatMutes.$inferSelect;
+export type InsertChatMute = typeof chatMutes.$inferInsert;
+export type ChatBan = typeof chatBans.$inferSelect;
+export type InsertChatBan = typeof chatBans.$inferInsert;
+export type FeaturedMatch = typeof featuredMatches.$inferSelect;
+export type InsertFeaturedMatch = typeof featuredMatches.$inferInsert;
+export type BetRateLimit = typeof betRateLimits.$inferSelect;
+export type InsertBetRateLimit = typeof betRateLimits.$inferInsert;
