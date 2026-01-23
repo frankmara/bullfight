@@ -113,6 +113,12 @@ function DesktopNavBar({ activeTab, onTabChange }: {
             onPress={() => navigation.navigate('PvPList')}
           />
           <NavItem
+            icon="play-circle"
+            label="Arena Mode"
+            isActive={false}
+            onPress={() => navigation.navigate('ArenaMode')}
+          />
+          <NavItem
             icon="user"
             label="Profile"
             isActive={activeTab === 'ProfileTab'}
