@@ -297,6 +297,68 @@ export class BettingService {
       betCount: allBets.length,
     };
   }
+
+  async getOddsData(matchId: string): Promise<{
+    poolA: number;
+    poolB: number;
+    projMultA: number | null;
+    projMultB: number | null;
+    totalPool: number;
+    rakeBps: number;
+    challengerId: string;
+    inviteeId: string;
+  } | null> {
+    const [market] = await db
+      .select()
+      .from(betMarkets)
+      .where(eq(betMarkets.matchId, matchId))
+      .limit(1);
+
+    if (!market) {
+      return null;
+    }
+
+    const [match] = await db
+      .select()
+      .from(pvpChallenges)
+      .where(eq(pvpChallenges.id, matchId))
+      .limit(1);
+
+    if (!match) {
+      return null;
+    }
+
+    const allBets = await db
+      .select()
+      .from(bets)
+      .where(and(eq(bets.marketId, market.id), eq(bets.status, "PLACED")));
+
+    const poolA = allBets
+      .filter((b) => b.pickUserId === match.challengerId)
+      .reduce((sum, b) => sum + b.amountTokens, 0);
+
+    const poolB = allBets
+      .filter((b) => b.pickUserId === match.inviteeId)
+      .reduce((sum, b) => sum + b.amountTokens, 0);
+
+    const totalPool = poolA + poolB;
+    const rake = market.rakeBps / 10000;
+    const payoutPool = totalPool * (1 - rake);
+
+    const projMultA = poolA > 0 ? payoutPool / poolA : null;
+    const projMultB = poolB > 0 ? payoutPool / poolB : null;
+
+    return {
+      poolA,
+      poolB,
+      projMultA,
+      projMultB,
+      totalPool,
+      rakeBps: market.rakeBps,
+      challengerId: match.challengerId,
+      inviteeId: match.inviteeId!,
+    };
+  }
 }
 
 export const bettingService = new BettingService();
