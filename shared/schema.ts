@@ -36,6 +36,7 @@ export const competitions = pgTable("competitions", {
   theme: text("theme"),
   description: text("description"),
   buyInCents: integer("buy_in_cents").notNull().default(10000),
+  buyInTokens: integer("buy_in_tokens").notNull().default(100),
   entryCap: integer("entry_cap").notNull().default(1000),
   rakeBps: integer("rake_bps").notNull().default(3000),
   startAt: timestamp("start_at"),
@@ -68,6 +69,7 @@ export const competitionEntries = pgTable("competition_entries", {
     .references(() => users.id)
     .notNull(),
   paidCents: integer("paid_cents").notNull().default(0),
+  paidTokens: integer("paid_tokens").notNull().default(0),
   paymentStatus: text("payment_status").notNull().default("pending"),
   joinedAt: timestamp("joined_at").defaultNow().notNull(),
   cashCents: integer("cash_cents").notNull().default(10000000),
@@ -251,6 +253,7 @@ export const pvpChallenges = pgTable("pvp_challenges", {
   inviteeEmail: text("invitee_email"),
   status: text("status").notNull().default("draft"),
   stakeCents: integer("stake_cents").notNull().default(1000),
+  stakeTokens: integer("stake_tokens").notNull().default(10),
   startingBalanceCents: integer("starting_balance_cents").notNull().default(10000000),
   allowedPairsJson: jsonb("allowed_pairs_json")
     .$type<string[]>()

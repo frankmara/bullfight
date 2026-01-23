@@ -15,7 +15,7 @@ import {
 } from "./services/ExecutionService";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 import { usernameSchema, tokenPurchases } from "@shared/schema";
-import { getOrCreateWallet, getWallet, applyTokenTransaction, getTransactionHistory } from "./lib/wallet";
+import { getOrCreateWallet, getWallet, applyTokenTransaction, getTransactionHistory, lockTokens, unlockTokens, unlockAndDeductTokens } from "./lib/wallet";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 
@@ -875,6 +875,139 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true, entry });
     } catch (error: any) {
       console.error("Join competition error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Token-based competition join (new primary flow)
+  app.post("/api/competitions/:id/join-with-tokens", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const userId = req.headers["x-user-id"] as string;
+
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const comp = await storage.getCompetition(id);
+      if (!comp) {
+        return res.status(404).json({ error: "Competition not found" });
+      }
+
+      if (comp.status !== "open" && comp.status !== "running") {
+        return res.status(400).json({ error: "Competition is not accepting entries" });
+      }
+
+      if (comp.entryCount >= comp.entryCap) {
+        return res.status(400).json({ error: "Competition is full" });
+      }
+
+      const existing = await storage.getCompetitionEntry(id, userId);
+      if (existing && existing.paymentStatus === "succeeded") {
+        return res.status(400).json({ error: "Already joined this competition" });
+      }
+
+      // Get buy-in tokens (derive from buyInCents if buyInTokens is 0/default)
+      const buyInTokens = comp.buyInTokens > 0 ? comp.buyInTokens : Math.floor(comp.buyInCents / 100);
+
+      // For free competitions, join directly
+      if (buyInTokens === 0) {
+        const entry = await storage.createCompetitionEntry({
+          competitionId: id,
+          userId,
+          paidCents: 0,
+          paidTokens: 0,
+          paymentStatus: "succeeded",
+          cashCents: comp.startingBalanceCents,
+          equityCents: comp.startingBalanceCents,
+          maxEquityCents: comp.startingBalanceCents,
+          maxDrawdownPct: 0,
+          dq: false,
+        });
+        return res.json({ success: true, entry });
+      }
+
+      // Check wallet balance
+      const wallet = await getOrCreateWallet(userId);
+      if (wallet.availableTokens < buyInTokens) {
+        return res.status(400).json({ 
+          error: "Insufficient tokens",
+          required: buyInTokens,
+          available: wallet.availableTokens,
+          insufficientTokens: true
+        });
+      }
+
+      // Deduct tokens atomically
+      const txResult = await applyTokenTransaction({
+        userId,
+        kind: "COMPETITION_ENTRY",
+        amountTokens: -buyInTokens,
+        referenceType: "competition",
+        referenceId: id,
+        metadata: { competitionTitle: comp.title },
+      });
+
+      if (!txResult.success) {
+        return res.status(400).json({ error: txResult.error || "Token deduction failed" });
+      }
+
+      // Create or update entry
+      let entry;
+      if (existing) {
+        entry = await storage.updateCompetitionEntry(existing.id, {
+          paidTokens: buyInTokens,
+          paidCents: 0,
+          paymentStatus: "succeeded",
+          cashCents: comp.startingBalanceCents,
+          equityCents: comp.startingBalanceCents,
+          maxEquityCents: comp.startingBalanceCents,
+        });
+      } else {
+        entry = await storage.createCompetitionEntry({
+          competitionId: id,
+          userId,
+          paidCents: 0,
+          paidTokens: buyInTokens,
+          paymentStatus: "succeeded",
+          cashCents: comp.startingBalanceCents,
+          equityCents: comp.startingBalanceCents,
+          maxEquityCents: comp.startingBalanceCents,
+          maxDrawdownPct: 0,
+          dq: false,
+        });
+      }
+
+      // Send confirmation email
+      const user = await storage.getUser(userId);
+      if (user?.email) {
+        const entries = await storage.getCompetitionEntries(id);
+        const totalTokens = entries.reduce((sum, e) => sum + (e.paidTokens || 0), 0);
+        const rakeTokens = Math.floor(totalTokens * (comp.rakeBps / 10000));
+        const prizePoolTokens = totalTokens - rakeTokens;
+
+        EmailService.sendChallengeEntryConfirmedEmail(
+          user.id,
+          user.email,
+          comp.title,
+          buyInTokens * 100, // Convert to cents for email compatibility
+          prizePoolTokens * 100,
+          comp.startAt || new Date(),
+          comp.startingBalanceCents,
+          id
+        ).catch(err => {
+          console.error("Failed to send challenge entry email:", err);
+        });
+      }
+
+      await storage.createAuditLog(userId, "competition_entry_tokens", "competition", id, {
+        buyInTokens,
+        newBalance: txResult.newBalance,
+      });
+
+      res.json({ success: true, entry, tokensSpent: buyInTokens });
+    } catch (error: any) {
+      console.error("Join competition with tokens error:", error);
       res.status(500).json({ error: error.message });
     }
   });
