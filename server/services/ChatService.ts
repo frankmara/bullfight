@@ -537,6 +537,19 @@ class ChatService {
       ));
     return channel || null;
   }
+
+  // Get all members of a channel
+  async getChannelMembers(channelId: string): Promise<Array<{ userId: string; role: string }>> {
+    const members = await db
+      .select({
+        userId: chatMembers.userId,
+        role: chatMembers.role,
+      })
+      .from(chatMembers)
+      .where(eq(chatMembers.channelId, channelId));
+    
+    return members;
+  }
 }
 
 export const chatService = new ChatService();

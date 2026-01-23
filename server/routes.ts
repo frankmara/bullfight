@@ -3057,6 +3057,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get badges for chat users
+  const badgeCache = new Map<string, { badges: Record<string, any[]>, expiresAt: number }>();
+  const BADGE_CACHE_TTL = 30000; // 30 seconds
+
+  app.get("/api/chat/badges", async (req: Request, res: Response) => {
+    try {
+      const { kind, refId } = req.query;
+      
+      if (!kind || !refId) {
+        return res.status(400).json({ error: "kind and refId are required" });
+      }
+
+      const cacheKey = `${kind}:${refId}`;
+      const cached = badgeCache.get(cacheKey);
+      if (cached && cached.expiresAt > Date.now()) {
+        return res.json({ badges: cached.badges });
+      }
+
+      const badges: Record<string, any[]> = {};
+
+      if (kind === "COMPETITION") {
+        // Get competition leaderboard for rank badges
+        const competition = await storage.getCompetition(refId as string);
+        if (competition) {
+          const leaderboard = await storage.getCompetitionLeaderboard(refId as string);
+          
+          // Assign rank badges for top 25
+          leaderboard.slice(0, 25).forEach((entry, index) => {
+            const rank = index + 1;
+            if (!badges[entry.userId]) badges[entry.userId] = [];
+            
+            if (rank === 1 && competition.status === "completed") {
+              badges[entry.userId].push({
+                type: "winner",
+                label: "WINNER",
+                color: "#FFD700",
+              });
+            } else {
+              badges[entry.userId].push({
+                type: "rank",
+                label: `#${rank}`,
+                color: rank <= 3 ? "#FFD700" : rank <= 10 ? "#C0C0C0" : "#CD7F32",
+              });
+            }
+          });
+        }
+      } else if (kind === "PVP_MATCH") {
+        // Get PvP match participants
+        const match = await storage.getPvpChallenge(refId as string);
+        if (match) {
+          // Both participants get TRADER badge
+          if (match.challengerId) {
+            badges[match.challengerId] = [{
+              type: "trader",
+              label: "TRADER",
+              color: "#FF6B35",
+            }];
+          }
+          if (match.inviteeId) {
+            badges[match.inviteeId] = [{
+              type: "trader",
+              label: "TRADER",
+              color: "#FF6B35",
+            }];
+          }
+        }
+
+        // Get channel members for MOD badges
+        const { chatService } = await import("./services/ChatService");
+        const channel = await chatService.getOrCreateChannel(kind as string, refId as string);
+        const members = await chatService.getChannelMembers(channel.id);
+        
+        members.forEach((member) => {
+          if (member.role === "MOD" || member.role === "OWNER") {
+            if (!badges[member.userId]) badges[member.userId] = [];
+            badges[member.userId].push({
+              type: "mod",
+              label: member.role === "OWNER" ? "OWNER" : "MOD",
+              color: "#9B59B6",
+            });
+          }
+        });
+      }
+
+      // Cache the result
+      badgeCache.set(cacheKey, { badges, expiresAt: Date.now() + BADGE_CACHE_TTL });
+
+      res.json({ badges });
+    } catch (error: any) {
+      console.error("Get chat badges error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   await EmailService.ensureDefaultTemplates();
 
   app.get("/api/admin/email-templates", async (req: Request, res: Response) => {

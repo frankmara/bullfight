@@ -203,7 +203,7 @@ export function ChatPanel({ channelKind, refId, enabled = true, style }: ChatPan
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.backgroundElevated,
+    backgroundColor: Colors.dark.backgroundSecondary,
     borderRadius: BorderRadius.lg,
     overflow: "hidden",
   },
