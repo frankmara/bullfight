@@ -36,7 +36,17 @@ Key entities include `users`, `competitions`, `competitionEntries`, `orders`, `f
 - Transaction kinds: PURCHASE, COMPETITION_ENTRY, PVP_STAKE_LOCK, PVP_STAKE_RELEASE, BET_PLACE, BET_REFUND, BET_PAYOUT, RAKE_FEE, ADJUSTMENT.
 - Wallets are auto-created on user registration.
 - API: GET /api/wallet, GET /api/wallet/transactions, POST /api/wallet/dev-adjust (dev only).
-- WalletBadge component displays token balance in the desktop navigation bar.
+- WalletBadge component displays token balance in the desktop navigation bar, clickable to navigate to Wallet screen.
+
+### Token Purchasing Flow
+- Token packages: 25, 50, 100, 250, 500, 1000 tokens at $1 per token (amountCents).
+- Purchase endpoints:
+  - GET /api/tokens/packages - Returns available token packages.
+  - POST /api/tokens/purchase-intent - Creates pending purchase, returns Stripe Checkout URL (or simulate mode in dev).
+  - POST /api/tokens/purchase-confirm - Confirms purchase after Stripe checkout, credits tokens to wallet.
+- Database: `token_purchases` table tracks all purchases with status (pending, completed, failed, refunded).
+- Stripe Checkout: When Stripe is configured, users are redirected to Stripe's hosted checkout page, then returned to /payment/success?type=tokens&id={purchaseId}&session_id={sessionId}.
+- Simulation mode: In development without Stripe, purchases complete immediately without payment.
 
 ### Real-time Features
 - Server-side simulated forex quotes.
