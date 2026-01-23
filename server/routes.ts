@@ -14,8 +14,10 @@ import {
   unitsToLots,
 } from "./services/ExecutionService";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
-import { usernameSchema } from "@shared/schema";
+import { usernameSchema, tokenPurchases } from "@shared/schema";
 import { getOrCreateWallet, getWallet, applyTokenTransaction, getTransactionHistory } from "./lib/wallet";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/register", async (req: Request, res: Response) => {
@@ -288,6 +290,209 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Dev adjust error:", error);
       res.status(500).json({ error: error.message || "Failed to adjust tokens" });
+    }
+  });
+
+  const TOKEN_PACKAGES = [
+    { tokens: 25, amountCents: 2500 },
+    { tokens: 50, amountCents: 5000 },
+    { tokens: 100, amountCents: 10000 },
+    { tokens: 250, amountCents: 25000 },
+    { tokens: 500, amountCents: 50000 },
+    { tokens: 1000, amountCents: 100000 },
+  ];
+
+  app.get("/api/tokens/packages", async (_req: Request, res: Response) => {
+    res.json({ packages: TOKEN_PACKAGES });
+  });
+
+  app.post("/api/tokens/purchase-intent", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { tokens } = req.body;
+      const pkg = TOKEN_PACKAGES.find((p) => p.tokens === tokens);
+      if (!pkg) {
+        return res.status(400).json({ error: "Invalid token package" });
+      }
+
+      let stripeAvailable = false;
+      let clientSecret: string | null = null;
+      let purchaseId: string | null = null;
+
+      try {
+        const stripe = await getUncachableStripeClient();
+        const publishableKey = await getStripePublishableKey();
+        stripeAvailable = !!publishableKey;
+
+        if (stripeAvailable) {
+          const [purchaseResult] = await db
+            .insert(tokenPurchases)
+            .values({
+              userId,
+              tokens: pkg.tokens,
+              amountCents: pkg.amountCents,
+              provider: "stripe",
+              status: "pending",
+            })
+            .returning();
+          purchaseId = purchaseResult.id;
+
+          const paymentIntent = await stripe.paymentIntents.create({
+            amount: pkg.amountCents,
+            currency: "usd",
+            metadata: {
+              purchaseId,
+              userId,
+              tokens: pkg.tokens.toString(),
+            },
+          });
+
+          await db
+            .update(tokenPurchases)
+            .set({ providerRef: paymentIntent.id })
+            .where(eq(tokenPurchases.id, purchaseId));
+
+          clientSecret = paymentIntent.client_secret;
+        }
+      } catch (stripeError) {
+        console.log("Stripe not available, using simulation mode");
+        stripeAvailable = false;
+      }
+
+      if (!stripeAvailable) {
+        if (process.env.NODE_ENV === "production") {
+          return res.status(503).json({ error: "Payment processing unavailable" });
+        }
+
+        const [purchaseResult] = await db
+          .insert(tokenPurchases)
+          .values({
+            userId,
+            tokens: pkg.tokens,
+            amountCents: pkg.amountCents,
+            provider: "simulate",
+            status: "pending",
+          })
+          .returning();
+        purchaseId = purchaseResult.id;
+
+        return res.json({
+          mode: "simulate",
+          purchaseId,
+          tokens: pkg.tokens,
+          amountCents: pkg.amountCents,
+        });
+      }
+
+      const publishableKey = await getStripePublishableKey();
+      res.json({
+        mode: "stripe",
+        clientSecret,
+        purchaseId,
+        publishableKey,
+        tokens: pkg.tokens,
+        amountCents: pkg.amountCents,
+      });
+    } catch (error: any) {
+      console.error("Purchase intent error:", error);
+      res.status(500).json({ error: error.message || "Failed to create purchase intent" });
+    }
+  });
+
+  app.post("/api/tokens/purchase-confirm", async (req: Request, res: Response) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { purchaseId, paymentIntentId } = req.body;
+      if (!purchaseId) {
+        return res.status(400).json({ error: "Purchase ID required" });
+      }
+
+      const [purchase] = await db
+        .select()
+        .from(tokenPurchases)
+        .where(eq(tokenPurchases.id, purchaseId));
+
+      if (!purchase) {
+        return res.status(404).json({ error: "Purchase not found" });
+      }
+
+      if (purchase.userId !== userId) {
+        return res.status(403).json({ error: "Not authorized" });
+      }
+
+      if (purchase.status === "completed") {
+        const wallet = await getWallet(userId);
+        return res.json({
+          success: true,
+          alreadyCompleted: true,
+          tokens: purchase.tokens,
+          wallet: wallet ? {
+            balanceTokens: wallet.balanceTokens,
+            availableTokens: wallet.availableTokens,
+          } : null,
+        });
+      }
+
+      if (purchase.provider === "stripe") {
+        if (!paymentIntentId) {
+          return res.status(400).json({ error: "Payment intent ID required for Stripe" });
+        }
+
+        const stripe = await getUncachableStripeClient();
+        const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+
+        if (paymentIntent.status !== "succeeded") {
+          return res.status(400).json({ error: "Payment not successful", status: paymentIntent.status });
+        }
+
+        if (paymentIntent.metadata.purchaseId !== purchaseId) {
+          return res.status(400).json({ error: "Payment intent mismatch" });
+        }
+      }
+
+      await getOrCreateWallet(userId);
+      const result = await applyTokenTransaction({
+        userId,
+        kind: "PURCHASE",
+        amountTokens: purchase.tokens,
+        referenceType: "token_purchase",
+        referenceId: purchaseId,
+        metadata: {
+          provider: purchase.provider,
+          amountCents: purchase.amountCents,
+        },
+      });
+
+      if (!result.success) {
+        return res.status(500).json({ error: result.error || "Failed to credit tokens" });
+      }
+
+      await db
+        .update(tokenPurchases)
+        .set({ status: "completed" })
+        .where(eq(tokenPurchases.id, purchaseId));
+
+      const wallet = await getWallet(userId);
+      res.json({
+        success: true,
+        tokens: purchase.tokens,
+        newBalance: result.newBalance,
+        wallet: wallet ? {
+          balanceTokens: wallet.balanceTokens,
+          availableTokens: wallet.availableTokens,
+        } : null,
+      });
+    } catch (error: any) {
+      console.error("Purchase confirm error:", error);
+      res.status(500).json({ error: error.message || "Failed to confirm purchase" });
     }
   });
 
