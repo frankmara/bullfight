@@ -508,3 +508,72 @@ export const tokenPurchases = pgTable("token_purchases", {
 
 export type TokenPurchase = typeof tokenPurchases.$inferSelect;
 export type InsertTokenPurchase = typeof tokenPurchases.$inferInsert;
+
+// Chat system tables
+export const chatChannelKinds = ["PVP_MATCH", "COMPETITION"] as const;
+export type ChatChannelKind = typeof chatChannelKinds[number];
+
+export const chatChannels = pgTable("chat_channels", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  kind: text("kind").notNull(), // 'PVP_MATCH' | 'COMPETITION'
+  refId: varchar("ref_id").notNull(), // ID of the PvP match or competition
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const chatMemberRoles = ["OWNER", "MOD", "MEMBER"] as const;
+export type ChatMemberRole = typeof chatMemberRoles[number];
+
+export const chatMembers = pgTable("chat_members", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  channelId: varchar("channel_id")
+    .references(() => chatChannels.id)
+    .notNull(),
+  userId: varchar("user_id")
+    .references(() => users.id)
+    .notNull(),
+  role: text("role").notNull().default("MEMBER"), // 'OWNER' | 'MOD' | 'MEMBER'
+  mutedUntil: timestamp("muted_until"),
+  joinedAt: timestamp("joined_at").defaultNow().notNull(),
+});
+
+export const chatMessages = pgTable("chat_messages", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  channelId: varchar("channel_id")
+    .references(() => chatChannels.id)
+    .notNull(),
+  userId: varchar("user_id")
+    .references(() => users.id)
+    .notNull(),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
+});
+
+export const chatReports = pgTable("chat_reports", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  messageId: varchar("message_id")
+    .references(() => chatMessages.id)
+    .notNull(),
+  reporterId: varchar("reporter_id")
+    .references(() => users.id)
+    .notNull(),
+  reason: text("reason").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type ChatChannel = typeof chatChannels.$inferSelect;
+export type InsertChatChannel = typeof chatChannels.$inferInsert;
+export type ChatMember = typeof chatMembers.$inferSelect;
+export type InsertChatMember = typeof chatMembers.$inferInsert;
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type InsertChatMessage = typeof chatMessages.$inferInsert;
+export type ChatReport = typeof chatReports.$inferSelect;
+export type InsertChatReport = typeof chatReports.$inferInsert;

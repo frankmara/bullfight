@@ -3007,6 +3007,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============ Chat API Endpoints ============
+  
+  // Get or create chat channel
+  app.get("/api/chat/channel", async (req: Request, res: Response) => {
+    try {
+      const { kind, refId } = req.query;
+      
+      if (!kind || !refId) {
+        return res.status(400).json({ error: "kind and refId are required" });
+      }
+
+      const validKinds = ["PVP_MATCH", "COMPETITION"];
+      if (!validKinds.includes(kind as string)) {
+        return res.status(400).json({ error: "Invalid kind. Must be PVP_MATCH or COMPETITION" });
+      }
+
+      // Import chat service dynamically to avoid circular deps
+      const { chatService } = await import("./services/ChatService");
+      const channel = await chatService.getOrCreateChannel(kind as string, refId as string);
+      
+      res.json({ channelId: channel.id, kind: channel.kind, refId: channel.refId });
+    } catch (error: any) {
+      console.error("Get chat channel error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get chat messages with pagination
+  app.get("/api/chat/messages", async (req: Request, res: Response) => {
+    try {
+      const { channelId, cursor } = req.query;
+      
+      if (!channelId) {
+        return res.status(400).json({ error: "channelId is required" });
+      }
+
+      const { chatService } = await import("./services/ChatService");
+      const result = await chatService.getMessages(
+        channelId as string, 
+        cursor as string | undefined,
+        50
+      );
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error("Get chat messages error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   await EmailService.ensureDefaultTemplates();
 
   app.get("/api/admin/email-templates", async (req: Request, res: Response) => {

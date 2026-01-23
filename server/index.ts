@@ -6,6 +6,7 @@ import * as path from "path";
 import { runMigrations } from 'stripe-replit-sync';
 import { getStripeSync } from './stripeClient';
 import { WebhookHandlers } from './webhookHandlers';
+import { chatService } from './services/ChatService';
 
 const app = express();
 const log = console.log;
@@ -354,6 +355,9 @@ function setupErrorHandler(app: express.Application) {
   configureExpoAndLanding(app);
 
   const server = await registerRoutes(app);
+
+  // Initialize chat Socket.io service
+  chatService.initialize(server);
 
   setupErrorHandler(app);
 
