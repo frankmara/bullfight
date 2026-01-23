@@ -212,41 +212,157 @@ function OddsDisplay({ odds, challengerName, inviteeName }: {
   );
 }
 
+interface SettlementInfo {
+  status: string;
+  winnerUserId: string | null;
+  totalPool: number;
+  challengerPool: number;
+  inviteePool: number;
+  rakeBps: number;
+  betCount: number;
+  challenger: { id: string; username: string };
+  invitee: { id: string; username: string };
+}
+
+interface UserBet {
+  id: string;
+  marketId: string;
+  bettorId: string;
+  pickUserId: string;
+  amountTokens: number;
+  status: string;
+  placedAt: string;
+}
+
+interface UserBetsResponse {
+  bets: UserBet[];
+  market: {
+    id: string;
+    status: string;
+    winnerUserId: string | null;
+    rakeBps: number;
+  } | null;
+}
+
 function BetBehindPanel({ 
   bettingEnabled, 
   matchId,
   challengerName,
-  inviteeName 
+  inviteeName,
+  challengerId,
+  inviteeId,
+  liveStatus 
 }: { 
   bettingEnabled: boolean;
   matchId: string;
   challengerName: string;
   inviteeName: string;
+  challengerId: string;
+  inviteeId: string;
+  liveStatus: string;
 }) {
+  const { user } = useAuth();
+  
   const { data: bettingStatus } = useQuery<{ enabled: boolean }>({
     queryKey: ["/api/betting/status"],
   });
 
+  const { data: settlementData } = useQuery<SettlementInfo>({
+    queryKey: ["/api/betting/matches", matchId, "settlement"],
+    enabled: bettingEnabled && liveStatus === "ended",
+  });
+
+  const { data: userBetsData } = useQuery<UserBetsResponse>({
+    queryKey: ["/api/betting/matches", matchId, "my-bets"],
+    enabled: bettingEnabled && !!user,
+  });
+
   const isFeatureEnabled = bettingStatus?.enabled ?? false;
-  const { odds } = useBettingOdds({ matchId, enabled: bettingEnabled && isFeatureEnabled });
+  const { odds } = useBettingOdds({ matchId, enabled: bettingEnabled && isFeatureEnabled && liveStatus === "live" });
 
   if (!bettingEnabled) {
     return null;
   }
+
+  const isSettled = settlementData?.status === "SETTLED";
+  const winnerUsername = settlementData?.winnerUserId === challengerId 
+    ? challengerName 
+    : settlementData?.winnerUserId === inviteeId 
+      ? inviteeName 
+      : null;
+
+  const userBets = userBetsData?.bets || [];
+  const market = userBetsData?.market;
+  
+  const getPickName = (pickUserId: string) => {
+    if (pickUserId === challengerId) return challengerName;
+    if (pickUserId === inviteeId) return inviteeName;
+    return "Unknown";
+  };
+
+  const getBetResult = (bet: UserBet) => {
+    if (bet.status === "PLACED") return { label: "Pending", color: Colors.dark.warning };
+    if (bet.status === "REFUNDED") return { label: "Refunded", color: Colors.dark.textMuted };
+    if (bet.status === "SETTLED") {
+      const won = bet.pickUserId === market?.winnerUserId;
+      return won 
+        ? { label: "Won", color: Colors.dark.success }
+        : { label: "Lost", color: Colors.dark.danger };
+    }
+    return { label: bet.status, color: Colors.dark.textMuted };
+  };
   
   return (
     <View style={styles.betBehindPanel}>
       <View style={styles.betBehindHeader}>
         <Feather name="dollar-sign" size={16} color={Colors.dark.warning} />
         <ThemedText style={styles.betBehindTitle}>Bet Behind</ThemedText>
-        <View style={styles.betBehindBadge}>
-          <ThemedText style={styles.betBehindBadgeText}>
-            {isFeatureEnabled ? "LIVE" : "Disabled"}
+        <View style={[
+          styles.betBehindBadge, 
+          isSettled && { backgroundColor: Colors.dark.success + "30" }
+        ]}>
+          <ThemedText style={[
+            styles.betBehindBadgeText,
+            isSettled && { color: Colors.dark.success }
+          ]}>
+            {isSettled ? "SETTLED" : isFeatureEnabled ? "LIVE" : "Disabled"}
           </ThemedText>
         </View>
       </View>
-      
-      {isFeatureEnabled && odds ? (
+
+      {isSettled && settlementData ? (
+        <View style={styles.settlementContainer}>
+          <View style={styles.winnerAnnouncement}>
+            <Feather name="award" size={24} color={Colors.dark.warning} />
+            <ThemedText style={styles.winnerText}>
+              Winner: {winnerUsername || "Unknown"}
+            </ThemedText>
+          </View>
+          
+          <View style={styles.settlementStats}>
+            <View style={styles.settlementStatRow}>
+              <ThemedText style={styles.settlementLabel}>Total Pool</ThemedText>
+              <ThemedText style={styles.settlementValue}>{settlementData.totalPool} tokens</ThemedText>
+            </View>
+            <View style={styles.settlementStatRow}>
+              <ThemedText style={styles.settlementLabel}>{challengerName}'s Pool</ThemedText>
+              <ThemedText style={styles.settlementValue}>{settlementData.challengerPool} tokens</ThemedText>
+            </View>
+            <View style={styles.settlementStatRow}>
+              <ThemedText style={styles.settlementLabel}>{inviteeName}'s Pool</ThemedText>
+              <ThemedText style={styles.settlementValue}>{settlementData.inviteePool} tokens</ThemedText>
+            </View>
+            <View style={styles.settlementStatRow}>
+              <ThemedText style={styles.settlementLabel}>House Rake</ThemedText>
+              <ThemedText style={styles.settlementValue}>{(settlementData.rakeBps / 100).toFixed(1)}%</ThemedText>
+            </View>
+            <View style={styles.settlementStatRow}>
+              <ThemedText style={styles.settlementLabel}>Total Bets</ThemedText>
+              <ThemedText style={styles.settlementValue}>{settlementData.betCount}</ThemedText>
+            </View>
+          </View>
+        </View>
+      ) : isFeatureEnabled && odds ? (
         <OddsDisplay 
           odds={odds} 
           challengerName={challengerName} 
@@ -261,6 +377,30 @@ function BetBehindPanel({
           Betting is currently disabled on this platform.
         </ThemedText>
       )}
+
+      {userBets.length > 0 ? (
+        <View style={styles.userBetsSection}>
+          <ThemedText style={styles.userBetsTitle}>Your Bets</ThemedText>
+          {userBets.map((bet) => {
+            const result = getBetResult(bet);
+            return (
+              <View key={bet.id} style={styles.userBetRow}>
+                <View style={styles.userBetInfo}>
+                  <ThemedText style={styles.userBetPick}>
+                    Backed: {getPickName(bet.pickUserId)}
+                  </ThemedText>
+                  <ThemedText style={styles.userBetAmount}>{bet.amountTokens} tokens</ThemedText>
+                </View>
+                <View style={[styles.userBetStatus, { backgroundColor: result.color + "20" }]}>
+                  <ThemedText style={[styles.userBetStatusText, { color: result.color }]}>
+                    {result.label}
+                  </ThemedText>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -430,6 +570,9 @@ export default function WatchPvPScreen() {
           matchId={matchId}
           challengerName={data.challenger.username}
           inviteeName={data.invitee.username}
+          challengerId={data.challenger.id}
+          inviteeId={data.invitee.id}
+          liveStatus={effectiveLiveStatus}
         />
       </ScrollView>
       
@@ -885,6 +1028,82 @@ const styles = StyleSheet.create({
   },
   retryText: {
     color: Colors.dark.buttonText,
+    fontWeight: "600",
+  },
+  settlementContainer: {
+    marginTop: Spacing.md,
+  },
+  winnerAnnouncement: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    backgroundColor: Colors.dark.warning + "15",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.md,
+  },
+  winnerText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: Colors.dark.warning,
+  },
+  settlementStats: {
+    gap: Spacing.sm,
+  },
+  settlementStatRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  settlementLabel: {
+    fontSize: 13,
+    color: Colors.dark.textMuted,
+  },
+  settlementValue: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Colors.dark.text,
+  },
+  userBetsSection: {
+    marginTop: Spacing.lg,
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.dark.border,
+    gap: Spacing.sm,
+  },
+  userBetsTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.dark.text,
+    marginBottom: Spacing.xs,
+  },
+  userBetRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: Colors.dark.backgroundSecondary,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+  },
+  userBetInfo: {
+    flex: 1,
+  },
+  userBetPick: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: Colors.dark.text,
+  },
+  userBetAmount: {
+    fontSize: 12,
+    color: Colors.dark.textMuted,
+  },
+  userBetStatus: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+  },
+  userBetStatusText: {
+    fontSize: 11,
     fontWeight: "600",
   },
 });
