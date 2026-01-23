@@ -432,3 +432,46 @@ export const candleCache = pgTable("candle_cache", {
 });
 
 export type CandleCacheEntry = typeof candleCache.$inferSelect;
+
+export const wallets = pgTable("wallets", {
+  userId: varchar("user_id")
+    .primaryKey()
+    .references(() => users.id)
+    .notNull(),
+  balanceTokens: integer("balance_tokens").notNull().default(0),
+  lockedTokens: integer("locked_tokens").notNull().default(0),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const tokenTransactionKinds = [
+  "PURCHASE",
+  "COMPETITION_ENTRY",
+  "PVP_STAKE_LOCK",
+  "PVP_STAKE_RELEASE",
+  "BET_PLACE",
+  "BET_REFUND",
+  "BET_PAYOUT",
+  "RAKE_FEE",
+  "ADJUSTMENT",
+] as const;
+
+export type TokenTransactionKind = typeof tokenTransactionKinds[number];
+
+export const tokenTransactions = pgTable("token_transactions", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id")
+    .references(() => users.id)
+    .notNull(),
+  kind: text("kind").notNull(),
+  amountTokens: integer("amount_tokens").notNull(),
+  referenceType: text("reference_type"),
+  referenceId: text("reference_id"),
+  metadataJson: jsonb("metadata_json"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type Wallet = typeof wallets.$inferSelect;
+export type TokenTransaction = typeof tokenTransactions.$inferSelect;
+export type InsertTokenTransaction = typeof tokenTransactions.$inferInsert;
