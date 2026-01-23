@@ -577,3 +577,50 @@ export type ChatMessage = typeof chatMessages.$inferSelect;
 export type InsertChatMessage = typeof chatMessages.$inferInsert;
 export type ChatReport = typeof chatReports.$inferSelect;
 export type InsertChatReport = typeof chatReports.$inferInsert;
+
+export const betMarketStatuses = ["OPEN", "CLOSED", "SETTLED", "VOID"] as const;
+export type BetMarketStatus = typeof betMarketStatuses[number];
+
+export const betMarkets = pgTable("bet_markets", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  matchId: varchar("match_id")
+    .references(() => pvpChallenges.id)
+    .notNull(),
+  status: text("status").notNull().default("OPEN"),
+  rakeBps: integer("rake_bps").notNull().default(500),
+  openAt: timestamp("open_at").defaultNow().notNull(),
+  closeAt: timestamp("close_at"),
+  minBetTokens: integer("min_bet_tokens").notNull().default(1),
+  maxBetTokensPerUser: integer("max_bet_tokens_per_user").notNull().default(500),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  settledAt: timestamp("settled_at"),
+  winnerUserId: varchar("winner_user_id").references(() => users.id),
+});
+
+export const betStatuses = ["PLACED", "REFUNDED", "SETTLED"] as const;
+export type BetStatus = typeof betStatuses[number];
+
+export const bets = pgTable("bets", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  marketId: varchar("market_id")
+    .references(() => betMarkets.id)
+    .notNull(),
+  bettorId: varchar("bettor_id")
+    .references(() => users.id)
+    .notNull(),
+  pickUserId: varchar("pick_user_id")
+    .references(() => users.id)
+    .notNull(),
+  amountTokens: integer("amount_tokens").notNull(),
+  placedAt: timestamp("placed_at").defaultNow().notNull(),
+  status: text("status").notNull().default("PLACED"),
+});
+
+export type BetMarket = typeof betMarkets.$inferSelect;
+export type InsertBetMarket = typeof betMarkets.$inferInsert;
+export type Bet = typeof bets.$inferSelect;
+export type InsertBet = typeof bets.$inferInsert;

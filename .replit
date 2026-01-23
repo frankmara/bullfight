@@ -77,3 +77,4 @@ ensurePreviewReachable = "/status"
 [userenv]
 
 [userenv.shared]
+ENABLE_BET_BEHIND = "false"
