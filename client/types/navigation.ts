@@ -12,6 +12,9 @@ export type RootStackParamList = {
   AdminCompetitions: undefined;
   AdminEmail: undefined;
   AdminEmailEditor: { type: string };
+  AdminArenaMode: undefined;
+  AdminChat: undefined;
+  AdminBetting: undefined;
   CreateCompetition: undefined;
   EditCompetition: { id: string };
   PvPList: undefined;

@@ -104,6 +104,54 @@ export default function AdminScreen() {
           </View>
           <Feather name="chevron-right" size={20} color={Colors.dark.textMuted} />
         </Pressable>
+
+        <Pressable
+          style={styles.menuItem}
+          onPress={() => navigation.navigate("AdminArenaMode")}
+        >
+          <View style={styles.menuItemIcon}>
+            <Feather name="play-circle" size={24} color={Colors.dark.danger} />
+          </View>
+          <View style={styles.menuItemContent}>
+            <ThemedText style={styles.menuItemTitle}>Arena Mode</ThemedText>
+            <ThemedText style={styles.menuItemDescription}>
+              Manage arena matches and featured events
+            </ThemedText>
+          </View>
+          <Feather name="chevron-right" size={20} color={Colors.dark.textMuted} />
+        </Pressable>
+
+        <Pressable
+          style={styles.menuItem}
+          onPress={() => navigation.navigate("AdminChat")}
+        >
+          <View style={styles.menuItemIcon}>
+            <Feather name="message-circle" size={24} color={Colors.dark.warning} />
+          </View>
+          <View style={styles.menuItemContent}>
+            <ThemedText style={styles.menuItemTitle}>Chat Moderation</ThemedText>
+            <ThemedText style={styles.menuItemDescription}>
+              Manage mutes, bans and messages
+            </ThemedText>
+          </View>
+          <Feather name="chevron-right" size={20} color={Colors.dark.textMuted} />
+        </Pressable>
+
+        <Pressable
+          style={styles.menuItem}
+          onPress={() => navigation.navigate("AdminBetting")}
+        >
+          <View style={styles.menuItemIcon}>
+            <Feather name="dollar-sign" size={24} color={Colors.dark.gold} />
+          </View>
+          <View style={styles.menuItemContent}>
+            <ThemedText style={styles.menuItemTitle}>Betting Controls</ThemedText>
+            <ThemedText style={styles.menuItemDescription}>
+              Settings, markets, and risk monitoring
+            </ThemedText>
+          </View>
+          <Feather name="chevron-right" size={20} color={Colors.dark.textMuted} />
+        </Pressable>
       </View>
     </View>
   );

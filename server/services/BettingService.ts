@@ -1,11 +1,25 @@
 import { db } from "../db";
-import { betMarkets, bets, wallets, tokenTransactions, pvpChallenges, users } from "@shared/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { betMarkets, bets, wallets, tokenTransactions, pvpChallenges, users, platformSettings, betRateLimits } from "@shared/schema";
+import { eq, and, sql, gt } from "drizzle-orm";
 
 export const HOUSE_USER_ID = "00000000-0000-0000-0000-000000000000";
 
+// Default rate limit settings
+const DEFAULT_MAX_BETS_PER_USER_PER_MARKET = 5;
+const DEFAULT_BET_RATE_LIMIT_SECONDS = 10;
+const DEFAULT_BET_CUTOFF_PERCENT = 20; // 20% of match duration
+const DEFAULT_BET_CUTOFF_MAX_MINUTES = 5; // max 5 minutes after start
+
 export function isBettingEnabled(): boolean {
   return process.env.ENABLE_BET_BEHIND === "true";
+}
+
+async function getPlatformSetting(key: string, defaultValue: string): Promise<string> {
+  const [setting] = await db
+    .select()
+    .from(platformSettings)
+    .where(eq(platformSettings.key, key));
+  return setting?.value || defaultValue;
 }
 
 async function ensureHouseUserExists(): Promise<void> {
@@ -99,6 +113,60 @@ export class BettingService {
       return { success: false, error: "Market is not open for betting" };
     }
 
+    // Check bet cutoff time
+    const [challenge] = await db
+      .select()
+      .from(pvpChallenges)
+      .where(eq(pvpChallenges.id, market.matchId))
+      .limit(1);
+
+    if (challenge && challenge.liveStatus === "live" && challenge.liveStartedAt) {
+      const cutoffPercentStr = await getPlatformSetting("BET_CUTOFF_PERCENT", String(DEFAULT_BET_CUTOFF_PERCENT));
+      const cutoffMaxMinutesStr = await getPlatformSetting("BET_CUTOFF_MAX_MINUTES", String(DEFAULT_BET_CUTOFF_MAX_MINUTES));
+      const cutoffPercent = parseInt(cutoffPercentStr, 10);
+      const cutoffMaxMinutes = parseInt(cutoffMaxMinutesStr, 10);
+      
+      const matchDurationMinutes = challenge.durationMinutes || 30;
+      const percentCutoffMinutes = (matchDurationMinutes * cutoffPercent) / 100;
+      const effectiveCutoffMinutes = Math.min(percentCutoffMinutes, cutoffMaxMinutes);
+      
+      const cutoffTime = new Date(challenge.liveStartedAt.getTime() + effectiveCutoffMinutes * 60 * 1000);
+      if (new Date() > cutoffTime) {
+        return { success: false, error: "Betting window has closed for this match" };
+      }
+    }
+
+    // Check rate limiting - max bets per user per market
+    const maxBetsStr = await getPlatformSetting("MAX_BETS_PER_USER_PER_MARKET", String(DEFAULT_MAX_BETS_PER_USER_PER_MARKET));
+    const maxBets = parseInt(maxBetsStr, 10);
+    
+    const [betCountResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(bets)
+      .where(and(eq(bets.marketId, marketId), eq(bets.bettorId, bettorId)));
+    
+    const betCount = betCountResult?.count || 0;
+    if (betCount >= maxBets) {
+      return { success: false, error: `Maximum ${maxBets} bets allowed per match` };
+    }
+
+    // Check rate limiting - cooldown between bets
+    const rateLimitSecondsStr = await getPlatformSetting("BET_RATE_LIMIT_SECONDS", String(DEFAULT_BET_RATE_LIMIT_SECONDS));
+    const rateLimitSeconds = parseInt(rateLimitSecondsStr, 10);
+    
+    const [lastBetLimit] = await db
+      .select()
+      .from(betRateLimits)
+      .where(and(eq(betRateLimits.userId, bettorId), eq(betRateLimits.marketId, marketId)));
+    
+    if (lastBetLimit && lastBetLimit.lastBetAt) {
+      const secondsSinceLastBet = (Date.now() - lastBetLimit.lastBetAt.getTime()) / 1000;
+      if (secondsSinceLastBet < rateLimitSeconds) {
+        const waitTime = Math.ceil(rateLimitSeconds - secondsSinceLastBet);
+        return { success: false, error: `Please wait ${waitTime} seconds before placing another bet` };
+      }
+    }
+
     if (amountTokens < market.minBetTokens) {
       return { success: false, error: `Minimum bet is ${market.minBetTokens} tokens` };
     }
@@ -131,6 +199,7 @@ export class BettingService {
       return { success: false, error: "Insufficient tokens" };
     }
 
+    // Lock tokens
     await db
       .update(wallets)
       .set({ lockedTokens: wallet.lockedTokens + amountTokens })
@@ -154,6 +223,21 @@ export class BettingService {
         status: "PLACED",
       })
       .returning();
+
+    // Update rate limit tracking
+    if (lastBetLimit) {
+      await db
+        .update(betRateLimits)
+        .set({ betCount: lastBetLimit.betCount + 1, lastBetAt: new Date() })
+        .where(eq(betRateLimits.id, lastBetLimit.id));
+    } else {
+      await db.insert(betRateLimits).values({
+        userId: bettorId,
+        marketId,
+        betCount: 1,
+        lastBetAt: new Date(),
+      });
+    }
 
     console.log("[BettingService] Placed bet", bet.id, "for", amountTokens, "tokens on", pickUserId);
     return { success: true, betId: bet.id };

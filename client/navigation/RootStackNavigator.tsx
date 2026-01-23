@@ -10,6 +10,9 @@ import AdminScreen from "@/screens/AdminScreen";
 import AdminCompetitionsScreen from "@/screens/AdminCompetitionsScreen";
 import AdminEmailScreen from "@/screens/AdminEmailScreen";
 import AdminEmailEditorScreen from "@/screens/AdminEmailEditorScreen";
+import AdminArenaModeScreen from "@/screens/AdminArenaModeScreen";
+import AdminChatScreen from "@/screens/AdminChatScreen";
+import AdminBettingScreen from "@/screens/AdminBettingScreen";
 import CreateCompetitionScreen from "@/screens/CreateCompetitionScreen";
 import PvPListScreen from "@/screens/PvPListScreen";
 import PvPNewScreen from "@/screens/PvPNewScreen";
@@ -112,6 +115,27 @@ export default function RootStackNavigator() {
         component={AdminEmailEditorScreen}
         options={{
           headerTitle: "Edit Template",
+        }}
+      />
+      <Stack.Screen
+        name="AdminArenaMode"
+        component={AdminArenaModeScreen}
+        options={{
+          headerTitle: "Arena Mode",
+        }}
+      />
+      <Stack.Screen
+        name="AdminChat"
+        component={AdminChatScreen}
+        options={{
+          headerTitle: "Chat Moderation",
+        }}
+      />
+      <Stack.Screen
+        name="AdminBetting"
+        component={AdminBettingScreen}
+        options={{
+          headerTitle: "Betting Controls",
         }}
       />
       <Stack.Screen
