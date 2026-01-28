@@ -41,6 +41,9 @@ COPY --from=builder /app/shared ./shared
 # Copy drizzle config for migrations
 COPY --from=builder /app/drizzle.config.ts ./
 
+# Copy server templates (landing page, etc.)
+COPY --from=builder /app/server/templates ./server/templates
+
 # Expose port
 EXPOSE 5000
 
