@@ -26,8 +26,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install production dependencies only
-RUN npm ci --omit=dev
+# Install ALL dependencies (need drizzle-kit for migrations)
+RUN npm ci
 
 # Copy built server from builder
 COPY --from=builder /app/server_dist ./server_dist
@@ -44,6 +44,10 @@ COPY --from=builder /app/drizzle.config.ts ./
 # Copy server templates (landing page, etc.)
 COPY --from=builder /app/server/templates ./server/templates
 
+# Copy entrypoint script
+COPY docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh
+
 # Expose port
 EXPOSE 5000
 
@@ -51,5 +55,5 @@ EXPOSE 5000
 ENV NODE_ENV=production
 ENV PORT=5000
 
-# Start the server
-CMD ["node", "server_dist/index.js"]
+# Use entrypoint script to run migrations then start server
+ENTRYPOINT ["./docker-entrypoint.sh"]
