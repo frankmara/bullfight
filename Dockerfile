@@ -45,7 +45,7 @@ COPY --from=builder /app/drizzle.config.ts ./
 COPY --from=builder /app/server/templates ./server/templates
 
 # Copy entrypoint script
-COPY shared/docker-entrypoint.sh ./docker-entrypoint.sh
+COPY docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x docker-entrypoint.sh
 
 # Expose port

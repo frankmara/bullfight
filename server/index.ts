@@ -127,7 +127,15 @@ async function initStripe() {
     const stripeSync = await getStripeSync();
 
     // Set up managed webhook if domain is available
-    const domain = process.env.REPLIT_DOMAINS?.split(',')[0] || process.env.REPLIT_DEV_DOMAIN;
+    // Use ALLOWED_ORIGINS for production, fall back to Replit domains for development
+    let domain: string | undefined;
+    if (process.env.ALLOWED_ORIGINS) {
+      // Extract domain from ALLOWED_ORIGINS (e.g., "https://example.com" -> "example.com")
+      const origin = process.env.ALLOWED_ORIGINS.split(',')[0];
+      domain = origin.replace(/^https?:\/\//, '');
+    } else {
+      domain = process.env.REPLIT_DOMAINS?.split(',')[0] || process.env.REPLIT_DEV_DOMAIN;
+    }
     if (domain) {
       console.log('Setting up managed webhook...');
       const webhookUrl = `https://${domain}/api/stripe/webhook`;
