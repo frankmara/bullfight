@@ -239,15 +239,16 @@ function serveLandingPage({
   const expsUrl = `${host}`;
   
   // Web app URL:
-  // - In development (port 5000): redirect to port 8081 (Metro dev server)
-  // - In production (no port): redirect to /app route (static Expo build)
+  // - In development: redirect to port 8081 (Metro dev server)
+  // - In production: redirect to /app route (static Expo build)
   let webAppUrl: string;
-  if (host?.includes(":5000")) {
-    // Development mode - Metro runs on 8081
-    webAppUrl = `${protocol}://${host.replace(":5000", ":8081")}`;
-  } else {
+  const isProduction = process.env.NODE_ENV === "production";
+  if (isProduction) {
     // Production mode - serve static web app at /app route
     webAppUrl = `${protocol}://${host}/app`;
+  } else {
+    // Development mode - Metro runs on 8081
+    webAppUrl = `${protocol}://${host?.replace(":5000", ":8081") || host}`;
   }
 
   log(`baseUrl`, baseUrl);
