@@ -1,0 +1,38 @@
+root@bullfight:/opt/bullfight# docker compose up -d --build
+WARN[0000] The "DB_PASSWORD" variable is not set. Defaulting to a blank string.
+WARN[0000] The "DB_PASSWORD" variable is not set. Defaulting to a blank string.
+WARN[0000] The "STRIPE_SECRET_KEY" variable is not set. Defaulting to a blank string.
+WARN[0000] The "STRIPE_WEBHOOK_SECRET" variable is not set. Defaulting to a blank string.
+WARN[0000] The "RESEND_API_KEY" variable is not set. Defaulting to a blank string.
+WARN[0000] The "DB_PASSWORD" variable is not set. Defaulting to a blank string.
+WARN[0000] /opt/bullfight/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion
+[+] up 14/14
+ ✔ Image postgres:16-alpine Pulled                                                                                                                                                                           7.1s
+[+] Building 53.0s (8/17)
+ => [internal] load local bake definitions                                                                                                                                                                  0.0s
+ => => reading from stdin 472B                                                                                                                                                                              0.0s
+ => [internal] load build definition from Dockerfile                                                                                                                                                        0.1s
+ => => transferring dockerfile: 1.04kB                                                                                                                                                                      0.0s
+ => [internal] load metadata for docker.io/library/node:20-alpine                                                                                                                                           0.5s
+ => [internal] load .dockerignore                                                                                                                                                                           0.0s
+ => => transferring context: 214B                                                                                                                                                                           0.0s
+ => [builder 1/7] FROM docker.io/library/node:20-alpine@sha256:3960ed74dfe320a67bf8da9555b6bade25ebda2b22b6081d2f60fd7d5d430e9c                                                                             4.1s
+ => => resolve docker.io/library/node:20-alpine@sha256:3960ed74dfe320a67bf8da9555b6bade25ebda2b22b6081d2f60fd7d5d430e9c                                                                                     0.0s
+ => => sha256:41b3afaea3b1b1ab04a268431e10dcace7883019a5da7d326aa35dc9713fcbb5 445B / 445B                                                                                                                  0.3s
+ => => sha256:c2b4197efb6ccd7f8b482ae7800f1c9c78c044ea192587887300080bcff6b2c9 42.78MB / 42.78MB                                                                                                            1.4s
+ => => sha256:3dcec91425079e7b455efc5f2a18d026450c47c9382c41897620afc6b1424e44 1.26MB / 1.26MB                                                                                                              0.3s
+ => => extracting sha256:c2b4197efb6ccd7f8b482ae7800f1c9c78c044ea192587887300080bcff6b2c9                                                                                                                   2.0s
+ => => extracting sha256:3dcec91425079e7b455efc5f2a18d026450c47c9382c41897620afc6b1424e44                                                                                                                   0.1s
+ => => extracting sha256:41b3afaea3b1b1ab04a268431e10dcace7883019a5da7d326aa35dc9713fcbb5                                                                                                                   0.0s
+ => [internal] load build context                                                                                                                                                                           1.5s
+ => => transferring context: 45.57MB                                                                                                                                                                        1.4s
+ => [builder 2/7] WORKDIR /app                                                                                                                                                                              0.2s
+ => [builder 3/7] COPY package*.json ./                                                                                                                                                                     0.1s
+ => [builder 4/7] RUN npm ci                                                                                                                                                                               47.7s
+ => => # npm warn deprecated rimraf@3.0.2: Rimraf versions prior to v4 are no longer supported
+ => => # npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, whi
+ => => # ch is much more comprehensive and powerful.
+ => [production 4/8] RUN npm ci --omit=dev                                                                                                                                                                 47.7s
+ => => # npm warn deprecated rimraf@3.0.2: Rimraf versions prior to v4 are no longer supported
+ => => # npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, whi
+ => => # ch is much more comprehensive and powerful.

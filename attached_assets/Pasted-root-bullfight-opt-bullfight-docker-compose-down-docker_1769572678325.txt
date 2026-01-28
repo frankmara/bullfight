@@ -1,0 +1,18 @@
+root@bullfight:/opt/bullfight# docker compose down && docker compose up -d
+WARN[0000] The "STRIPE_SECRET_KEY" variable is not set. Defaulting to a blank string.
+WARN[0000] The "STRIPE_WEBHOOK_SECRET" variable is not set. Defaulting to a blank string.
+WARN[0000] The "RESEND_API_KEY" variable is not set. Defaulting to a blank string.
+WARN[0000] /opt/bullfight/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion
+[+] down 3/3
+ ✔ Container bullfight-app-1 Removed                                                                                                                                                                         0.0s
+ ✔ Container bullfight-db-1  Removed                                                                                                                                                                         0.1s
+ ✔ Network bullfight_default Removed                                                                                                                                                                         0.1s
+WARN[0000] The "STRIPE_SECRET_KEY" variable is not set. Defaulting to a blank string.
+WARN[0000] The "STRIPE_WEBHOOK_SECRET" variable is not set. Defaulting to a blank string.
+WARN[0000] The "RESEND_API_KEY" variable is not set. Defaulting to a blank string.
+WARN[0000] /opt/bullfight/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion
+[+] up 3/3
+ ✔ Network bullfight_default Created                                                                                                                                                                        0.1ss
+ ✔ Container bullfight-db-1  Healthy                                                                                                                                                                        11.1s
+ ✔ Container bullfight-app-1 Created                                                                                                                                                                        0.1ss
+root@bullfight:/opt/bullfight#

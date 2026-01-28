@@ -1,0 +1,55 @@
+root@bullfight:/opt/bullfight# docker compose up -d --build
+WARN[0000] The "DB_PASSWORD" variable is not set. Defaulting to a blank string.
+WARN[0000] The "DB_PASSWORD" variable is not set. Defaulting to a blank string.
+WARN[0000] The "STRIPE_SECRET_KEY" variable is not set. Defaulting to a blank string.
+WARN[0000] The "STRIPE_WEBHOOK_SECRET" variable is not set. Defaulting to a blank string.
+WARN[0000] The "RESEND_API_KEY" variable is not set. Defaulting to a blank string.
+WARN[0000] The "DB_PASSWORD" variable is not set. Defaulting to a blank string.
+WARN[0000] /opt/bullfight/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion
+[+] up 14/14
+ ✔ Image postgres:16-alpine Pulled                                                                                                                                                                           7.1s
+[+] Building 388.1s (19/19) FINISHED
+ => [internal] load local bake definitions                                                                                                                                                                  0.0s
+ => => reading from stdin 472B                                                                                                                                                                              0.0s
+ => [internal] load build definition from Dockerfile                                                                                                                                                        0.1s
+ => => transferring dockerfile: 1.04kB                                                                                                                                                                      0.0s
+ => [internal] load metadata for docker.io/library/node:20-alpine                                                                                                                                           0.5s
+ => [internal] load .dockerignore                                                                                                                                                                           0.0s
+ => => transferring context: 214B                                                                                                                                                                           0.0s
+ => [builder 1/7] FROM docker.io/library/node:20-alpine@sha256:3960ed74dfe320a67bf8da9555b6bade25ebda2b22b6081d2f60fd7d5d430e9c                                                                             4.1s
+ => => resolve docker.io/library/node:20-alpine@sha256:3960ed74dfe320a67bf8da9555b6bade25ebda2b22b6081d2f60fd7d5d430e9c                                                                                     0.0s
+ => => sha256:41b3afaea3b1b1ab04a268431e10dcace7883019a5da7d326aa35dc9713fcbb5 445B / 445B                                                                                                                  0.3s
+ => => sha256:c2b4197efb6ccd7f8b482ae7800f1c9c78c044ea192587887300080bcff6b2c9 42.78MB / 42.78MB                                                                                                            1.4s
+ => => sha256:3dcec91425079e7b455efc5f2a18d026450c47c9382c41897620afc6b1424e44 1.26MB / 1.26MB                                                                                                              0.3s
+ => => extracting sha256:c2b4197efb6ccd7f8b482ae7800f1c9c78c044ea192587887300080bcff6b2c9                                                                                                                   2.0s
+ => => extracting sha256:3dcec91425079e7b455efc5f2a18d026450c47c9382c41897620afc6b1424e44                                                                                                                   0.1s
+ => => extracting sha256:41b3afaea3b1b1ab04a268431e10dcace7883019a5da7d326aa35dc9713fcbb5                                                                                                                   0.0s
+ => [internal] load build context                                                                                                                                                                           1.5s
+ => => transferring context: 45.57MB                                                                                                                                                                        1.4s
+ => [builder 2/7] WORKDIR /app                                                                                                                                                                              0.2s
+ => [builder 3/7] COPY package*.json ./                                                                                                                                                                     0.1s
+ => [builder 4/7] RUN npm ci                                                                                                                                                                              121.6s
+ => [production 4/8] RUN npm ci --omit=dev                                                                                                                                                                111.1s
+ => [builder 5/7] COPY . .                                                                                                                                                                                  1.7s
+ => [builder 6/7] RUN npm run server:build                                                                                                                                                                  0.9s
+ => [builder 7/7] RUN npx expo export --platform web --output-dir dist                                                                                                                                    200.8s
+ => [production 5/8] COPY --from=builder /app/server_dist ./server_dist                                                                                                                                     1.5s
+ => [production 6/8] COPY --from=builder /app/dist ./dist                                                                                                                                                   0.2s
+ => [production 7/8] COPY --from=builder /app/shared ./shared                                                                                                                                               0.2s
+ => [production 8/8] COPY --from=builder /app/drizzle.config.ts ./                                                                                                                                          0.2s
+ => exporting to image                                                                                                                                                                                     53.3s
+ => => exporting layers                                                                                                                                                                                    39.0s
+ => => exporting manifest sha256:aae730fa4ff3311b3826bfd611ec52a524565f6fad04241d75edd140cdbb9fa6                                                                                                           0.0s
+ => => exporting config sha256:0b014f15ac6441e625796c60f2fd848e07ebc7eb0be1f2ff7f5f80dab03224fb                                                                                                             0.0s
+ => => exporting attestation manifest sha256:51068ba6ad0650b5e09e5645da35ddbb5733e101ad6ec16e80e163126420557d                                                                                               0.1s
+ => => exporting manifest list sha256:a3d20cdc2ec01e46b0df9061e7a913b052826ea14611bbb6dc4294c83c1dfddd                                                                                                      0.0s
+ => => naming to docker.io/library/bullfight-app:latest                                                                                                                                                     0.0s
+[+] up 19/19king to docker.io/library/bullfight-app:latest                                                                                                                                                 14.0s
+ ✔ Image postgres:16-alpine       Pulled                                                                                                                                                                   7.1ss
+ ✔ Image bullfight-app            Built                                                                                                                                                                    388.2s
+ ✔ Network bullfight_default      Created                                                                                                                                                                  0.1s
+ ✔ Volume bullfight_postgres_data Created                                                                                                                                                                  0.0s
+ ✘ Container bullfight-db-1       Error dependency db failed to start                                                                                                                                      2.9s
+ ✔ Container bullfight-app-1      Created                                                                                                                                                                  0.2s
+dependency failed to start: container bullfight-db-1 is unhealthy
+root@bullfight:/opt/bullfight#

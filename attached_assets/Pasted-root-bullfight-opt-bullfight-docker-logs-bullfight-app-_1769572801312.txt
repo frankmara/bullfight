@@ -1,0 +1,270 @@
+root@bullfight:/opt/bullfight# docker logs bullfight-app-1
+(node:1) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///app/server_dist/index.js is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /app/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[MarketDataService] Using Polygon.io for market data
+Initializing Stripe schema...
+[MarketDataService] WebSocket connected
+[MarketDataService] WebSocket closed, reconnecting...
+[MarketDataService] WebSocket connected
+[MarketDataService] WebSocket closed, reconnecting...
+[MarketDataService] WebSocket connected
+[MarketDataService] WebSocket closed, reconnecting...
+[MarketDataService] WebSocket connected
+[MarketDataService] WebSocket closed, reconnecting...
+[MarketDataService] WebSocket connected
+[MarketDataService] WebSocket closed, reconnecting...
+Stripe schema ready
+Failed to initialize Stripe: X_REPLIT_TOKEN not found for repl/depl
+node:fs:448
+    return binding.readFileUtf8(path, stringToFlags(options.flag));
+                   ^
+
+Error: ENOENT: no such file or directory, open '/app/server/templates/landing-page.html'
+    at Module.readFileSync (node:fs:448:20)
+    at configureExpoAndLanding (file:///app/server_dist/index.js:8104:34)
+    at file:///app/server_dist/index.js:8161:3
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/app/server/templates/landing-page.html'
+}
+
+Node.js v20.20.0
+(node:1) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///app/server_dist/index.js is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /app/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[MarketDataService] Using Polygon.io for market data
+Initializing Stripe schema...
+[MarketDataService] WebSocket connected
+[MarketDataService] WebSocket closed, reconnecting...
+Stripe schema ready
+Failed to initialize Stripe: X_REPLIT_TOKEN not found for repl/depl
+node:fs:448
+    return binding.readFileUtf8(path, stringToFlags(options.flag));
+                   ^
+
+Error: ENOENT: no such file or directory, open '/app/server/templates/landing-page.html'
+    at Module.readFileSync (node:fs:448:20)
+    at configureExpoAndLanding (file:///app/server_dist/index.js:8104:34)
+    at file:///app/server_dist/index.js:8161:3
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/app/server/templates/landing-page.html'
+}
+
+Node.js v20.20.0
+(node:1) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///app/server_dist/index.js is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /app/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[MarketDataService] Using Polygon.io for market data
+Initializing Stripe schema...
+[MarketDataService] WebSocket connected
+[MarketDataService] WebSocket closed, reconnecting...
+Stripe schema ready
+Failed to initialize Stripe: X_REPLIT_TOKEN not found for repl/depl
+node:fs:448
+    return binding.readFileUtf8(path, stringToFlags(options.flag));
+                   ^
+
+Error: ENOENT: no such file or directory, open '/app/server/templates/landing-page.html'
+    at Module.readFileSync (node:fs:448:20)
+    at configureExpoAndLanding (file:///app/server_dist/index.js:8104:34)
+    at file:///app/server_dist/index.js:8161:3
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/app/server/templates/landing-page.html'
+}
+
+Node.js v20.20.0
+(node:1) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///app/server_dist/index.js is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /app/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[MarketDataService] Using Polygon.io for market data
+Initializing Stripe schema...
+[MarketDataService] WebSocket connected
+[MarketDataService] WebSocket closed, reconnecting...
+Stripe schema ready
+Failed to initialize Stripe: X_REPLIT_TOKEN not found for repl/depl
+node:fs:448
+    return binding.readFileUtf8(path, stringToFlags(options.flag));
+                   ^
+
+Error: ENOENT: no such file or directory, open '/app/server/templates/landing-page.html'
+    at Module.readFileSync (node:fs:448:20)
+    at configureExpoAndLanding (file:///app/server_dist/index.js:8104:34)
+    at file:///app/server_dist/index.js:8161:3
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/app/server/templates/landing-page.html'
+}
+
+Node.js v20.20.0
+(node:1) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///app/server_dist/index.js is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /app/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[MarketDataService] Using Polygon.io for market data
+Initializing Stripe schema...
+[MarketDataService] WebSocket connected
+[MarketDataService] WebSocket closed, reconnecting...
+Stripe schema ready
+Failed to initialize Stripe: X_REPLIT_TOKEN not found for repl/depl
+node:fs:448
+    return binding.readFileUtf8(path, stringToFlags(options.flag));
+                   ^
+
+Error: ENOENT: no such file or directory, open '/app/server/templates/landing-page.html'
+    at Module.readFileSync (node:fs:448:20)
+    at configureExpoAndLanding (file:///app/server_dist/index.js:8104:34)
+    at file:///app/server_dist/index.js:8161:3
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/app/server/templates/landing-page.html'
+}
+
+Node.js v20.20.0
+(node:1) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///app/server_dist/index.js is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /app/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[MarketDataService] Using Polygon.io for market data
+Initializing Stripe schema...
+[MarketDataService] WebSocket connected
+[MarketDataService] WebSocket closed, reconnecting...
+Failed to initialize Stripe: X_REPLIT_TOKEN not found for repl/depl
+Stripe schema ready
+node:fs:448
+    return binding.readFileUtf8(path, stringToFlags(options.flag));
+                   ^
+
+Error: ENOENT: no such file or directory, open '/app/server/templates/landing-page.html'
+    at Module.readFileSync (node:fs:448:20)
+    at configureExpoAndLanding (file:///app/server_dist/index.js:8104:34)
+    at file:///app/server_dist/index.js:8161:3
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/app/server/templates/landing-page.html'
+}
+
+Node.js v20.20.0
+(node:1) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///app/server_dist/index.js is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /app/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[MarketDataService] Using Polygon.io for market data
+Initializing Stripe schema...
+[MarketDataService] WebSocket connected
+[MarketDataService] WebSocket closed, reconnecting...
+Stripe schema ready
+Failed to initialize Stripe: X_REPLIT_TOKEN not found for repl/depl
+node:fs:448
+    return binding.readFileUtf8(path, stringToFlags(options.flag));
+                   ^
+
+Error: ENOENT: no such file or directory, open '/app/server/templates/landing-page.html'
+    at Module.readFileSync (node:fs:448:20)
+    at configureExpoAndLanding (file:///app/server_dist/index.js:8104:34)
+    at file:///app/server_dist/index.js:8161:3
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/app/server/templates/landing-page.html'
+}
+
+Node.js v20.20.0
+(node:1) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///app/server_dist/index.js is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /app/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[MarketDataService] Using Polygon.io for market data
+Initializing Stripe schema...
+[MarketDataService] WebSocket connected
+[MarketDataService] WebSocket closed, reconnecting...
+Stripe schema ready
+Failed to initialize Stripe: X_REPLIT_TOKEN not found for repl/depl
+node:fs:448
+    return binding.readFileUtf8(path, stringToFlags(options.flag));
+                   ^
+
+Error: ENOENT: no such file or directory, open '/app/server/templates/landing-page.html'
+    at Module.readFileSync (node:fs:448:20)
+    at configureExpoAndLanding (file:///app/server_dist/index.js:8104:34)
+    at file:///app/server_dist/index.js:8161:3
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/app/server/templates/landing-page.html'
+}
+
+Node.js v20.20.0
+(node:1) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///app/server_dist/index.js is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /app/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[MarketDataService] Using Polygon.io for market data
+Initializing Stripe schema...
+[MarketDataService] WebSocket connected
+[MarketDataService] WebSocket closed, reconnecting...
+Stripe schema ready
+Failed to initialize Stripe: X_REPLIT_TOKEN not found for repl/depl
+node:fs:448
+    return binding.readFileUtf8(path, stringToFlags(options.flag));
+                   ^
+
+Error: ENOENT: no such file or directory, open '/app/server/templates/landing-page.html'
+    at Module.readFileSync (node:fs:448:20)
+    at configureExpoAndLanding (file:///app/server_dist/index.js:8104:34)
+    at file:///app/server_dist/index.js:8161:3
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/app/server/templates/landing-page.html'
+}
+
+Node.js v20.20.0
+(node:1) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///app/server_dist/index.js is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /app/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[MarketDataService] Using Polygon.io for market data
+Initializing Stripe schema...
+[MarketDataService] WebSocket connected
+[MarketDataService] WebSocket closed, reconnecting...
+Stripe schema ready
+Failed to initialize Stripe: X_REPLIT_TOKEN not found for repl/depl
+node:fs:448
+    return binding.readFileUtf8(path, stringToFlags(options.flag));
+                   ^
+
+Error: ENOENT: no such file or directory, open '/app/server/templates/landing-page.html'
+    at Module.readFileSync (node:fs:448:20)
+    at configureExpoAndLanding (file:///app/server_dist/index.js:8104:34)
+    at file:///app/server_dist/index.js:8161:3
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/app/server/templates/landing-page.html'
+}
+
+Node.js v20.20.0
+root@bullfight:/opt/bullfight#
