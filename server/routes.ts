@@ -353,7 +353,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .returning();
           const purchaseId = purchaseResult.id;
 
-          const baseUrl = `https://${process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+          const baseUrl = process.env.ALLOWED_ORIGINS?.split(',')[0] || `https://${process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DOMAINS?.split(',')[0]}`;
           
           const session = await stripe.checkout.sessions.create({
             line_items: [{
@@ -691,7 +691,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const stripe = await getUncachableStripeClient();
-      const baseUrl = `https://${process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+      const baseUrl = process.env.ALLOWED_ORIGINS?.split(',')[0] || `https://${process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DOMAINS?.split(',')[0]}`;
 
       const session = await stripe.checkout.sessions.create({
         line_items: [{
@@ -2264,7 +2264,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const stripe = await getUncachableStripeClient();
-      const baseUrl = `https://${process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+      const baseUrl = process.env.ALLOWED_ORIGINS?.split(',')[0] || `https://${process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DOMAINS?.split(',')[0]}`;
 
       const session = await stripe.checkout.sessions.create({
         line_items: [{

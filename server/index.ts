@@ -307,7 +307,10 @@ function configureExpoAndLanding(app: express.Application) {
   app.use(express.static(path.resolve(process.cwd(), "static-build")));
   
   // Serve Expo web build at /app for production
-  const webBuildPath = path.resolve(process.cwd(), "client", "dist");
+  // In Docker, the build is at /app/dist (not /app/client/dist)
+  const webBuildPath = process.env.NODE_ENV === "production" 
+    ? path.resolve(process.cwd(), "dist")
+    : path.resolve(process.cwd(), "client", "dist");
   app.use("/app", express.static(webBuildPath));
   
   // SPA fallback for /app routes - serve index.html for client-side routing
