@@ -20,6 +20,15 @@ import { db } from "./db";
 import { eq, and } from "drizzle-orm";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  app.get("/api/health", async (_req: Request, res: Response) => {
+    try {
+      await db.execute({ sql: "SELECT 1" });
+      res.json({ status: "healthy", timestamp: new Date().toISOString() });
+    } catch (error) {
+      res.status(503).json({ status: "unhealthy", error: "Database connection failed" });
+    }
+  });
+
   app.post("/api/auth/register", async (req: Request, res: Response) => {
     try {
       const { email, password, username } = req.body;
