@@ -248,7 +248,12 @@ function serveLandingPage({
     webAppUrl = `${protocol}://${host}/app`;
   } else {
     // Development mode - Metro runs on 8081
-    webAppUrl = `${protocol}://${host?.replace(":5000", ":8081") || host}`;
+    // Use REPLIT_DEV_DOMAIN if available, otherwise fall back to host manipulation
+    if (process.env.REPLIT_DEV_DOMAIN) {
+      webAppUrl = `https://${process.env.REPLIT_DEV_DOMAIN}:8081`;
+    } else {
+      webAppUrl = `${protocol}://${host?.replace(":5000", ":8081") || host}`;
+    }
   }
 
   log(`baseUrl`, baseUrl);
