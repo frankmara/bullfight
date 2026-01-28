@@ -1,0 +1,74 @@
+root@bullfight:/opt/bullfight# cd /opt/bullfight && git pull && docker compose down && docker compose up -d --build
+remote: Enumerating objects: 8, done.
+remote: Counting objects: 100% (8/8), done.
+remote: Compressing objects: 100% (3/3), done.
+remote: Total 5 (delta 2), reused 5 (delta 2), pack-reused 0 (from 0)
+Unpacking objects: 100% (5/5), 685 bytes | 137.00 KiB/s, done.
+From https://github.com/frankmara/bullfight
+   2a2424f..cab9af5  main       -> origin/main
+Updating 2a2424f..cab9af5
+Fast-forward
+ Dockerfile                  | 12 ++++++++----
+ shared/docker-entrypoint.sh |  8 ++++++++
+ 2 files changed, 16 insertions(+), 4 deletions(-)
+ create mode 100644 shared/docker-entrypoint.sh
+WARN[0000] The "STRIPE_SECRET_KEY" variable is not set. Defaulting to a blank string.
+WARN[0000] The "STRIPE_WEBHOOK_SECRET" variable is not set. Defaulting to a blank string.
+WARN[0000] The "RESEND_API_KEY" variable is not set. Defaulting to a blank string.
+WARN[0000] /opt/bullfight/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion
+[+] down 3/3
+ ✔ Container bullfight-app-1 Removed                                                                                0.1s
+ ✔ Container bullfight-db-1  Removed                                                                                0.4s
+ ✔ Network bullfight_default Removed                                                                                0.1s
+WARN[0000] The "STRIPE_SECRET_KEY" variable is not set. Defaulting to a blank string.
+WARN[0000] The "STRIPE_WEBHOOK_SECRET" variable is not set. Defaulting to a blank string.
+WARN[0000] The "RESEND_API_KEY" variable is not set. Defaulting to a blank string.
+WARN[0000] /opt/bullfight/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion
+[+] Building 0.8s (18/19)
+ => [internal] load local bake definitions                                                                         0.0s
+ => => reading from stdin 472B                                                                                     0.0s
+ => [internal] load build definition from Dockerfile                                                               0.0s
+ => => transferring dockerfile: 1.28kB                                                                             0.0s
+ => [internal] load metadata for docker.io/library/node:20-alpine                                                  0.2s
+ => [internal] load .dockerignore                                                                                  0.0s
+ => => transferring context: 214B                                                                                  0.0s
+ => [builder 1/7] FROM docker.io/library/node:20-alpine@sha256:3960ed74dfe320a67bf8da9555b6bade25ebda2b22b6081d2f  0.1s
+ => => resolve docker.io/library/node:20-alpine@sha256:3960ed74dfe320a67bf8da9555b6bade25ebda2b22b6081d2f60fd7d5d  0.0s
+ => [internal] load build context                                                                                  0.1s
+ => => transferring context: 35.46kB                                                                               0.0s
+ => CACHED [builder 2/7] WORKDIR /app                                                                              0.0s
+ => CACHED [builder 3/7] COPY package*.json ./                                                                     0.0s
+ => CACHED CANCELED [builder 4/7] RUN npm ci                                                                       0.0s
+ => CACHED [builder 5/7] COPY . .                                                                                  0.0s
+ => CACHED [builder 6/7] RUN npm run server:build                                                                  0.0s
+ => CACHED [builder 7/7] RUN npx expo export --platform web --output-dir dist                                      0.0s
+ => CACHED [production  5/11] COPY --from=builder /app/server_dist ./server_dist                                   0.0s
+ => CACHED [production  6/11] COPY --from=builder /app/dist ./dist                                                 0.0s
+ => CACHED [production  7/11] COPY --from=builder /app/shared ./shared                                             0.0s
+ => CACHED [production  8/11] COPY --from=builder /app/drizzle.config.ts ./                                        0.0s
+ => CACHED [production  9/11] COPY --from=builder /app/server/templates ./server/templates                         0.0s
+ => ERROR [production 10/11] COPY docker-entrypoint.sh ./                                                          0.0s
+------
+ > [production 10/11] COPY docker-entrypoint.sh ./:
+------
+[+] up 0/1
+ ⠙ Image bullfight-app Building                                                                                     0.9s
+Dockerfile:48
+
+--------------------
+
+  46 |
+
+  47 |     # Copy entrypoint script
+
+  48 | >>> COPY docker-entrypoint.sh ./
+
+  49 |     RUN chmod +x docker-entrypoint.sh
+
+  50 |
+
+--------------------
+
+failed to solve: failed to compute cache key: failed to calculate checksum of ref v6cu3anvs5l6w1yuszzpx0pgm::aspu4rksv14d54aahxmo6s66a: "/docker-entrypoint.sh": not found
+
+root@bullfight:/opt/bullfight#
